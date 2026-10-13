@@ -195,6 +195,7 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("checkEquipEdit", h.CheckEquipEdit)
 	dispatcher.Register("checkLimitWingEffect", h.CheckLimitWingEffect)
 	dispatcher.Register("getTBag", h.GetTBag)
+	dispatcher.Register("setTbagDire", h.SetTbagDire)
 	dispatcher.Register("openTempSlot", h.OpenTempSlot)
 	dispatcher.Register("openmxTempSlot", h.MxOpenSlot)
 	dispatcher.Register("mxBagSort", h.MxBagSort)

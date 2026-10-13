@@ -56,8 +56,8 @@ func (tp *TurnProcessor) resolveTarget(actor *Participant, targetID string) *Par
 		return nil
 	}
 
-	redirectedID := tp.statusManager.GetConfusionTarget(tp.battle, actor.ID, target.ID)
-	redirectedID = tp.statusManager.GetRebellionTarget(tp.battle, actor.ID, redirectedID)
+	redirectedID := tp.statusManager.GetConfusionTarget(tp.battle, actor.ID, target.ID, tp.rng)
+	redirectedID = tp.statusManager.GetRebellionTarget(tp.battle, actor.ID, redirectedID, tp.rng)
 	if redirectedID != target.ID {
 		redirected := tp.battle.GetParticipant(redirectedID)
 		if redirected != nil && redirected.IsAlive {
@@ -73,7 +73,21 @@ func (tp *TurnProcessor) executeAttack(actor *Participant, cmd *BattleCommand) [
 		zap.String("actor_id", actor.ID),
 		zap.String("target_id", cmd.TargetID))
 
-	target := tp.resolveTarget(actor, cmd.TargetID)
+	targetID := cmd.TargetID
+
+	targets := NewTargetResolver(tp.battle).ResolveTargets(
+		actor,
+		targetID,
+		TargetEnemy,
+		AreaNone,
+		1,
+	)
+
+	if len(targets) > 0 {
+		targetID = targets[0].ID
+	}
+
+	target := tp.resolveTarget(actor, targetID)
 	if target == nil {
 		return []*BattleAction{
 			{
@@ -102,6 +116,9 @@ func (tp *TurnProcessor) executeSkill(actor *Participant, cmd *BattleCommand) []
 	if info == nil {
 		return tp.executeAttack(actor, cmd)
 	}
+	if info.Plan != nil {
+		return tp.executeSkillPlan(actor, cmd, info)
+	}
 
 	sk := info.Template
 	if tp.isSkillOnCooldown(actor.ID, cmd.SkillID) {
@@ -124,7 +141,12 @@ func (tp *TurnProcessor) executeSkill(actor *Participant, cmd *BattleCommand) []
 	}
 
 	resolver := NewTargetResolver(tp.battle)
-	targets := resolver.ResolveTargets(actor, cmd.TargetID, info.CombatTarget, info.AreaType, info.AreaSize)
+	targetID := cmd.TargetID
+	if info.CombatTarget == TargetEnemy && info.AreaType == AreaNone {
+		targetID = tp.statusManager.GetConfusionTarget(tp.battle, actor.ID, targetID, tp.rng)
+		targetID = tp.statusManager.GetRebellionTarget(tp.battle, actor.ID, targetID, tp.rng)
+	}
+	targets := resolver.ResolveTargets(actor, targetID, info.CombatTarget, info.AreaType, info.AreaSize)
 	if len(targets) == 0 {
 		actions := []*BattleAction{
 			{

@@ -453,7 +453,36 @@ func (h *Handler) SelMultiItemByIdx(ctx *rtmp.RPCContext, args []interface{}) (i
 			return -1, nil
 		}
 		ctx.Connection.SendCallback("onAddPet", pets[0].ToDTO())
-	} else {
+	} else if choice.TableType == 19 {
+    colorCode := domainitem.EquipmentColorCodeFromQuality(choice.Quality)
+
+    newItem, addErr := h.itemService.AddItemWithColor(
+        ctx.Context,
+        characterID,
+        choice.ID,
+        domainitem.ItemTypeEquipment,
+        1,
+        colorCode,
+    )
+    if addErr != nil || newItem == nil {
+        return -1, nil
+    }
+
+    newItem, addErr = h.itemService.ApplyEquipmentAwardAttributes(
+        ctx.Context,
+        newItem.ID,
+        choice.Quality,
+        0,
+    )
+    if addErr != nil {
+        return -1, nil
+    }
+
+    ctx.Connection.SendCallback(
+        "onAddCharactorSlot",
+        h.itemDTO(newItem),
+    )
+		} else {
 		newItem, addErr := h.itemService.AddItem(ctx.Context, characterID, choice.ID, domainitem.ItemTypeConsumable, choice.StackNum)
 		if addErr != nil {
 			return -1, nil

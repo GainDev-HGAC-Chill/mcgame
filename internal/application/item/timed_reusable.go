@@ -20,6 +20,9 @@ func (s *Service) UsePreferredTimedOrConsumableItem(ctx context.Context, charID 
 			}
 			return nil, 0, false, err
 		}
+		if it == nil {
+			continue
+		}
 		tpl := s.GetItemTemplate(templateID)
 		if tpl == nil || tpl.T <= 0 {
 			used, deleted, err := s.ConsumeItemStackByID(ctx, charID, it.ID, 1)

@@ -123,3 +123,10 @@
 - Added immediate delete RPC using ownership-guarded SQL, secondary MD5 validation and cache invalidation.
 - Kept GameLoaders30.swf public URL, using fresh internal main asset 32 to bypass old main cache.
 - Migration and cleanup are staged; live rollout must be independently verified.
+
+## FIX-2026-10-14-14 — 52 họ skill chủ động Pet dùng sai damage/effect
+
+- Nguyên nhân: adapter dùng `expSkill`/`dexSkill` progression làm combat formula, buff ID ngoài 1..10 bị bỏ qua, skill support vẫn đi damage path và thiếu cơ chế battle-local cho stat/periodic/shield/control/special.
+- Sửa: thêm registry family+level phủ 144 template, domain `SkillPlan`/effect engine, effective-stat overlay, shared shield/invulnerability damage path, target override/dead ally/taunt và các cost/revive/dispel/transfer/rest/sacrifice đã duyệt.
+- Test: fixture catalog 144/52, focused application/domain tests và targeted vet PASS; domain cùng isolated catalog/adapter rerun cuối PASS cả test/vet. Build cuối bị chặn bởi lỗi ngoài phạm vi trong `internal/application/combat/rewards.go` và `internal/presentation/rtmp/handlers/item/use.go`.
+- Trạng thái: CODE_FIXED — chưa build gameserver ở trạng thái worktree hiện tại và chưa Flash smoke-test/deploy.

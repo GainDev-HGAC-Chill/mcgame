@@ -133,7 +133,7 @@ func (s *Service) initEffectHandlers() {
 	}
 
 	s.typeHandlers = map[int]ItemEffectHandler{
-		500: &scrollEffectHandler{},
+		500: &scrollEffectHandler{service: s},
 		501: &potionEffectHandler{},
 		502: &foodEffectHandler{},
 		503: &gemSocketHandler{itemService: s},
@@ -1319,6 +1319,31 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	var tpl *models.ItemTemplateTemplate
 	if s.gameDataRec != nil {
 		tpl = s.gameDataRec.GetItem(it.TemplateID)
+	}
+
+	if _, _, ok := expBookConfig(it.TemplateID); ok {
+		if count != 1 {
+			return nil, pkgerrors.ErrInvalidArgs
+		}
+
+		used, result, err := s.UseItem(
+			ctx,
+			char,
+			it.ID,
+			&UseContext{
+				TargetType: targetType,
+				TargetID:   petID,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		result["remaining"] = used.StackCount
+		result["item_id"] = used.ID
+		result["used_item"] = used
+
+		return result, nil
 	}
 
 	if it.TemplateID == 1132 {

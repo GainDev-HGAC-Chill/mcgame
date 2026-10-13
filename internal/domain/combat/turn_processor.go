@@ -84,6 +84,7 @@ type SkillInfo struct {
 	BuffID       int
 	BuffRate     float64
 	BuffDuration int
+	Plan         *SkillPlan
 }
 
 type SkillGetter interface {
@@ -258,16 +259,25 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 
 		turnResult := tp.statusManager.ProcessTurnStart(currentActor.ID, currentActor)
 		tp.accuracyModifiers[currentActor.ID] = turnResult.AccuracyModifier
+		if recoveryAction := tp.applyTurnStartRecovery(currentActor, turnResult); recoveryAction != nil {
+			result.Actions = append(result.Actions, recoveryAction)
+			tp.battle.AddAction(recoveryAction)
+		}
 
 		if turnResult.DamageTaken > 0 {
-			currentActor.TakeDamage(turnResult.DamageTaken)
+			damage := tp.applyDamage(currentActor, turnResult.PhysicalDamageTaken, false)
+			if currentActor.IsAlive {
+				damage += tp.applyDamage(currentActor, turnResult.MagicDamageTaken, true)
+			}
 			dotAction := &BattleAction{
 				Round:         tp.battle.CurrentRound,
 				ActorID:       currentActor.ID,
 				ActorPosition: currentActor.Position,
 				ActionType:    ActionTypeAuto,
 				TargetID:      currentActor.ID,
-				Damage:        turnResult.DamageTaken,
+				Damage:        damage,
+				TargetNewHP:   currentActor.CurrentHP,
+				TargetState:   map[string]interface{}{"hHp": currentActor.CurrentHP},
 				Effects:       []string{"dot"},
 			}
 			result.Actions = append(result.Actions, dotAction)
@@ -294,6 +304,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 				Effects:        []string{GetStatusEffectName(turnResult.BlockingEffect)},
 			}
 			result.Actions = append(result.Actions, skipAction)
+			tp.statusManager.ProcessTurnEnd(currentActor.ID)
 			continue
 		}
 
@@ -312,6 +323,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 				tp.battle.AddAction(action)
 			}
 		}
+		tp.statusManager.ProcessTurnEnd(currentActor.ID)
 
 		if tp.battle.HasPlayerFled() {
 			result.PlayerFled = true
@@ -415,16 +427,25 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 
 		turnResult := tp.statusManager.ProcessTurnStart(currentActor.ID, currentActor)
 		tp.accuracyModifiers[currentActor.ID] = turnResult.AccuracyModifier
+		if recoveryAction := tp.applyTurnStartRecovery(currentActor, turnResult); recoveryAction != nil {
+			result.Actions = append(result.Actions, recoveryAction)
+			tp.battle.AddAction(recoveryAction)
+		}
 
 		if turnResult.DamageTaken > 0 {
-			currentActor.TakeDamage(turnResult.DamageTaken)
+			damage := tp.applyDamage(currentActor, turnResult.PhysicalDamageTaken, false)
+			if currentActor.IsAlive {
+				damage += tp.applyDamage(currentActor, turnResult.MagicDamageTaken, true)
+			}
 			dotAction := &BattleAction{
 				Round:         tp.battle.CurrentRound,
 				ActorID:       currentActor.ID,
 				ActorPosition: currentActor.Position,
 				ActionType:    ActionTypeAuto,
 				TargetID:      currentActor.ID,
-				Damage:        turnResult.DamageTaken,
+				Damage:        damage,
+				TargetNewHP:   currentActor.CurrentHP,
+				TargetState:   map[string]interface{}{"hHp": currentActor.CurrentHP},
 				Effects:       []string{"dot"},
 			}
 			result.Actions = append(result.Actions, dotAction)
@@ -452,6 +473,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 				Effects:        []string{GetStatusEffectName(turnResult.BlockingEffect)},
 			}
 			result.Actions = append(result.Actions, skipAction)
+			tp.statusManager.ProcessTurnEnd(currentActor.ID)
 			continue
 		}
 
@@ -470,6 +492,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 				tp.battle.AddAction(action)
 			}
 		}
+		tp.statusManager.ProcessTurnEnd(currentActor.ID)
 
 		if tp.battle.HasPlayerFled() {
 			result.PlayerFled = true
@@ -524,10 +547,31 @@ func (tp *TurnProcessor) getOrderedActors() []*Participant {
 	}
 
 	sort.Slice(actors, func(i, j int) bool {
-		si := float64(actors[i].Speed) * tp.statusManager.GetSpeedModifier(actors[i].ID)
-		sj := float64(actors[j].Speed) * tp.statusManager.GetSpeedModifier(actors[j].ID)
+		si := float64(tp.statusManager.EffectiveParticipant(actors[i]).Speed) * tp.statusManager.GetSpeedModifier(actors[i].ID)
+		sj := float64(tp.statusManager.EffectiveParticipant(actors[j]).Speed) * tp.statusManager.GetSpeedModifier(actors[j].ID)
 		return si > sj
 	})
 
 	return actors
+}
+
+func (tp *TurnProcessor) applyTurnStartRecovery(actor *Participant, result *TurnStartResult) *BattleAction {
+	oldHP := actor.CurrentHP
+	oldMP := actor.CurrentMP
+	if result.Healing > 0 {
+		actor.Heal(result.Healing)
+	}
+	if result.MPRestored > 0 {
+		actor.CurrentMP = min(actor.MaxMP, actor.CurrentMP+result.MPRestored)
+	}
+	if actor.CurrentHP == oldHP && actor.CurrentMP == oldMP {
+		return nil
+	}
+	return &BattleAction{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeAuto, TargetNewHP: actor.CurrentHP, TargetNewMP: actor.CurrentMP, TargetState: map[string]interface{}{"rHp": actor.CurrentHP, "rMp": actor.CurrentMP}, Effects: []string{"periodic_recovery"}}
+}
+
+func (tp *TurnProcessor) applyDamage(target *Participant, damage int, magic bool) int {
+	applied := tp.statusManager.ApplyDamage(target.ID, damage, magic)
+	target.TakeDamage(applied)
+	return applied
 }

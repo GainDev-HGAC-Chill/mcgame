@@ -57,7 +57,13 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 	for i := 0; i < mxCount && i < 5; i++ {
 		mxExtraSlots += slotCapacity[i]
 	}
+	dire := 0
 
+	if char != nil && char.PMProcessData != nil {
+		if enabled, ok := char.PMProcessData["tempBagDire"].(bool); ok && enabled {
+			dire = 1
+		}
+	}
 	return map[string]interface{}{
 		"tempList":    tempList,
 		"tempBag":     installedBags,
@@ -65,7 +71,7 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 		"tempbagNum":  tempbagNum,
 		"curNum":      normalItemCount,
 		"ot":          0,
-		"dire":        0,
+		"dire":        dire,
 		"mx": map[string]interface{}{
 			"tempSlotNum": 12 + mxExtraSlots,
 			"tempbagNum":  mxTempbagNum,

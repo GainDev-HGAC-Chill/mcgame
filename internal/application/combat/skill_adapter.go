@@ -78,7 +78,7 @@ func buildSkillInfoFromGamedata(tpl *gamedatamodels.SkillTemplate) *combat.Skill
 		st.Multiplier = 1.0
 	}
 
-	return &combat.SkillInfo{
+	info := &combat.SkillInfo{
 		Template:     st,
 		CombatTarget: mapCombatTargetType(int(tpl.TargetType)),
 		AreaType:     mapAreaType(int(tpl.AreaAttack)),
@@ -87,6 +87,23 @@ func buildSkillInfoFromGamedata(tpl *gamedatamodels.SkillTemplate) *combat.Skill
 		BuffRate:     tpl.BuffRate / 100.0,
 		BuffDuration: int(tpl.BuffRound),
 	}
+	if int(tpl.Kind) == 1 {
+		plan := petActiveSkillPlan(tpl.Name, int(tpl.Level))
+		if plan == nil {
+			return info
+		}
+		info.Plan = plan
+		info.CombatTarget = plan.Target
+		info.AreaType = plan.Area
+		info.AreaSize = plan.TargetCount
+		for _, cost := range plan.Costs {
+			if cost.Resource == combat.ResourceMP {
+				info.Template.MPCost = 0
+				break
+			}
+		}
+	}
+	return info
 }
 
 func (a *GamedataSkillAdapter) GetCreatureSkillIDs(creatureTemplateID int) []int {

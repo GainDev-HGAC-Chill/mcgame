@@ -4,6 +4,7 @@
 
 - Hoàn tất bộ nhớ AI và bốn lỗi: găng thu thập, túi cứu thương HP/MP, timed transport disconnect, Pet fusion quality/tooltip/random.
 - Tiếp tục nhóm lỗi mới: callback/fusion Pet, nâng skill Pet, auto-skill, ranking, Quest Admin, xóa nhân vật và túi chế tạo.
+- Kiểm tra toàn bộ skill chủ động Pet theo target count, damage/heal và effect so với mô tả.
 
 ## Đã hoàn thành
 
@@ -51,12 +52,26 @@
 - Ranking đã xác nhận `rankGet` là stub và nhiều category thiếu semantics; chưa sửa bằng dữ liệu suy đoán.
 - Túi chế tạo crash tại template lookup của shop catalog runtime; catalog checked-in không có row hỏng nên cần ID row/template từ runtime trước khi sửa.
 - Quest Admin “chưa hoàn chỉnh” chưa nêu field/workflow cụ thể; source hiện có editor và có thể deployment đang cũ.
+- Audit 144 template/52 họ skill Pet tại `docs/research/2026-10-14_02_PET_ACTIVE_SKILL_AUDIT.md`: target thường phần lớn đúng số lượng, nhưng damage/heal sai hệ thống và gần như toàn bộ buff/special effect chưa hoạt động. Chưa sửa code vì còn năm nhóm semantics cần người dùng xác nhận.
+- Đã chốt: multiplier tính trên công Pet trước mitigation; Đoạt Mệnh/Liêu Hồn đơn mục tiêu và proc theo HP hiện tại mục tiêu; Nuốt Chửng xử lý một mục tiêu; mâu thuẫn data ưu tiên mô tả. Còn thiếu trị số/formula cho một số skill catalog không định lượng.
+- Đã chốt nốt trị số thiếu: Đoạt Mệnh/Liêu Hồn proc cộng 5/10/15% HP hiện tại; Ác Ma Chi Kích/Lời Ngọt Ngào 100/110/120%; Hiệp Ước Tử Thần +50% công/thủ trong 3 lượt; Duy Trì Tốc Độ và Suy Yếu Linh Hồn dùng 10/20/30%.
+- Đã chốt Nuốt Chửng hồi 10/15/20% max HP+MP; Tự Nhiên Thuẫn đơn/quần HoT bằng 65%/25% MagicAttack; Pháo Kích chỉ P100% + stun. Plan triển khai đã Approved tại `docs/plans/2026-10-14_01_PET_ACTIVE_SKILLS_COMBAT.md`.
+- Trong lúc audit xuất hiện thay đổi ngoài luồng ở `turn_executor.go`, item/quest/EXP helpers; không ghi đè. Diff combat mới chỉ đổi cách resolve target cho đánh thường, không thay đổi kết luận skill audit.
 
 ## Bước tiếp theo
 
 1. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
 2. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
 3. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
+4. Sau khi chốt damage basis, ba skill targetType 11 và nguồn ưu tiên description-vs-buff, lập plan sửa combat skill theo nhóm có test bảng dữ liệu.
+
+## 2026-10-14 - Pet active skill implementation checkpoint
+
+- Đã thêm domain `SkillPlan`, catalog registry phủ 144 template/52 family và effect engine battle-local cho damage/heal, stat/control, periodic, shield, revive, dispel, transfer, cost/rest/sacrifice.
+- Đã nối adapter vào catalog trước legacy behavior và route skill plan qua shared damage/status handling; fixture catalog, focused application/domain tests và targeted vet đã PASS trước khi thay đổi ngoài luồng mới xuất hiện.
+- Không chạm ba file item/quest/EXP ngoài luồng; hunk resolve target đánh thường hiện có trong `turn_executor.go` được giữ nguyên.
+- Domain cùng isolated catalog/adapter test/vet rerun cuối PASS. Full application test hiện bị chặn bởi biến `petExp` ngoài luồng trong `internal/application/combat/rewards.go`; build `bin/gameserver` còn bị chặn bởi cùng lỗi và syntax error ngoài luồng tại `internal/presentation/rtmp/handlers/item/use.go:508`.
+- Bước tiếp theo: sau khi luồng sở hữu các file ngoài phạm vi hoàn tất compile, chạy lại focused application/domain test, vet và `go build -o bin/gameserver ./cmd/gameserver`; sau đó cần Flash smoke-test được phê duyệt riêng.
 
 ## 2026-10-13 - Immediate Character Delete / 30 FPS Shared Link
 - Added immediate delete RPC using ownership-guarded SQL, secondary MD5 validation and cache invalidation.

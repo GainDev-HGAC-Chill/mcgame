@@ -52,6 +52,7 @@ type Service struct {
 	gamedataManagerMu  sync.RWMutex
 	endedBattleMu      sync.RWMutex
 	endedBattles       map[string]*endedBattleCacheEntry
+	expBuffProvider 	ExpBuffProvider
 }
 
 type endedBattleCacheEntry struct {

@@ -1583,34 +1583,27 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 	var targetColor int
 
 	switch refreshType {
+	case 0:
+		itemID = 731
+		targetColor = rand.Intn(5)
 	case 1:
-		itemID = 1330 // Trắng
+		itemID = 1330
 		targetColor = 0
 	case 2:
-		itemID = 1331 // Lục
+		itemID = 1331
 		targetColor = 1
 	case 3:
-		itemID = 1332 // Lam
+		itemID = 1332
 		targetColor = 2
 	case 4:
-		itemID = 1333 // Tím
+		itemID = 1333
 		targetColor = 3
 	case 5:
-		itemID = 1335 // Cam
+		itemID = 1335
 		targetColor = 4
-	case 6:
-		itemID = 731               // Random Refresh Item
-		targetColor = rand.Intn(5) // Random 0-4
 	default:
-		// Fallback for 0 based legacy calls if any, map 0->1330 (Color 0)
-		if refreshType == 0 {
-			itemID = 1330
-			targetColor = 0
-		} else {
-			return nil, nil, pkgerrors.ErrInvalidArgs
-		}
+		return nil, nil, pkgerrors.ErrInvalidArgs
 	}
-
 	// Check Limit
 	if !s.checkDailyRefreshLimit(charID) {
 		return nil, map[string]interface{}{
@@ -1619,21 +1612,6 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 		}, nil
 	}
 
-	// Consume Item
-	itemConsumed, err := s.itemService.ConsumeItemByTemplateID(ctx, charID, itemID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if itemConsumed == nil {
-		// Item not found
-		return nil, map[string]interface{}{
-			"f": false,
-			"t": 2, // Error type 2: Not enough items
-		}, nil
-	}
-
-	// Increment Limit
-	s.incrementDailyRefreshLimit(charID)
 
 	// Find Matching Quests from DB
 	if s.gameDataManager == nil {
@@ -1665,9 +1643,6 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 		// }
 
 		// Filter by Color (matches targetColor)
-		if int(q.Color) != targetColor {
-			continue
-		}
 
 		// Filter by Active
 		if activeIDs[int(q.ID)] {
@@ -1679,8 +1654,37 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 			continue
 		}
 
-		candidateQuests = append(candidateQuests, q)
+	candidateQuests = append(candidateQuests, q)
 	}
+
+	// Không có nhiệm vụ phù hợp thì không trừ vật phẩm
+	if len(candidateQuests) == 0 {
+		s.logger.Warn("RefreshCallBoard: no available quests",
+			zap.Int64("character_id", charID),
+			zap.Int("refresh_type", refreshType),
+			zap.Int("target_color", targetColor))
+
+		return nil, map[string]interface{}{
+			"f": false,
+			"t": 3,
+		}, nil
+	}
+
+	// Đã có nhiệm vụ mới, tiến hành tiêu hao lệnh kỳ
+	itemConsumed, err := s.itemService.ConsumeItemByTemplateID(ctx, charID, itemID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if itemConsumed == nil {
+		return nil, map[string]interface{}{
+			"f": false,
+			"t": 2,
+		}, nil
+	}
+
+	// Chỉ tính lượt làm mới khi tiêu hao thành công
+	s.incrementDailyRefreshLimit(charID)
 
 	// Shuffle and pick 10
 	rand.Shuffle(len(candidateQuests), func(i, j int) {

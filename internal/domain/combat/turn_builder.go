@@ -94,7 +94,9 @@ func (tp *TurnProcessor) buildDamageActions(
 			}
 		}
 
-		result := CalculateDamageWithPosition(actor, target, sk, accMod)
+		effectiveActor := tp.statusManager.EffectiveParticipant(actor)
+		effectiveTarget := tp.statusManager.EffectiveParticipant(target)
+		result := CalculateDamageWithPosition(effectiveActor, effectiveTarget, sk, accMod)
 		if tp.defendingIDs[target.ID] {
 			result.Damage = result.Damage / 2
 			result.IsBlocked = true
@@ -133,7 +135,7 @@ func (tp *TurnProcessor) buildDamageActions(
 
 		if !result.IsMiss {
 			preDamageHP := target.CurrentHP
-			target.TakeDamage(result.Damage)
+			result.Damage = tp.applyDamage(target, result.Damage, sk != nil && sk.SkillType == skill.SkillTypeMagic)
 			hitAction.TargetNewHP = target.CurrentHP
 			hitAction.TargetDisplayHP = preDamageHP - result.Damage
 			hitAction.HasDisplayHP = true
@@ -319,7 +321,7 @@ func (tp *TurnProcessor) buildComboActions(
 		Multiplier:  sk.Multiplier * ComboDamageMulti,
 	}
 
-	comboResult := CalculateDamage(actor, target, comboSk)
+	comboResult := CalculateDamage(tp.statusManager.EffectiveParticipant(actor), tp.statusManager.EffectiveParticipant(target), comboSk)
 	if tp.defendingIDs[target.ID] {
 		comboResult.Damage = comboResult.Damage / 2
 	}
@@ -346,7 +348,7 @@ func (tp *TurnProcessor) buildComboActions(
 
 	if !comboResult.IsMiss {
 		preDamageHP := target.CurrentHP
-		target.TakeDamage(comboResult.Damage)
+		comboResult.Damage = tp.applyDamage(target, comboResult.Damage, comboSk.SkillType == skill.SkillTypeMagic)
 		comboHit.TargetNewHP = target.CurrentHP
 		comboHit.TargetDisplayHP = preDamageHP - comboResult.Damage
 		comboHit.HasDisplayHP = true
@@ -393,7 +395,7 @@ func (tp *TurnProcessor) buildComboActions(
 }
 
 func (tp *TurnProcessor) buildCounterActions(counterAttacker, originalAttacker *Participant) []*BattleAction {
-	counterResult := CalculateCounterDamage(counterAttacker, originalAttacker)
+	counterResult := CalculateCounterDamage(tp.statusManager.EffectiveParticipant(counterAttacker), tp.statusManager.EffectiveParticipant(originalAttacker))
 
 	tp.logger.Debug("Counter damage calculated",
 		zap.Int("damage", counterResult.Damage),
@@ -435,7 +437,7 @@ func (tp *TurnProcessor) buildCounterActions(counterAttacker, originalAttacker *
 
 	if !counterResult.IsMiss {
 		preDamageHP := originalAttacker.CurrentHP
-		originalAttacker.TakeDamage(counterResult.Damage)
+		counterResult.Damage = tp.applyDamage(originalAttacker, counterResult.Damage, false)
 		counterHit.TargetNewHP = originalAttacker.CurrentHP
 		counterHit.TargetDisplayHP = preDamageHP - counterResult.Damage
 		counterHit.HasDisplayHP = true

@@ -277,7 +277,19 @@ func CalculateDamageWithPosition(attacker, defender *Participant, sk *skill.Skil
 	}
 
 	result := CalculateDamageWithAccuracy(attacker, defender, sk, accMod)
+	return applyPositionDamageModifier(attacker, defender, sk, result)
+}
 
+func CalculatePetSkillDamageWithPosition(attacker, defender *Participant, sk *skill.SkillTemplate, accuracyModifier ...float64) *DamageResult {
+	accMod := 1.0
+	if len(accuracyModifier) > 0 && accuracyModifier[0] > 0 {
+		accMod = accuracyModifier[0]
+	}
+	result := calculateDamageWithAccuracy(attacker, defender, sk, accMod, false)
+	return applyPositionDamageModifier(attacker, defender, sk, result)
+}
+
+func applyPositionDamageModifier(attacker, defender *Participant, sk *skill.SkillTemplate, result *DamageResult) *DamageResult {
 	if result.IsMiss {
 		return result
 	}
@@ -294,6 +306,10 @@ func CalculateDamageWithPosition(attacker, defender *Participant, sk *skill.Skil
 }
 
 func CalculateDamageWithAccuracy(attacker, defender *Participant, sk *skill.SkillTemplate, accuracyModifier float64) *DamageResult {
+	return calculateDamageWithAccuracy(attacker, defender, sk, accuracyModifier, true)
+}
+
+func calculateDamageWithAccuracy(attacker, defender *Participant, sk *skill.SkillTemplate, accuracyModifier float64, levelScaling bool) *DamageResult {
 	result := &DamageResult{}
 
 	dodgeChance := float64(defender.Dodge-attacker.Hit) / 100.0
@@ -321,8 +337,10 @@ func CalculateDamageWithAccuracy(attacker, defender *Participant, sk *skill.Skil
 	}
 	baseDamage += float64(sk.BaseDamage)
 
-	levelBonus := 1.0 + float64(attacker.Level)*0.02
-	baseDamage *= levelBonus
+	if levelScaling {
+		levelBonus := 1.0 + float64(attacker.Level)*0.02
+		baseDamage *= levelBonus
+	}
 
 	var penetration float64
 	if isMagic {

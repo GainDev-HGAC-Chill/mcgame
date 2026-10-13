@@ -51,8 +51,13 @@ func (s *Service) applyCharacterRewards(ctx context.Context, battle *domcombat.B
 		}
 
 		leveledUp := false
-		if result.ExpReward > 0 {
-			leveledUp = char.GainExperience(result.ExpReward)
+		expGained := result.ExpReward
+
+		if expGained > 0 {
+			expGained = s.applyExpMultiplier(
+				ctx, charID, expGained, false,
+			)
+			leveledUp = char.GainExperience(expGained)
 		}
 
 		if result.MoneyReward > 0 {
@@ -67,20 +72,25 @@ func (s *Service) applyCharacterRewards(ctx context.Context, battle *domcombat.B
 		}
 
 		reward := result.EnsureCharacterReward(charID)
-		reward.ExpReward = result.ExpReward
+		reward.ExpReward = expGained
 		reward.MoneyReward = result.MoneyReward
 		reward.LeveledUp = leveledUp
 
 		s.logger.Info("Character rewards applied",
 			zap.Int64("char_id", charID),
-			zap.Int64("exp", result.ExpReward),
+			zap.Int64("exp", expGained),
 			zap.Int64("money", result.MoneyReward),
 			zap.Bool("leveled_up", leveledUp),
 			zap.Int("new_level", char.Level))
 	}
 }
 
-func (s *Service) applyPetRewards(ctx context.Context, battle *domcombat.Battle, result *domcombat.BattleResult) {
+
+func (s *Service) applyPetRewards(
+	ctx context.Context,
+	battle *domcombat.Battle,
+	result *domcombat.BattleResult,
+) {
 	if result.WinnerSide != domcombat.SidePlayer {
 		return
 	}
@@ -88,41 +98,60 @@ func (s *Service) applyPetRewards(ctx context.Context, battle *domcombat.Battle,
 		return
 	}
 
-	petExp := int64(float64(result.ExpReward) * petExpShareRatio)
-	if petExp <= 0 {
+	basePetExp := int64(
+		float64(result.ExpReward) * petExpShareRatio,
+	)
+	if basePetExp <= 0 {
 		return
 	}
 
 	for _, p := range survivingRewardParticipants(battle) {
 		var petParticipant *domcombat.Participant
+
 		for _, pp := range battle.Participants {
-			if pp.EntityType == domcombat.ParticipantTypePet && pp.OwnerID == p.EntityID {
+			if pp.EntityType == domcombat.ParticipantTypePet &&
+				pp.OwnerID == p.EntityID {
 				petParticipant = pp
 				break
 			}
 		}
+
 		if petParticipant == nil {
 			continue
 		}
 
-		battlePet, err := s.petRepo.FindByID(ctx, petParticipant.EntityID)
+		battlePet, err := s.petRepo.FindByID(
+			ctx, petParticipant.EntityID,
+		)
 		if err != nil || battlePet == nil {
 			continue
 		}
 
+		petExp := s.applyExpMultiplier(
+			ctx,
+			p.EntityID,
+			basePetExp,
+			true,
+		)
+
 		leveledUp := battlePet.GainExperience(petExp)
+
 		if err := s.petRepo.Save(ctx, battlePet); err != nil {
-			s.logger.Warn("Failed to save pet rewards",
+			s.logger.Warn(
+				"Failed to save pet rewards",
 				zap.Int64("pet_id", battlePet.ID),
-				zap.Error(err))
+				zap.Error(err),
+			)
 			continue
 		}
 
-		s.logger.Info("Pet rewards applied",
+		s.logger.Info(
+			"Pet rewards applied",
 			zap.Int64("pet_id", battlePet.ID),
 			zap.Int64("exp", petExp),
 			zap.Bool("leveled_up", leveledUp),
-			zap.Int("new_level", battlePet.Level))
+			zap.Int("new_level", battlePet.Level),
+		)
 	}
 }
 

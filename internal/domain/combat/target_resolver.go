@@ -14,26 +14,28 @@ import (
 type TargetType int
 
 const (
-	TargetSelf          TargetType = 0
-	TargetEnemy         TargetType = 1
-	TargetTeam          TargetType = 2
-	TargetAllEnemy      TargetType = 3
-	TargetAllTeam       TargetType = 4
-	TargetAll           TargetType = 5
-	TargetDeadTeam      TargetType = 6
-	TargetDeadEnemy     TargetType = 7
-	TargetAllDead       TargetType = 8
-	TargetRandomEnemy   TargetType = 9
-	TargetRandomTeam    TargetType = 10
-	TargetRandomAll     TargetType = 11
-	TargetSelfPlayer    TargetType = 12
-	TargetSelfPet       TargetType = 13
-	TargetEnemyPlayer   TargetType = 14
-	TargetEnemyCreature TargetType = 15
-	TargetEnemyNoBoss   TargetType = 16
-	TargetTeamPlayer    TargetType = 17
-	TargetTeamPet       TargetType = 18
-	TargetPlayer        TargetType = 19
+	TargetSelf             TargetType = 0
+	TargetEnemy            TargetType = 1
+	TargetTeam             TargetType = 2
+	TargetAllEnemy         TargetType = 3
+	TargetAllTeam          TargetType = 4
+	TargetAll              TargetType = 5
+	TargetDeadTeam         TargetType = 6
+	TargetDeadEnemy        TargetType = 7
+	TargetAllDead          TargetType = 8
+	TargetRandomEnemy      TargetType = 9
+	TargetRandomTeam       TargetType = 10
+	TargetRandomAll        TargetType = 11
+	TargetSelfPlayer       TargetType = 12
+	TargetSelfPet          TargetType = 13
+	TargetEnemyPlayer      TargetType = 14
+	TargetEnemyCreature    TargetType = 15
+	TargetEnemyNoBoss      TargetType = 16
+	TargetTeamPlayer       TargetType = 17
+	TargetTeamPet          TargetType = 18
+	TargetPlayer           TargetType = 19
+	TargetSelectedAny      TargetType = 20
+	TargetSelectedDeadTeam TargetType = 21
 )
 
 type AreaType string
@@ -80,6 +82,9 @@ func (r *TargetResolver) ResolveTargets(
 		return singleResolvedTarget(r.resolveSelfPet(actor), true)
 
 	case TargetEnemy:
+		if taunter := r.tauntTarget(actor); taunter != nil && areaType == AreaNone {
+			return []*Participant{taunter}
+		}
 		return r.resolveSingleWithArea(selectedTargetID, r.enemyPredicate(actor), areaType, areaSize, true)
 
 	case TargetEnemyPlayer:
@@ -112,6 +117,16 @@ func (r *TargetResolver) ResolveTargets(
 	case TargetPlayer:
 		return r.resolveSingleWithArea(selectedTargetID, r.playerPredicate(), areaType, areaSize, true)
 
+	case TargetSelectedAny:
+		return r.resolveSingleWithArea(selectedTargetID, func(p *Participant) bool { return p != nil }, AreaNone, 1, true)
+
+	case TargetSelectedDeadTeam:
+		target := r.resolveSelectedTarget(selectedTargetID, r.teamPredicate(actor), false)
+		if target == nil || target.IsAlive {
+			return []*Participant{}
+		}
+		return []*Participant{target}
+
 	case TargetDeadTeam:
 		return r.filteredParticipants(r.teamPredicate(actor), false)
 
@@ -133,6 +148,21 @@ func (r *TargetResolver) ResolveTargets(
 	default:
 		return r.resolveSingleWithArea(selectedTargetID, r.enemyPredicate(actor), areaType, areaSize, true)
 	}
+}
+
+func (r *TargetResolver) tauntTarget(actor *Participant) *Participant {
+	if actor == nil || r.battle.StatusManager == nil {
+		return nil
+	}
+	targetID := r.battle.StatusManager.TauntTarget(actor.ID)
+	if targetID == "" {
+		return nil
+	}
+	target := r.battle.GetParticipant(targetID)
+	if target == nil || !target.IsAlive || target.Side == actor.Side {
+		return nil
+	}
+	return target
 }
 
 func (r *TargetResolver) resolveSingleWithArea(

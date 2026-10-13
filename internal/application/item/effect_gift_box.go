@@ -66,7 +66,17 @@ func (h *giftBoxEffectHandler) Apply(ctx context.Context, uctx *UseContext, char
 	if h.gameData == nil {
 		return nil, fmt.Errorf("gamedata manager not available")
 	}
-
+	if tpl.ID == 3376 {
+    result.GiftBox = &GiftBoxData{
+        GetNum: 1,
+        Choices: []*GiftBoxChoice{
+            {TableType: 19, ID: 1676, StackNum: 1, Quality: 13},
+            {TableType: 19, ID: 1678, StackNum: 1, Quality: 13},
+            {TableType: 19, ID: 1677, StackNum: 1, Quality: 13},
+        },
+    }
+    return result, nil
+	}
 	creatures := h.gameData.GetAllCreatures()
 	text := normalizePetSummonText(tpl.Description)
 	descQuality := parseDescriptionQuality(tpl.Description)

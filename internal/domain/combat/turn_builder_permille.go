@@ -49,7 +49,9 @@ func (tp *TurnProcessor) buildDamageActionsPermille(
 		})
 	}
 
-	hits := ResolveHits(actor, target, sk, tp.rng)
+	effectiveActor := tp.statusManager.EffectiveParticipant(actor)
+	effectiveTarget := tp.statusManager.EffectiveParticipant(target)
+	hits := ResolveHits(effectiveActor, effectiveTarget, sk, tp.rng)
 
 	for i, h := range hits {
 		if !target.IsAlive {
@@ -87,7 +89,8 @@ func (tp *TurnProcessor) buildDamageActionsPermille(
 			if tp.defendingIDs[target.ID] {
 				damage /= 2
 			}
-			target.TakeDamage(damage)
+			magic := sk != nil && sk.Template != nil && sk.Template.SkillType == skill.SkillTypeMagic
+			damage = tp.applyDamage(target, damage, magic)
 			hitAction.Damage = damage
 			hitAction.TargetNewHP = target.CurrentHP
 			hitAction.TargetDisplayHP = preDamageHP - damage

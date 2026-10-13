@@ -30,7 +30,7 @@ func SendExpAndLevelUpCallbacksWithEquipment(sender ExpCallbackSender, char *dom
 	uppData["expSkill"] = char.Experience
 	for _, key := range []string{
 		"bagSlotNum", "bankSlotNum", "petMaxNum",
-		"honor", "chival", "pop",
+		"honor", "chival", "pop", "cl",
 		"expRe", "expBattle",
 	} {
 		delete(uppData, key)

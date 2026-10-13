@@ -31,6 +31,14 @@ type StatusEffect struct {
 	Duration   int
 	Power      int
 	SourceID   string
+	TemplateID int
+	Family     string
+	Polarity   EffectPolarity
+	Removable  bool
+	Modifiers  []StatModifier
+	Periodic   *PeriodicEffect
+	Shield     *ShieldEffect
+	Control    ControlEffect
 	StackCount int
 }
 
@@ -122,8 +130,13 @@ func NewStatusEffectManager() *StatusEffectManager {
 func (m *StatusEffectManager) AddEffect(participantID string, effect *StatusEffect) {
 	existing := m.effects[participantID]
 
-	for _, e := range existing {
-		if e.Type == effect.Type {
+	for i, e := range existing {
+		if effect.Family != "" && e.Family == effect.Family {
+			existing[i] = effect
+			m.effects[participantID] = existing
+			return
+		}
+		if effect.Family == "" && e.Family == "" && e.Type == effect.Type {
 			if effect.Duration > e.Duration {
 				e.Duration = effect.Duration
 			}
@@ -204,10 +217,12 @@ func (m *StatusEffectManager) GetAccuracyModifier(participantID string) float64 
 
 func (m *StatusEffectManager) ProcessTurnStart(participantID string, p *Participant) *TurnStartResult {
 	result := &TurnStartResult{
-		CanAct:       true,
-		CanUseSkills: true,
-		DamageTaken:  0,
-		WokeUp:       false,
+		CanAct:           true,
+		CanUseSkills:     true,
+		DamageTaken:      0,
+		WokeUp:           false,
+		SpeedModifier:    1.0,
+		AccuracyModifier: 1.0,
 	}
 
 	effects := m.effects[participantID]
@@ -222,15 +237,37 @@ func (m *StatusEffectManager) ProcessTurnStart(participantID string, p *Particip
 			result.CanUseSkills = false
 		}
 
-		dot := e.GetDamageOverTime(p.MaxHP)
-		if dot > 0 {
-			result.DamageTaken += dot
+		if e.Control.CannotAct || e.Control.Stun || e.Control.Sleep {
+			result.CanAct = false
+		}
+		if e.Periodic != nil {
+			amount := e.Periodic.Fixed
+			sourceValue := e.Power
+			amount += int(float64(sourceValue) * e.Periodic.Coefficient)
+			if e.Periodic.Damage {
+				result.DamageTaken += amount
+				if e.Periodic.Magic {
+					result.MagicDamageTaken += amount
+				} else {
+					result.PhysicalDamageTaken += amount
+				}
+			} else if e.Periodic.Resource == ResourceMP {
+				result.MPRestored += amount
+			} else {
+				result.Healing += amount
+			}
+		} else {
+			dot := e.GetDamageOverTime(p.MaxHP)
+			if dot > 0 {
+				result.DamageTaken += dot
+				result.PhysicalDamageTaken += dot
+			}
 		}
 
 		result.SpeedModifier *= e.GetSpeedModifier()
 		result.AccuracyModifier *= e.GetAccuracyModifier()
 
-		if !e.Tick() {
+		if e.Family != "" || !e.Tick() {
 			remaining = append(remaining, e)
 		}
 	}
@@ -257,17 +294,17 @@ func (m *StatusEffectManager) OnDamageTaken(participantID string, damage int) bo
 	return wokeUp
 }
 
-func (m *StatusEffectManager) GetConfusionTarget(battle *Battle, actorID string, intendedTargetID string) string {
+func (m *StatusEffectManager) GetConfusionTarget(battle *Battle, actorID string, intendedTargetID string, rng *rand.Rand) string {
 	if !m.HasEffect(actorID, StatusConfusion) {
 		return intendedTargetID
 	}
 
-	if rand.Float64() < 0.5 {
+	if rng.Float64() < 0.5 {
 		actor := battle.GetParticipant(actorID)
 		if actor != nil {
 			allies := battle.GetAliveParticipants(actor.Side)
 			if len(allies) > 0 {
-				return allies[rand.Intn(len(allies))].ID
+				return allies[rng.Intn(len(allies))].ID
 			}
 		}
 	}
@@ -275,7 +312,7 @@ func (m *StatusEffectManager) GetConfusionTarget(battle *Battle, actorID string,
 	return intendedTargetID
 }
 
-func (m *StatusEffectManager) GetRebellionTarget(battle *Battle, actorID string, intendedTargetID string) string {
+func (m *StatusEffectManager) GetRebellionTarget(battle *Battle, actorID string, intendedTargetID string, rng *rand.Rand) string {
 	if !m.HasEffect(actorID, StatusRebellion) {
 		return intendedTargetID
 	}
@@ -288,7 +325,7 @@ func (m *StatusEffectManager) GetRebellionTarget(battle *Battle, actorID string,
 	}
 
 	if len(allAlive) > 0 {
-		return allAlive[rand.Intn(len(allAlive))].ID
+		return allAlive[rng.Intn(len(allAlive))].ID
 	}
 
 	return intendedTargetID
@@ -312,6 +349,10 @@ type TurnStartResult struct {
 	CanAct           bool
 	CanUseSkills     bool
 	DamageTaken      int
+	PhysicalDamageTaken int
+	MagicDamageTaken    int
+	Healing          int
+	MPRestored       int
 	WokeUp           bool
 	BlockingEffect   StatusEffectType
 	SpeedModifier    float64
