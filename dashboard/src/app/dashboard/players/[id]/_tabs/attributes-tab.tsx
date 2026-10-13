@@ -6,54 +6,54 @@ import {
 } from "../_components/character-field-form"
 
 const BASE_FIELDS: CharacterField[] = [
-    { key: "strength", label: "Strength (STR)", dtoKey: "attStrength" },
-    { key: "agility", label: "Agility (AGI)", dtoKey: "attAgility" },
-    { key: "stamina", label: "Stamina (STA)", dtoKey: "attStamina" },
+    { key: "strength", label: "Sức mạnh", dtoKey: "attStrength" },
+    { key: "agility", label: "Nhanh nhẹn", dtoKey: "attAgility" },
+    { key: "stamina", label: "Thể lực", dtoKey: "attStamina" },
     {
         key: "intelligence",
-        label: "Intelligence (INT)",
+        label: "Trí lực",
         dtoKey: "attIntelligence",
     },
-    { key: "spirit", label: "Spirit (Energy)", dtoKey: "attEnergy" },
-    { key: "attrPoints", label: "Attribute Points", dtoKey: "attLastPoint" },
-    { key: "hp", label: "Current HP", dtoKey: "currentHp" },
-    { key: "mp", label: "Current MP", dtoKey: "currentMp" },
-    { key: "sp", label: "Current SP", dtoKey: "currentSp" },
+    { key: "spirit", label: "Tinh thần", dtoKey: "attEnergy" },
+    { key: "attrPoints", label: "Điểm thuộc tính", dtoKey: "attLastPoint" },
+    { key: "hp", label: "HP hiện tại", dtoKey: "currentHp" },
+    { key: "mp", label: "MP hiện tại", dtoKey: "currentMp" },
+    { key: "sp", label: "SP hiện tại", dtoKey: "currentSp" },
 ]
 
 const APTITUDE_FIELDS: CharacterField[] = [
-    { key: "aptStrength", label: "Apt Strength", dtoKey: "aptStrength" },
+    { key: "aptStrength", label: "Tư chất sức mạnh", dtoKey: "aptStrength" },
     {
         key: "aptStrengthEvolution",
-        label: "Apt Strength Evo",
+        label: "Tư chất sức mạnh tiến hóa",
         dtoKey: "aptStrengthEvolution",
     },
-    { key: "aptAgility", label: "Apt Agility", dtoKey: "aptAgility" },
+    { key: "aptAgility", label: "Tư chất nhanh nhẹn", dtoKey: "aptAgility" },
     {
         key: "aptAgilityEvolution",
-        label: "Apt Agility Evo",
+        label: "Tư chất nhanh nhẹn tiến hóa",
         dtoKey: "aptAgilityEvolution",
     },
-    { key: "aptStamina", label: "Apt Stamina", dtoKey: "aptStamina" },
+    { key: "aptStamina", label: "Tư chất thể lực", dtoKey: "aptStamina" },
     {
         key: "aptStaminaEvolution",
-        label: "Apt Stamina Evo",
+        label: "Tư chất thể lực tiến hóa",
         dtoKey: "aptStaminaEvolution",
     },
     {
         key: "aptIntelligence",
-        label: "Apt Intelligence",
+        label: "Tư chất trí lực",
         dtoKey: "aptIntelligence",
     },
     {
         key: "aptIntelligenceEvolution",
-        label: "Apt Intelligence Evo",
+        label: "Tư chất trí lực tiến hóa",
         dtoKey: "aptIntelligenceEvolution",
     },
-    { key: "aptEnergy", label: "Apt Energy", dtoKey: "aptEnergy" },
+    { key: "aptEnergy", label: "Tư chất tinh thần", dtoKey: "aptEnergy" },
     {
         key: "aptEnergyEvolution",
-        label: "Apt Energy Evo",
+        label: "Tư chất tinh thần tiến hóa",
         dtoKey: "aptEnergyEvolution",
     },
 ]
@@ -68,16 +68,16 @@ export function AttributesTab({
     return (
         <div className="space-y-6">
             <CharacterFieldForm
-                title="Attributes"
+                title="Thuộc tính"
                 action="set_attributes"
                 char={char}
                 playerId={playerId}
                 fields={BASE_FIELDS}
                 columns={5}
-                note="Stats are recalculated automatically after save."
+                note="Chỉ số được tự động tính lại sau khi lưu."
             />
             <CharacterFieldForm
-                title="Aptitudes"
+                title="Tư chất"
                 action="set_attributes"
                 char={char}
                 playerId={playerId}

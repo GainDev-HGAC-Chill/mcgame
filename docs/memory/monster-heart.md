@@ -1,5 +1,14 @@
 # Monster Heart (Ma Vật Tâm)
 
+Baseline-level DTO repair deployed17:34:09 (2026-10-12); tests/vet/build PASS, game running/restart_count0. No DB repair or synthesized heart rewards. Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
+
+## Panel-open contract correction (2026-10-12)
+
+- `MonsterHeartPanel.as:4825–4846` indexes `TBL_CREATUREH_CONTAIN` using `box*10 + heartBoxLev[box]` and reads `.exp`/`.num` without a null guard. The old baseline level `0` selected nonexistent IDs `10/20/30/40/50`, causing `freshenNeedExp` to dereference null.
+- Baseline box levels are now **1**, matching the actual 30 exported templates (`11–16`, `21–26`, ..., `51–56`). Decode preserves valid persisted levels `1–6`; missing, zero, negative or out-of-range levels fall back to baseline in the loaded representation only. No repair is written to the DB by panel initialization.
+- Tests verify baseline IDs against `docs/database/game_data/TBL_CREATUREH_CONTAIN.json`, persisted-level normalization, and the init responder's five baseline levels. Focused application/handler/activity suites pass; real Flash validation is not performed.
+- Runtime client dependencies remain `TBL_CREATUREH_CONTAIN` (133), `TBL_CREATUREH_POINT` (134), `TBL_CREATUREH_HEART` (131), `TBL_CREATUREH_COMBINE` and item template `5884`. The contain export exists; if the running client lacks its selected template, a server state fallback cannot restore that asset/catalog. Do not fabricate contain costs, capacities, rewards, or higher levels to hide missing client data.
+
 ## Feature Overview
 
 Panel system where the player drags monster-heart items from a bag into a 5-box × 7-hole grid. The panel state (`{bag, data}`) is persisted in the generic feature-state store under `FeatureMonsterHeart = "monster_heart"`.
@@ -28,7 +37,7 @@ Panel system where the player drags monster-heart items from a bag into a 5-box 
   data: {
     hadActCombine: {1: {<itemId>: {color, talent}}, ..., 5: {...}},
     hadActHole:    {1: {1: itemId|-1, ..., 7: itemId|-1}, ..., 5: {...}},
-    heartBoxLev:   {1: 0, ..., 5: 0}
+    heartBoxLev:   {1: 1, ..., 5: 1}
   }
 }
 ```

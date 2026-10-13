@@ -22,6 +22,7 @@ type AwardOptionQuery = {
     type: number
     search: string
     limit: number
+    petOnly: boolean
 }
 
 type ItemOptionRow = {
@@ -92,6 +93,7 @@ function normalizeQuery(request: NextRequest): AwardOptionQuery {
     const searchParams = request.nextUrl.searchParams
     return {
         type: asInt(searchParams.get("type")),
+        petOnly: searchParams.get("petOnly") === "1",
         search: (searchParams.get("search") || "").trim(),
         limit: Math.min(
             MAX_LIMIT,
@@ -170,7 +172,7 @@ async function lookupItemOptions(
             id,
             name: row.name || boxItemAwardFallbackName(awardType, id),
             iconId: Math.max(0, asInt(row.icon_id)),
-            subtitle: `ID: ${id} | ${typeName}${requiredLevel > 0 ? ` | Lv ${requiredLevel}` : ""}`,
+            subtitle: `ID: ${id} | ${typeName}${requiredLevel > 0 ? ` | Cấp ${requiredLevel}` : ""}`,
         }
     })
 }
@@ -183,6 +185,10 @@ async function lookupCreatureOptions(
         .schema("data")
         .from("data_tbl_creature")
         .select("id, name, icon_code, use_lv")
+
+    if (query.petOnly) {
+        baseQuery = baseQuery.eq("class_id", 2)
+    }
 
     if (query.search) {
         if (isNumericSearch(query.search)) {
@@ -205,7 +211,7 @@ async function lookupCreatureOptions(
             id,
             name: row.name || boxItemAwardFallbackName(12, id),
             iconId: Math.max(0, asInt(row.icon_code)),
-            subtitle: `ID: ${id}${requiredLevel > 0 ? ` | Lv ${requiredLevel}` : ""}`,
+            subtitle: `ID: ${id}${requiredLevel > 0 ? ` | Cấp ${requiredLevel}` : ""}`,
         }
     })
 }
@@ -240,7 +246,7 @@ async function lookupBuffOptions(
             id,
             name: row.name || boxItemAwardFallbackName(32, id),
             iconId: Math.max(0, asInt(row.icon_code)),
-            subtitle: `ID: ${id}${level > 0 ? ` | Lv ${level}` : ""}`,
+            subtitle: `ID: ${id}${level > 0 ? ` | Cấp ${level}` : ""}`,
         }
     })
 }
@@ -310,7 +316,7 @@ async function lookupSkillOptions(
             id,
             name: row.name || boxItemAwardFallbackName(34, id),
             iconId: Math.max(0, asInt(row.icon_code)),
-            subtitle: `ID: ${id}${requiredLevel > 0 ? ` | Lv ${requiredLevel}` : ""}${kind > 0 ? ` | Kind ${kind}` : ""}`,
+            subtitle: `ID: ${id}${requiredLevel > 0 ? ` | Cấp ${requiredLevel}` : ""}${kind > 0 ? ` | Nhóm ${kind}` : ""}`,
         }
     })
 }

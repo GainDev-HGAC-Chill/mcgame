@@ -43,7 +43,7 @@ export function GMTab({
     const handleSetGMLevel = () => {
         const level = Number(gmLevel)
         if (!Number.isFinite(level) || level < 0 || level > 10) {
-            toast.error("GM level must be between 0 and 10")
+            toast.error("Cấp GM phải từ 0 đến 10")
             return
         }
         action.mutate({ action: "set_gm_level", payload: { gmLevel: level } })
@@ -53,18 +53,18 @@ export function GMTab({
         <div className="space-y-6">
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-base">GM Level</CardTitle>
+                    <CardTitle className="text-base">Cấp GM</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex items-end gap-3">
                         <div className="space-y-1">
-                            <Label className="text-xs">Current GM Level</Label>
+                            <Label className="text-xs">Cấp GM hiện tại</Label>
                             <p className="font-medium text-lg">
                                 {String(char.gmLevel ?? 0)}
                             </p>
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">New Level (0-10)</Label>
+                            <Label className="text-xs">Cấp mới (0–10)</Label>
                             <Input
                                 className="w-32"
                                 type="number"
@@ -79,7 +79,7 @@ export function GMTab({
                             onClick={handleSetGMLevel}
                             disabled={action.isPending}
                         >
-                            Set GM Level
+                            Đặt cấp GM
                         </Button>
                     </div>
                 </CardContent>
@@ -88,33 +88,33 @@ export function GMTab({
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                        Character Summary
+                        Tóm tắt nhân vật
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="grid gap-3 md:grid-cols-3">
                         <FieldGroup
-                            label="VIP Type"
+                        label="Loại VIP"
                             value={char.vipType as number}
                         />
                         <FieldGroup
-                            label="Awaken Level"
+                        label="Cấp thức tỉnh"
                             value={char.awakenLevel as number}
                         />
                         <FieldGroup
-                            label="Rebirth Level"
+                        label="Cấp chuyển sinh"
                             value={char.rebirthLvl as number}
                         />
                         <FieldGroup
-                            label="Grow Rate"
+                        label="Tỷ lệ tăng trưởng"
                             value={char.growRate as number}
                         />
                         <FieldGroup
-                            label="Quality Type"
+                        label="Loại phẩm chất"
                             value={char.qualityType as number}
                         />
                         <FieldGroup
-                            label="Star Type"
+                        label="Loại sao"
                             value={char.starType as number}
                         />
                     </div>

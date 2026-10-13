@@ -6,11 +6,11 @@ import {
 } from "../_components/character-field-form"
 
 const FIELDS: CharacterField[] = [
-    { key: "cookDex", label: "Cook Dex", dtoKey: "cookDex" },
-    { key: "fishDex", label: "Fish Dex", dtoKey: "fishDex" },
-    { key: "herbDex", label: "Herb Dex", dtoKey: "herbDex" },
-    { key: "medicineDex", label: "Medicine Dex", dtoKey: "medicineDex" },
-    { key: "plantDex", label: "Plant Dex", dtoKey: "plantDex" },
+    { key: "cookDex", label: "Thành thạo nấu ăn", dtoKey: "cookDex" },
+    { key: "fishDex", label: "Thành thạo câu cá", dtoKey: "fishDex" },
+    { key: "herbDex", label: "Thành thạo hái thuốc", dtoKey: "herbDex" },
+    { key: "medicineDex", label: "Thành thạo chế thuốc", dtoKey: "medicineDex" },
+    { key: "plantDex", label: "Thành thạo trồng cây", dtoKey: "plantDex" },
 ]
 
 export function LifeSkillsTab({
@@ -22,7 +22,7 @@ export function LifeSkillsTab({
 }) {
     return (
         <CharacterFieldForm
-            title="Life Skills"
+            title="Kỹ năng sống"
             action="set_life_skills"
             char={char}
             playerId={playerId}

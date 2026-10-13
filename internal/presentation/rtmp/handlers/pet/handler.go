@@ -60,6 +60,7 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("petBook", h.PetBook)
 	dispatcher.Register("petDelSkill", h.PetDelSkill)
 	dispatcher.Register("petOpenSkill", h.PetOpenSkill)
+	dispatcher.Register("petUpSkill", h.PetUpSkill)
 	dispatcher.Register("petEquipOn", h.PetEquipOn)
 	dispatcher.Register("petEquipOff", h.PetEquipOff)
 	dispatcher.Register("petOpenSlot", h.PetOpenSlot)

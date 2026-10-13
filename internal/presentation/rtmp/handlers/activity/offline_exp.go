@@ -140,7 +140,6 @@ func (h *Handler) sendOfflineCharacterExpRefresh(ctx *rtmp.RPCContext, char inte
 		"maxVigor":   110,
 		"level":      level,
 	})
-	_ = ctx.Connection.SendCallback("lvUp", map[string]interface{}{}, 1, nil)
 }
 
 func (h *Handler) sendOfflinePetRefresh(ctx *rtmp.RPCContext, pet *domainpet.Pet, leveledUp bool) {

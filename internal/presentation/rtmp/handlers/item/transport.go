@@ -3,6 +3,8 @@
 package item
 
 import (
+	"time"
+
 	"mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
 	"mcgame-server/internal/infrastructure/rtmp"
@@ -32,21 +34,28 @@ const (
 )
 
 var transportSeniorPriority = []int{
-	itemTransportSenior,
 	itemTransportSeniorWeek,
 	itemTransportSeniorHalfMonth,
 	itemTransportSeniorMonth,
 	itemTransportSeniorWeekTrue,
 	itemTransportSeniorHalfDay,
 	itemTransportSeniorDay,
+	itemTransportSenior,
 }
 
-var transportRegularPriority = append([]int{
-	itemTransportRegular,
+var transportRegularPriority = []int{
 	itemTransportMonth,
 	itemTransportHalfMonth,
 	itemTransportWeek,
-}, transportSeniorPriority...)
+	itemTransportRegular,
+	itemTransportSeniorWeek,
+	itemTransportSeniorHalfMonth,
+	itemTransportSeniorMonth,
+	itemTransportSeniorWeekTrue,
+	itemTransportSeniorHalfDay,
+	itemTransportSeniorDay,
+	itemTransportSenior,
+}
 
 func (h *Handler) UseTransport(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	return h.handleTransport(ctx, args, transportRegularPriority, transportRegularGoldCost, false)
@@ -114,14 +123,14 @@ func (h *Handler) chargeAndTransport(
 		return nil, nil
 	}
 
-	consumedItem, templateID, err := h.consumePreferredItem(ctx, characterID, itemPriority)
+	transportItem, templateID, consumed, err := h.itemService.UsePreferredTimedOrConsumableItem(ctx.Context, characterID, itemPriority, time.Now())
 	if err != nil {
 		return nil, err
 	}
 
 	var paidWithGold bool
 	var char *character.Character
-	if consumedItem == nil {
+	if transportItem == nil {
 		char, err = h.charService.GetByID(ctx.Context, characterID)
 		if err != nil || char == nil {
 			return nil, err
@@ -141,7 +150,11 @@ func (h *Handler) chargeAndTransport(
 		return nil, err
 	}
 
-	h.sendTransportCostCallback(ctx, consumedItem, char, paidWithGold)
+	if consumed {
+		h.sendTransportCostCallback(ctx, transportItem, char, paidWithGold)
+	} else if paidWithGold {
+		h.sendTransportCostCallback(ctx, nil, char, true)
+	}
 
 	return map[string]interface{}{"success": true}, nil
 }

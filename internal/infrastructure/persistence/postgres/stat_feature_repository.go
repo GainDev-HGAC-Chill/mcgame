@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/statfeature"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -83,6 +84,9 @@ func (r *StatFeatureRepository) UpsertCharacterFeatureState(ctx context.Context,
 	if state == nil {
 		return nil
 	}
+	if state.FeatureKey == character.CreationPackageFeatureKey {
+		return fmt.Errorf("creation package snapshots are immutable")
+	}
 
 	raw, err := json.Marshal(normalizeFeatureState(state.State))
 	if err != nil {
@@ -100,6 +104,34 @@ func (r *StatFeatureRepository) UpsertCharacterFeatureState(ctx context.Context,
 		return pkgerrors.Wrap(err, "failed to upsert character stat feature state")
 	}
 
+	return nil
+}
+
+func (r *StatFeatureRepository) CommitBloodBagPurchase(ctx context.Context, charID int64, newGold int64, state map[string]interface{}) error {
+	raw, err := json.Marshal(normalizeFeatureState(state))
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to marshal blood bag state")
+	}
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to begin blood bag purchase")
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var storedGold int64
+	if err := tx.QueryRow(ctx, "update player.character_wallet set gold = $2 where character_id = $1 returning gold", charID, newGold).Scan(&storedGold); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pkgerrors.ErrCharacterNotFound
+		}
+		return pkgerrors.Wrap(err, "failed to update blood bag gold")
+	}
+	var stored bool
+	if err := tx.QueryRow(ctx, "select player.upsert_character_feature_state($1, $2, $3::jsonb)", charID, statfeature.FeatureBloodBag, raw).Scan(&stored); err != nil {
+		return pkgerrors.Wrap(err, "failed to update blood bag state")
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return pkgerrors.Wrap(err, "failed to commit blood bag purchase")
+	}
 	return nil
 }
 

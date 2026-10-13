@@ -55,7 +55,7 @@ func (h *Handler) pushGoldDebit(ctx *rtmp.RPCContext, out *appdailysignin.Outcom
 	}
 	h.sendCallback(ctx, cbOnUPP, map[string]interface{}{
 		"gold":     out.GoldLeft,
-		"goldDiff": -out.GoldSpent,
+		"goldBind": out.GoldBindLeft,
 	})
 }
 
@@ -65,7 +65,7 @@ func (h *Handler) pushGoldCredit(ctx *rtmp.RPCContext, out *appdailysignin.Outco
 	}
 	h.sendCallback(ctx, cbOnUPP, map[string]interface{}{
 		"gold":     out.GoldLeft,
-		"goldDiff": -out.GoldSpent,
+		"goldBind": out.GoldBindLeft,
 	})
 }
 

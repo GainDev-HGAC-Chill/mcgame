@@ -650,7 +650,7 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                             />
                         ) : (
                             <div className="flex h-16 w-16 items-center justify-center rounded-lg border text-xs text-muted-foreground">
-                                No icon
+                                Không có biểu tượng
                             </div>
                         )}
 
@@ -674,10 +674,10 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                     {getUseTypeLabel(item.useType)}
                                 </Badge>
                                 <Badge variant="outline">
-                                    Type {item.templateType}
+                                    Loại {item.templateType}
                                 </Badge>
                                 <Badge variant="outline">
-                                    Stack {item.maxStack}
+                                    Số lượng cộng dồn {item.maxStack}
                                 </Badge>
                             </div>
 

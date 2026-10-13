@@ -74,7 +74,7 @@ export function BossLootFilters(props: Props) {
                     </Select>
                 </div>
                 <div className="w-40">
-                    <Label className="text-xs">Tier</Label>
+                    <Label className="text-xs">Cấp chất lượng</Label>
                     <Select
                         value={query.tier}
                         onValueChange={v => props.onTierChange(v as BossLootTier)}
@@ -93,7 +93,7 @@ export function BossLootFilters(props: Props) {
                     </Select>
                 </div>
                 <div className="w-28">
-                    <Label className="text-xs">Lv min</Label>
+                    <Label className="text-xs">Cấp tối thiểu</Label>
                     <Input
                         type="number"
                         min={1}
@@ -108,7 +108,7 @@ export function BossLootFilters(props: Props) {
                     />
                 </div>
                 <div className="w-28">
-                    <Label className="text-xs">Lv max</Label>
+                    <Label className="text-xs">Cấp tối đa</Label>
                     <Input
                         type="number"
                         min={1}

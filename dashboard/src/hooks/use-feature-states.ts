@@ -8,7 +8,7 @@ import type { FeatureState } from "@/types/player-management"
 async function fetchFeatureStates(playerId: number): Promise<FeatureState[]> {
     const res = await executePlayerAction(playerId, "get_feature_states")
     if (!res.ok || !res.data) {
-        throw new Error(res.statusMessage || "Failed to load feature states")
+        throw new Error(res.statusMessage || "Không tải được trạng thái hệ thống")
     }
     return (res.data as { states?: FeatureState[] }).states ?? []
 }

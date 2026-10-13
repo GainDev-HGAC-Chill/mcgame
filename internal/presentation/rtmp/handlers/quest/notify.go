@@ -38,7 +38,8 @@ func (h *QuestNotifyHelper) PushQuestProgress(ctx *rtmp.RPCContext, charID int64
 
 	for _, qp := range activeQuests {
 		dto := h.questService.EnrichQuestDTO(ctx.Context, qp)
-		if err := ctx.Connection.SendCallback("onAddChaQuest", dto); err != nil {
+		payload := buildAddQuestPayload(qp, dto, len(activeQuests))
+		if err := ctx.Connection.SendCallback("onAddChaQuest", payload); err != nil {
 			h.logger.Warn("Failed to push quest progress callback", zap.Int("quest_id", qp.QuestID), zap.Error(err))
 		}
 
@@ -52,6 +53,30 @@ func (h *QuestNotifyHelper) PushQuestProgress(ctx *rtmp.RPCContext, charID int64
 				}
 			}
 		}
+	}
+}
+
+func (h *QuestNotifyHelper) RefreshQuestProgressSilently(ctx *rtmp.RPCContext, charID int64) {
+	if h.questService == nil {
+		return
+	}
+	activeQuests, err := h.questService.GetActiveQuests(ctx.Context, charID)
+	if err != nil {
+		h.logger.Warn("Failed to get active quests for silent refresh", zap.Error(err))
+		return
+	}
+	for _, qp := range activeQuests {
+		h.questService.EnrichQuestDTO(ctx.Context, qp)
+		if !qp.IsComplete() || h.gameData == nil {
+			continue
+		}
+		questTemplate := h.gameData.GetQuest(qp.QuestID)
+		if questTemplate == nil || int(questTemplate.FinishNPC) <= 0 {
+			continue
+		}
+		finishNPC := int(questTemplate.FinishNPC)
+		state := h.CalculateNpcQuestState(ctx, charID, finishNPC)
+		_ = ctx.Connection.SendCallback("onSetNpcState", finishNPC, state)
 	}
 }
 

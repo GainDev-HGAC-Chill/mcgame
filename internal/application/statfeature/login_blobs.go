@@ -191,6 +191,12 @@ func buildPraBuffInfoJSON(state map[string]interface{}) string {
 
 func buildPetPVEDataJSON(state map[string]interface{}) string {
 	p := cloneMap(stateValueAsMap(state, "p"))
+	for index := 0; index < 8; index++ {
+		key := "s" + strconv.Itoa(index)
+		if value, ok := p[key].(map[string]interface{}); !ok || value == nil {
+			p[key] = map[string]interface{}{}
+		}
+	}
 	ppveConfig := cloneMap(stateValueAsMap(state, "ppveConfig"))
 	mlv := 0
 	if v, ok := intValue(state["mlv"]); ok {
@@ -203,7 +209,7 @@ func buildPetPVEDataJSON(state map[string]interface{}) string {
 	}
 	b, err := json.Marshal(obj)
 	if err != nil {
-		return `{"p":{},"mlv":0,"ppveConfig":{}}`
+		return `{"p":{"s0":{},"s1":{},"s2":{},"s3":{},"s4":{},"s5":{},"s6":{},"s7":{}},"mlv":0,"ppveConfig":{}}`
 	}
 	return string(b)
 }

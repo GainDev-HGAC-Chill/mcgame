@@ -8,6 +8,7 @@ export function Toaster() {
 
     return (
         <Sonner
+            containerAriaLabel="Thông báo"
             theme={theme as "light" | "dark" | "system"}
             className="toaster group"
             toastOptions={{

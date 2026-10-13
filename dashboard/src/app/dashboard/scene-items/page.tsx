@@ -216,16 +216,16 @@ export default function SceneItemsPage() {
                                     </TableHead>
                                     <TableHead>Phù tới</TableHead>
                                     <TableHead className="w-[80px]">
-                                        Template
+                                        Mẫu
                                     </TableHead>
                                     <TableHead className="w-[80px]">
-                                        Pos X
+                                        Tọa độ X
                                     </TableHead>
                                     <TableHead className="w-[80px]">
-                                        Pos Y
+                                        Tọa độ Y
                                     </TableHead>
                                     <TableHead className="w-[80px]">
-                                        Dir
+                                        Hướng
                                     </TableHead>
                                 </TableRow>
                                 <TableRow className="bg-muted/30">
@@ -241,7 +241,7 @@ export default function SceneItemsPage() {
                                     </TableHead>
                                     <TableHead className="py-1">
                                         <Input
-                                            placeholder="Map ID"
+                                            placeholder="ID bản đồ"
                                             value={mapFilter}
                                             onChange={e =>
                                                 setMapFilter(e.target.value)
@@ -363,7 +363,7 @@ export default function SceneItemsPage() {
 
                     <div className="mt-4 flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">
-                            Hiển thị {rowStart} - {rowEnd} / {total} scene items
+                            Hiển thị {rowStart} - {rowEnd} / {total} vật thể bản đồ
                         </p>
 
                         {totalPages > 1 && (

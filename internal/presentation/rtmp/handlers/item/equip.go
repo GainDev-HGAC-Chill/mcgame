@@ -18,18 +18,19 @@ import (
 )
 
 func (h *Handler) syncHPMPAfterEquipChange(ctx context.Context, conn *rtmp.Connection, char *character.Character) {
-	if h.itemService == nil || h.charService == nil {
+	if h.itemService == nil {
 		return
 	}
-	bonuses := h.itemService.AggregateEquipmentStats(ctx, char.ID)
-	computed := *char
-	computed.RecalculateStats()
-	computed.ApplyEquipmentBonuses(bonuses)
-
-	if char.SyncToEffectiveMax(computed.MaxHP, computed.MaxMP) {
-		if err := h.charService.Update(ctx, char); err != nil {
-			h.logger.Error("Failed to persist HP/MP sync after equip change", zap.Error(err))
-		}
+	updated, changed, err := h.itemService.SyncEquipmentResources(ctx, char.ID)
+	if err != nil {
+		h.logger.Error("Failed to patch HP/MP after equip change", zap.Error(err))
+		return
+	}
+	if updated == nil {
+		return
+	}
+	*char = *updated
+	if changed && conn != nil {
 		conn.SendCallback("onUPP", map[string]interface{}{
 			"currentHp": char.CurrentHP,
 			"currentMp": char.CurrentMP,
@@ -109,11 +110,11 @@ func (h *Handler) EquipOn(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		return nil, pkgerrors.ErrUnauthorized
 	}
 
-	itBefore, _ := h.itemService.GetItemByID(ctx.Context, characterID, itemID)
-	var oldSid int
-	if itBefore != nil {
-		oldSid = itBefore.CalculateSID()
+	itBefore, err := h.itemService.GetItemByID(ctx.Context, characterID, itemID)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
 	}
+	oldSid := itBefore.CalculateSID()
 
 	displaced, err := h.itemService.EquipItem(ctx.Context, characterID, itemID, domainitem.EquipSlot(slotID))
 	if err != nil {
@@ -121,15 +122,19 @@ func (h *Handler) EquipOn(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	}
 
 	char, _ := h.charService.GetByID(ctx.Context, characterID)
-	itAfter, _ := h.itemService.GetItemByID(ctx.Context, characterID, itemID)
-
-	if itAfter != nil {
-		ctx.Connection.SendCallback("onMoveItem", float64(oldSid), float64(itAfter.CalculateSID()), float64(itemID))
+	itAfter, err := h.itemService.GetItemByID(ctx.Context, characterID, itemID)
+	if err != nil {
+		return nil, err
 	}
-
+	oldSIDs := map[int64]int{itemID: oldSid}
+	changed := []*domainitem.Item{itAfter}
 	if displaced != nil {
-		ctx.Connection.SendCallback("onMoveItem", float64(1+slotID), float64(displaced.CalculateSID()), float64(displaced.ID))
+		oldSIDs[displaced.ID] = itAfter.CalculateSID()
+		changed = append(changed, displaced)
 		h.checkBagCapacityWarning(ctx, characterID)
+	}
+	if err := h.refreshEquipmentSlots(ctx.Connection, oldSIDs, changed); err != nil {
+		return nil, err
 	}
 
 	if itAfter != nil && domainmw.IsMainPosition(itAfter.SlotIndex) && h.mwSkillGranter != nil {
@@ -228,7 +233,9 @@ func (h *Handler) EquipOff(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		}
 	}
 	char, _ := h.charService.GetByID(ctx.Context, characterID)
-	ctx.Connection.SendCallback("onMoveItem", float64(oldSid), float64(unequipped.CalculateSID()), float64(unequipID))
+	if err := h.refreshEquipmentSlots(ctx.Connection, map[int64]int{unequipID: oldSid}, []*domainitem.Item{unequipped}); err != nil {
+		return nil, err
+	}
 
 	if char != nil {
 		h.syncHPMPAfterEquipChange(ctx.Context, ctx.Connection, char)

@@ -49,6 +49,15 @@ export const CURRENCY_GROUPS = [
 ] as const
 
 export type CurrencyGroup = (typeof CURRENCY_GROUPS)[number]
+export const CURRENCY_GROUP_LABELS: Record<CurrencyGroup, string> = {
+    Primary: "Tiền tệ chính", Battle: "Chiến đấu", Event: "Sự kiện", Guild: "Bang hội",
+    Special: "Đặc biệt", "Magic Crystal": "Pha lê ma thuật", "NPC Shop": "Cửa hàng NPC",
+    "Train Soul": "Tu luyện linh hồn", Decoration: "Trang trí", "Cross-Realm": "Liên giới",
+    "Daily / Misc": "Hằng ngày / Khác", Progression: "Tiến trình", "Pet Real Soul (PRS)": "Chân hồn thú cưng",
+    "War Sprite": "Chiến linh", "Monster Heart": "Ma năng", "Hắc Diệu Thạch": "Hắc Diệu Thạch",
+    "Pet Stone": "Đá thú cưng", "Magic Array / Stars": "Trận pháp / Tinh cung",
+    "Pet Talent": "Thiên phú thú cưng", "Stone Seal": "Ấn thạch",
+}
 
 export type CurrencyOption = {
     key: string
@@ -73,21 +82,21 @@ export const CURRENCY_OPTIONS: CurrencyOption[] = [
     { key: "paPnt", label: "Điểm Đấu Trường Pet", group: "Battle", dtoKey: "petArenaPoint" },
     { key: "petPK_202504", label: "Điểm HĐ Đấu Trường Pet", group: "Battle", dtoKey: "petArenaActPoint" },
 
-    { key: "yuandan", label: "Điểm Năm Mới", group: "Event", dtoKey: "newYearPoint", description: "Server may suffix the year (yuandan24) — all map to this key" },
-    { key: "lyP14", label: "Điểm Tết", group: "Event", dtoKey: "lunaPoint", description: "Also matches lyP_* family" },
-    { key: "vtP14", label: "Điểm Valentine", group: "Event", dtoKey: "valentinePoint", description: "Also matches vtP_* family" },
-    { key: "ltP14", label: "Điểm Lồng Đèn", group: "Event", dtoKey: "lanternPoint", description: "Also matches ltP_* family" },
-    { key: "lbP14", label: "Điểm Lao Động", group: "Event", dtoKey: "laborPoint", description: "Also matches lbP_* family" },
+    { key: "yuandan", label: "Điểm Năm Mới", group: "Event", dtoKey: "newYearPoint", description: "Máy chủ có thể thêm hậu tố năm (yuandan24); tất cả dùng chung khóa này" },
+    { key: "lyP14", label: "Điểm Tết", group: "Event", dtoKey: "lunaPoint", description: "Cũng áp dụng cho nhóm khóa lyP_*" },
+    { key: "vtP14", label: "Điểm Valentine", group: "Event", dtoKey: "valentinePoint", description: "Cũng áp dụng cho nhóm khóa vtP_*" },
+    { key: "ltP14", label: "Điểm Lồng Đèn", group: "Event", dtoKey: "lanternPoint", description: "Cũng áp dụng cho nhóm khóa ltP_*" },
+    { key: "lbP14", label: "Điểm Lao Động", group: "Event", dtoKey: "laborPoint", description: "Cũng áp dụng cho nhóm khóa lbP_*" },
     { key: "fishPnt", label: "Điểm Câu Cá", group: "Event", dtoKey: "fishingPoint" },
     { key: "xP23", label: "Điểm Thất Tịch", group: "Event", dtoKey: "qixiPoint" },
-    { key: "smP14", label: "Điểm Mùa Hè", group: "Event", dtoKey: "summerPoint", description: "Also matches smP_* family" },
+    { key: "smP14", label: "Điểm Mùa Hè", group: "Event", dtoKey: "summerPoint", description: "Cũng áp dụng cho nhóm khóa smP_*" },
     { key: "thBirthPnt5", label: "Điểm Sinh Nhật", group: "Event", dtoKey: "annualThird" },
-    { key: "christmas", label: "Điểm Giáng Sinh", group: "Event", dtoKey: "xmasPoint", description: "christmas* year-suffixed variants all map here" },
+    { key: "christmas", label: "Điểm Giáng Sinh", group: "Event", dtoKey: "xmasPoint", description: "Các khóa christmas* có hậu tố năm đều dùng giá trị này" },
     { key: "nationalDayPnt", label: "Điểm Quốc Khánh", group: "Event", dtoKey: "nationalDayPoint" },
     { key: "wcPnt18", label: "Điểm World Cup", group: "Event", dtoKey: "worldCupPoint" },
     { key: "wcPnt18gold", label: "Vàng World Cup", group: "Event", dtoKey: "goldWorldCup" },
     { key: "a5Pnt", label: "Điểm Olympic", group: "Event", dtoKey: "summerGamePoint" },
-    { key: "anni2017", label: "Điểm Chu Niên", group: "Event", dtoKey: "anniversaryPoint", description: "Despite the year suffix this is the permanent anniversary register" },
+    { key: "anni2017", label: "Điểm Chu Niên", group: "Event", dtoKey: "anniversaryPoint", description: "Dù có hậu tố năm, đây vẫn là số dư chu niên thường trực" },
     { key: "d11Pnt2020", label: "Điểm Độc Thân", group: "Event", dtoKey: "double11Point" },
     { key: "explorerPnt", label: "Điểm ShowTime", group: "Event", dtoKey: "showTimePoint" },
     { key: "st2312Pnt", label: "Điểm Tiêu Hao Chu Niên", group: "Event", dtoKey: "anniConsumePoint" },
@@ -99,14 +108,14 @@ export const CURRENCY_OPTIONS: CurrencyOption[] = [
     { key: "petChip", label: "Mảnh Thú Cưỡi", group: "Special", dtoKey: "petChip" },
     { key: "petguardout", label: "Vệ Sĩ Pet (Ra)", group: "Special", dtoKey: "petguardout" },
     { key: "petguardin", label: "Vệ Sĩ Pet (Vào)", group: "Special", dtoKey: "petguardin" },
-    { key: "shishangdian", label: "Vàng Shop", group: "Special", dtoKey: "shishangdian", description: "Mirrors Character.ShopGold" },
-    { key: "mcbeans", label: "MC Beans", group: "Special", dtoKey: "mcbeans" },
+    { key: "shishangdian", label: "Vàng cửa hàng", group: "Special", dtoKey: "shishangdian", description: "Tương ứng với Character.ShopGold" },
+    { key: "mcbeans", label: "Đậu MC", group: "Special", dtoKey: "mcbeans" },
 
     { key: "magiccystalrec", label: "Bụi Ma Thuật", group: "Magic Crystal", dtoKey: "magiccystalrec" },
     { key: "magiccystalpre", label: "Pha Lê Vĩnh Hằng", group: "Magic Crystal", dtoKey: "magiccystalpre" },
     { key: "magiccystallimit", label: "Pha Lê Cực Hạn", group: "Magic Crystal", dtoKey: "magiccystallimit" },
 
-    { key: "wisdonCrystal", label: "Kết Tinh Trí Thạch", group: "NPC Shop", dtoKey: "wisdonCrystal", description: "Client typo 'wisdon' — moneyType is mirrored exactly" },
+    { key: "wisdonCrystal", label: "Kết Tinh Trí Thạch", group: "NPC Shop", dtoKey: "wisdonCrystal", description: "Giữ nguyên lỗi chính tả 'wisdon' của máy khách trong moneyType" },
     { key: "couragePoint", label: "Điểm Dũng Khí", group: "NPC Shop", dtoKey: "couragePoint" },
     { key: "heroScore2507", label: "Điểm Anh Hùng", group: "NPC Shop", dtoKey: "heroScore2507" },
     { key: "xmCandy24", label: "Kẹo Giáng Sinh", group: "NPC Shop", dtoKey: "xmCandy24" },
@@ -124,23 +133,23 @@ export const CURRENCY_OPTIONS: CurrencyOption[] = [
     { key: "point", label: "Điểm", group: "Daily / Misc", dtoKey: "point" },
     { key: "threePvpPnt", label: "Huy Chương Dũng Sĩ", group: "Daily / Misc", dtoKey: "threePvpPnt" },
 
-    { key: "soulPnt", label: "Pha Lê (Soul Points)", group: "Progression", dtoKey: "soulPnt", description: "Persisted via Character.SoulPoints — also editable from the Progression tab" },
-    { key: "movePnt", label: "Điểm Hành Động", group: "Progression", dtoKey: "movePnt", editable: false, description: "Daily-reset semantics owned by the Magic Estate subsystem — edit via the Magic Estate panel" },
+    { key: "soulPnt", label: "Pha lê linh hồn", group: "Progression", dtoKey: "soulPnt", description: "Lưu qua Character.SoulPoints; cũng chỉnh sửa được ở thẻ Tiến trình" },
+    { key: "movePnt", label: "Điểm Hành Động", group: "Progression", dtoKey: "movePnt", editable: false, description: "Được hệ thống lãnh địa ma thuật đặt lại hằng ngày; chỉnh sửa trong bảng lãnh địa" },
 
     { key: "realSoulStone", label: "Chân Hồn Thạch", group: "Pet Real Soul (PRS)", dtoKey: "realSoulStone" },
     { key: "realSoulCrystal", label: "Kết Tinh Thần Dụ", group: "Pet Real Soul (PRS)", dtoKey: "realSoulCrystal" },
     { key: "realSoulWater", label: "Lộ Thu Thập", group: "Pet Real Soul (PRS)", dtoKey: "realSoulWater" },
 
-    { key: "warSprite", label: "Dũng Khí Thạch", group: "War Sprite", dtoKey: "warSprite", description: "Distinct from the warSprite stat-feature JSONB (template maps)" },
+    { key: "warSprite", label: "Dũng Khí Thạch", group: "War Sprite", dtoKey: "warSprite", description: "Khác dữ liệu JSONB hệ thống warSprite (bảng mẫu)" },
     { key: "battleSprite", label: "Ý Chí Thạch", group: "War Sprite", dtoKey: "battleSprite" },
 
-    { key: "monsterHeart", label: "Ma Năng", group: "Monster Heart", dtoKey: "monsterHeart", description: "Distinct from the monsterHeart stat-feature JSONB" },
+    { key: "monsterHeart", label: "Ma Năng", group: "Monster Heart", dtoKey: "monsterHeart", description: "Khác dữ liệu JSONB hệ thống monsterHeart" },
     { key: "mhjingshi", label: "Tâm Tinh Thạch", group: "Monster Heart", dtoKey: "mhjingshi" },
 
-    { key: "heiyaoshiPoint", label: "Hắc Diệu Thạch", group: "Hắc Diệu Thạch", dtoKey: "heiyaoshiPoint", description: "Distinct from the heiyaoshi stat-feature JSONB" },
+    { key: "heiyaoshiPoint", label: "Hắc Diệu Thạch", group: "Hắc Diệu Thạch", dtoKey: "heiyaoshiPoint", description: "Khác dữ liệu JSONB hệ thống heiyaoshi" },
     { key: "heiyaoshiPoint2", label: "Tinh Hoa Hắc Diệu Thạch", group: "Hắc Diệu Thạch", dtoKey: "heiyaoshiPoint2" },
 
-    { key: "energyStone", label: "Tụ Linh Thạch", group: "Pet Stone", dtoKey: "energyStone", description: "Character-scoped despite the panel name" },
+    { key: "energyStone", label: "Tụ Linh Thạch", group: "Pet Stone", dtoKey: "energyStone", description: "Số dư thuộc nhân vật dù tên bảng liên quan thú cưng" },
 
     { key: "npPnt", label: "Năng Lượng Tự Nhiên", group: "Magic Array / Stars", dtoKey: "npPnt" },
     { key: "elementPnt", label: "Nguyên Tố", group: "Magic Array / Stars", dtoKey: "elementPnt" },
@@ -222,7 +231,7 @@ export const FEATURE_SYSTEMS: FeatureSystem[] = [
     {
         featureKey: "rune",
         label: "Phù Văn (Rune)",
-        scalarFields: [{ path: "upLvlHole", label: "Up Level Hole" }],
+        scalarFields: [{ path: "upLvlHole", label: "Cấp ô nâng cấp" }],
     },
     {
         featureKey: "rune_chip",
@@ -232,17 +241,17 @@ export const FEATURE_SYSTEMS: FeatureSystem[] = [
         featureKey: "magic_array",
         label: "Trận Pháp (Magic Array)",
         scalarFields: [
-            { path: "pickCount", label: "Pick Count", min: 0, max: 12 },
-            { path: "refreshCount", label: "Refresh Count", min: 0, max: 10 },
-            { path: "buyPickCount", label: "Buy Pick Count", min: 0 },
+            { path: "pickCount", label: "Số lần chọn", min: 0, max: 12 },
+            { path: "refreshCount", label: "Số lần làm mới", min: 0, max: 10 },
+            { path: "buyPickCount", label: "Số lần mua lượt chọn", min: 0 },
         ],
     },
     {
         featureKey: "mystery_treasure",
         label: "Bí Bảo (Mystery Treasure)",
         scalarFields: [
-            { path: "skiLvl", label: "Skill Level", min: 0 },
-            { path: "skiPt", label: "Skill Point", min: 0 },
+            { path: "skiLvl", label: "Cấp kỹ năng", min: 0 },
+            { path: "skiPt", label: "Điểm kỹ năng", min: 0 },
         ],
     },
     {
@@ -253,16 +262,16 @@ export const FEATURE_SYSTEMS: FeatureSystem[] = [
         featureKey: "explorer_medal",
         label: "Huy Chương Thám Hiểm (Explorer Medal)",
         scalarFields: [
-            { path: "level", label: "Level", min: 0, max: 100 },
-            { path: "score", label: "Score", min: 0 },
+            { path: "level", label: "Cấp độ", min: 0, max: 100 },
+            { path: "score", label: "Điểm", min: 0 },
         ],
     },
     {
         featureKey: "pet_pve",
-        label: "Pet PVE",
+        label: "Thử thách thú cưng",
         scalarFields: [
-            { path: "ppvefloor", label: "PVE Floor", min: 0, max: 150 },
-            { path: "freeTime", label: "Free Time", min: 0, max: 3 },
+            { path: "ppvefloor", label: "Tầng thử thách", min: 0, max: 150 },
+            { path: "freeTime", label: "Lượt miễn phí", min: 0, max: 3 },
         ],
     },
 ]
@@ -355,12 +364,12 @@ export const COLOR_PREFIX: Record<
     number,
     { prefix: string; hex: string; label: string }
 > = {
-    0: { prefix: "", hex: "#FFFFFF", label: "Default" },
-    1: { prefix: "Bình Thường", hex: "#FFFFFF", label: "White" },
-    2: { prefix: "Cường Hóa", hex: "#22C55E", label: "Green" },
-    3: { prefix: "Tinh Xảo", hex: "#3B82F6", label: "Blue" },
-    4: { prefix: "Hoàn Mỹ", hex: "#D946EF", label: "Purple" },
-    5: { prefix: "Trác Việt", hex: "#F59E0B", label: "Orange" },
+    0: { prefix: "", hex: "#FFFFFF", label: "Mặc định" },
+    1: { prefix: "Bình Thường", hex: "#FFFFFF", label: "Trắng" },
+    2: { prefix: "Cường Hóa", hex: "#22C55E", label: "Lục" },
+    3: { prefix: "Tinh Xảo", hex: "#3B82F6", label: "Lam" },
+    4: { prefix: "Hoàn Mỹ", hex: "#D946EF", label: "Tím" },
+    5: { prefix: "Trác Việt", hex: "#F59E0B", label: "Cam" },
 }
 
 export const EQUIP_SLOT_LABELS: Array<{ index: number; label: string }> = [

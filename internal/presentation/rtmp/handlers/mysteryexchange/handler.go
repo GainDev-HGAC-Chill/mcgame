@@ -1,5 +1,8 @@
 // Open-sourced by BaoLT
 
+// Live RPC registration is fail-closed until catalog conversion and atomic consumption are implemented.
+// The legacy methods below are not registered and their placeholder rates must not be used on player data.
+
 // Package mysteryexchange handles the password-gated Mystery Furnace exchange sinks.
 //
 // RPC contracts (both require a valid secondary/delete password via MD5):
@@ -71,8 +74,8 @@ func (h *Handler) SetInventoryService(svc inventoryAccessor) {
 }
 
 func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
-	dispatcher.Register("MysteryExchangeItem", h.ExchangeItem)
-	dispatcher.Register("MysteryExchangeScore", h.ExchangeScore)
+	dispatcher.Register("MysteryExchangeItem", h.ExchangeUnavailable)
+	dispatcher.Register("MysteryExchangeScore", h.ExchangeUnavailable)
 }
 
 func accountIDFromCtx(ctx *rtmp.RPCContext) (uuid.UUID, bool) {

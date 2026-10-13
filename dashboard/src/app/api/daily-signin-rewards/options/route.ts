@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
                 tableId > 0 ? `Tbl ${tableId}` : "",
                 kind > 0 ? `Kind ${kind}` : "",
                 tplType > 0 ? `Type ${tplType}` : "",
-                requiredLevel > 0 ? `Lv ${requiredLevel}` : "",
+                requiredLevel > 0 ? `Cấp ${requiredLevel}` : "",
             ].filter(Boolean)
             return {
                 itemId,

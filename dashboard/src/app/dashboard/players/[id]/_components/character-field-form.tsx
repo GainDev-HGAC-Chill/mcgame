@@ -91,7 +91,7 @@ export function CharacterFieldForm({
             payload[field.key] = field.type === "bigint" ? num : Math.trunc(num)
         }
         if (Object.keys(payload).length === 0) {
-            toast.error("No changes to apply")
+            toast.error("Không có thay đổi để áp dụng")
             return
         }
         mutate.mutate(
@@ -110,7 +110,7 @@ export function CharacterFieldForm({
         <div className="space-y-6">
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Current {title}</CardTitle>
+                    <CardTitle className="text-base">{title} hiện tại</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className={`grid gap-3 ${grid}`}>
@@ -127,7 +127,7 @@ export function CharacterFieldForm({
 
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Set {title}</CardTitle>
+                    <CardTitle className="text-base">Đặt giá trị {title}</CardTitle>
                     <CardDescription>
                         {description ??
                             "Only fill fields you want to change. Empty fields are ignored."}
@@ -159,7 +159,7 @@ export function CharacterFieldForm({
                         onClick={handleApply}
                         disabled={mutate.isPending}
                     >
-                        Apply Changes
+                        Áp dụng thay đổi
                     </Button>
                 </CardContent>
             </Card>

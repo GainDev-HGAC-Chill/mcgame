@@ -5,6 +5,7 @@ package shop
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	appitem "mcgame-server/internal/application/item"
@@ -278,6 +279,83 @@ func TestBuyItemKeepsBoundStacksSeparateInPurchaseUpdates(t *testing.T) {
 	}
 }
 
+func TestBuySystemItemUsesExchangePointsWithoutTouchingHonor(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+	itemRepo := newPurchaseSyncItemRepo()
+	itemService := appitem.NewService(itemRepo, logger)
+	manager := newPurchaseSyncTestManager(t, models.ItemTemplateTemplate{
+		ID: 158, Name: "Point item", StackMax: 99, Kind: 5,
+	})
+	loadPurchaseSyncRecord(t, manager, models.TableShopSlot, models.ShopSlotTemplate{
+		ID: 700, ItemID: 158, Type: 29, Point: 5,
+	})
+	itemService.SetGameDataManager(manager)
+	char := &character.Character{ID: 1, Name: "buyer", ExPoint: 5, Honor: 99, BagSlotNum: 30}
+	charRepo := newVIPShopCharacterRepo(char)
+	service := NewService()
+	service.SetGameDataManager(manager)
+	service.SetItemService(itemService)
+	service.SetCharacterRepository(charRepo)
+
+	result, err := service.BuySystemItem(ctx, 1, 700, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storedChar, err := charRepo.FindByID(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.NewMoney != 0 || result.CurrencyType != 0 || storedChar.ExPoint != 0 || storedChar.Honor != 99 {
+		t.Fatalf("unexpected balances/result: result=%+v exPoint=%d honor=%d", result, storedChar.ExPoint, storedChar.Honor)
+	}
+	if _, err := service.BuySystemItem(ctx, 1, 700, 1); err == nil {
+		t.Fatal("second purchase without exchange points succeeded")
+	}
+	items, err := itemService.GetAllItems(ctx, 1)
+	if err != nil || len(items) != 1 || items[0].StackCount != 1 {
+		t.Fatalf("failed purchase changed inventory: items=%+v err=%v", items, err)
+	}
+}
+
+func TestBuySystemItemSerializesConcurrentPointPurchases(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+	itemRepo := newPurchaseSyncItemRepo()
+	itemService := appitem.NewService(itemRepo, logger)
+	manager := newPurchaseSyncTestManager(t, models.ItemTemplateTemplate{ID: 158, Name: "Point item", StackMax: 99, Kind: 5})
+	loadPurchaseSyncRecord(t, manager, models.TableShopSlot, models.ShopSlotTemplate{ID: 700, ItemID: 158, Type: 29, Point: 5})
+	itemService.SetGameDataManager(manager)
+	charRepo := newVIPShopCharacterRepo(&character.Character{ID: 1, Name: "buyer", ExPoint: 5, BagSlotNum: 30})
+	service := NewService()
+	service.SetGameDataManager(manager)
+	service.SetItemService(itemService)
+	service.SetCharacterRepository(charRepo)
+
+	var wg sync.WaitGroup
+	results := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := service.BuySystemItem(ctx, 1, 700, 1)
+			results <- err
+		}()
+	}
+	wg.Wait()
+	close(results)
+	succeeded := 0
+	for err := range results {
+		if err == nil {
+			succeeded++
+		}
+	}
+	items, err := itemService.GetAllItems(ctx, 1)
+	if err != nil || succeeded != 1 || len(items) != 1 || items[0].StackCount != 1 {
+		t.Fatalf("success=%d items=%+v err=%v", succeeded, items, err)
+	}
+}
+
 func newPurchaseSyncTestManager(t *testing.T, itemTpl models.ItemTemplateTemplate) *gamedata.Manager {
 	t.Helper()
 
@@ -291,6 +369,17 @@ func newPurchaseSyncTestManager(t *testing.T, itemTpl models.ItemTemplateTemplat
 	}
 
 	return manager
+}
+
+func loadPurchaseSyncRecord(t *testing.T, manager *gamedata.Manager, table string, record interface{}) {
+	t.Helper()
+	raw, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.GetCache().LoadTable(table, []json.RawMessage{raw}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func dtoInt(t *testing.T, dto map[string]interface{}, key string) int {

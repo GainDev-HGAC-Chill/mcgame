@@ -60,14 +60,14 @@ export function ItemBrowserTable({
                         <TableHeader className="sticky top-0 z-10 bg-background">
                             <TableRow>
                                 <TableHead>ID</TableHead>
-                                <TableHead>Icon</TableHead>
+                                <TableHead>Biểu tượng</TableHead>
                                 <TableHead>Tên</TableHead>
                                 <TableHead>Bảng</TableHead>
-                                <TableHead>Kind</TableHead>
-                                <TableHead>Type</TableHead>
+                                <TableHead>Nhóm</TableHead>
+                                <TableHead>Loại</TableHead>
                                 <TableHead>Cách dùng</TableHead>
                                 <TableHead>Cấp</TableHead>
-                                <TableHead>Stack</TableHead>
+                                <TableHead>Số lượng cộng dồn</TableHead>
                                 <TableHead>Khóa</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -165,7 +165,7 @@ export function ItemBrowserTable({
                                                     {getKindLabel(item.kind)}
                                                 </span>
                                                 <span className="font-mono text-muted-foreground">
-                                                    Kind {item.kind}
+                                                    Nhóm {item.kind}
                                                 </span>
                                             </div>
                                         </TableCell>
@@ -176,7 +176,7 @@ export function ItemBrowserTable({
                                                     {getItemTypeLabel(item.itemType)}
                                                 </span>
                                                 <span className="font-mono text-muted-foreground">
-                                                    Type {item.templateType}
+                                                    Loại {item.templateType}
                                                 </span>
                                             </div>
                                         </TableCell>

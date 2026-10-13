@@ -31,7 +31,7 @@ type DeleteResponse = { ok: boolean; id?: number; message?: string }
 export const gatewayConfigService = {
     async list(): Promise<GatewayLine[]> {
         const res = await fetchAPI<ListResponse>("/lines")
-        if (!res.ok || !res.items) throw new Error(res.message || "failed to list lines")
+        if (!res.ok || !res.items) throw new Error(res.message || "Không tải được các kênh")
         return res.items
     },
 
@@ -40,7 +40,7 @@ export const gatewayConfigService = {
             method: "POST",
             body: JSON.stringify(input),
         })
-        if (!res.ok || !res.line) throw new Error(res.message || "failed to create line")
+        if (!res.ok || !res.line) throw new Error(res.message || "Không tạo được kênh")
         return res.line
     },
 
@@ -49,7 +49,7 @@ export const gatewayConfigService = {
             method: "PATCH",
             body: JSON.stringify(input),
         })
-        if (!res.ok || !res.line) throw new Error(res.message || "failed to update line")
+        if (!res.ok || !res.line) throw new Error(res.message || "Không cập nhật được kênh")
         return res.line
     },
 
@@ -57,7 +57,7 @@ export const gatewayConfigService = {
         const res = await fetchAPI<DeleteResponse>(`/lines/${id}`, {
             method: "DELETE",
         })
-        if (!res.ok || res.id === undefined) throw new Error(res.message || "failed to delete line")
+        if (!res.ok || res.id === undefined) throw new Error(res.message || "Không xóa được kênh")
         return res.id
     },
 }

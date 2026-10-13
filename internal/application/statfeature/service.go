@@ -6,6 +6,7 @@ package statfeature
 import (
 	"context"
 
+	appbloodbag "mcgame-server/internal/application/bloodbag"
 	domainitem "mcgame-server/internal/domain/item"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
@@ -87,6 +88,8 @@ func (s *Service) BuildCharacterLoginState(ctx context.Context, charID int64) (m
 			result["medalExp"] = medalExp
 		}
 	}
+
+	result["ep"] = appbloodbag.StateFromMap(featureStates[domainfeature.FeatureBloodBag]).String()
 
 	return result, nil
 }

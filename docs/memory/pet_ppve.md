@@ -1,5 +1,11 @@
 # Pet PVE — Không Gian Điêu Khắc (Carve Space)
 
+Panel/login stage-container fixes deployed17:34:09 (2026-10-12), focused tests/vet/build PASS. Does not certify petPVE combat/replay/carve progression; Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
+
+## Empty-stage login consistency (2026-10-12)
+
+In addition to the repaired lazy-panel stage containers, buildPetPVEDataJSON now supplies non-null p.s0 through p.s7 without changing persisted state or awarding progression. Populated stage data is retained; regression checks that shaping does not mutate the input state. No claim that combat/replay or carve advancement is fully implemented. Focused stat-feature/login tests PASS; real Flash retest pending.
+
 Solo pet tower: assemble up to 5 bound pets with per-pet AI command lists, challenge
 floor-by-floor (max 150). Clears earn **Văn Chỉ (KP)** to level **Khắc Văn (KhacVan)**
 carve-runes that buff pet stats; a **master carve level (mlv)** tracks overall progress.
@@ -112,3 +118,12 @@ None of the 6 panel RPCs are quieted yet — await in-client confirmation before
 to `quietMethods` (ask first).
 
 Related: [[stat-feature-foundation]].
+
+## 2026-10-12 protocol-only panel repair
+
+- Confirmed `PetPVESystem.as:2411–2431`: `initPPVEPanel(null)` and `getPPVERank(null)` use null Responders; panel state is delivered by a named push, not an RPC result. `updatePPVEPanel` at 3427 takes `(kpData, ppveData, config, clearFlag)` in that order.
+- `PetPVESystem.as:3479–3485` displays `PET_PVE_PANEL[13]` ("Lỗi dữ liệu") when the selected `p.sN` is missing. The eight part buttons select indices 0–7; `updateKPPart` at 2338 treats missing rune indices 0–5 as level zero. Thus an empty **part object** is valid, but an empty **outer p object** is not.
+- `PPVEService.PPVEData` now supplies non-null empty `s0`–`s7` containers for missing/null/malformed parts. Existing rune maps, master level and config are preserved. This is wire-only normalization: it neither writes these containers to storage nor grants rune levels, KP, floors or pets. Tests cover empty/partial/malformed state and the exact four-argument handler push.
+- Login `statfeature.buildPetPVEDataJSON` still emits `p:{}` for empty state; no shared login files were changed in this scoped repair. Its optional consistency patch belongs to the parent (copy `p`, fill `s0`–`s7` with empty maps before JSON marshal). The lazy panel path is fixed independently.
+- **Still blocked, not validated gameplay:** carve upgrade/master-upgrade logic and real Pet PVE combat/replay. The old claim that database floor advancement represents a real `BATTLE_WIN` is not combat evidence: `ChallengeNextFloor` currently advances via bookkeeping and generates a replay ID without resolving a battle. This repair does not exercise or extend that behavior. No live player actions, database writes or deployment were performed.
+- The decompiled `system/CallBack.as` aborts at the trait-count limit, so the outer named-callback implementation cannot be independently verified from this file; panel method signature and existing server push are verified.

@@ -658,6 +658,9 @@ func (s *Service) IsEquippedBySlotID(ctx context.Context, charID int64, slotID i
 }
 
 func (s *Service) EquipItem(ctx context.Context, charID int64, itemID int64, equipSlot item.EquipSlot) (*item.Item, error) {
+	if atomic, ok := s.itemRepo.(EquippedSlotUpdater); ok {
+		return s.equipItemAtomic(ctx, atomic, charID, itemID, equipSlot)
+	}
 	it, err := s.itemRepo.FindByID(ctx, itemID)
 	if err != nil {
 		return nil, err
@@ -673,6 +676,16 @@ func (s *Service) EquipItem(ctx context.Context, charID int64, itemID int64, equ
 
 	if it.IsBroken() {
 		return nil, pkgerrors.ErrItemBroken
+	}
+	if s.charRepo != nil && s.gameDataRec != nil {
+		current, err := s.charRepo.FindByID(ctx, charID)
+		if err != nil {
+			return nil, err
+		}
+		tpl := s.gameDataRec.GetEquipment(it.TemplateID)
+		if current == nil || tpl == nil || float64(current.Level) < tpl.ReqLevel {
+			return nil, pkgerrors.ErrInsufficientLevel
+		}
 	}
 
 	// For auto-selection (slot -1)
@@ -769,6 +782,9 @@ func (s *Service) MoveItem(ctx context.Context, charID int64, itemID int64, toSl
 
 	if it.CharacterID != charID {
 		return pkgerrors.ErrItemNotOwned
+	}
+	if _, atomic := s.itemRepo.(EquippedSlotUpdater); atomic && (it.SlotType == item.SlotTypeEquipped || toSlotType == item.SlotTypeEquipped) {
+		return pkgerrors.ErrCannotEquip
 	}
 
 	// 2. Validate move destination rules (e.g. TempBag restrictions)
@@ -1082,8 +1098,11 @@ func (s *Service) UseItem(ctx context.Context, char *character.Character, itemID
 			result["displaced"] = displaced
 		}
 
-		// Note: We return the item itself. It's now moved to an equipment slot.
-		return it, result, nil
+		equippedItem, err := s.itemRepo.FindByID(ctx, itemID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return equippedItem, result, nil
 	}
 
 	// Note: Client handles quantity dialogs and gift bag selection locally
@@ -1092,6 +1111,29 @@ func (s *Service) UseItem(ctx context.Context, char *character.Character, itemID
 	var tpl *models.ItemTemplateTemplate
 	if s.gameDataRec != nil {
 		tpl = s.gameDataRec.GetItem(it.TemplateID)
+	}
+
+	if it.TemplateID == 1132 {
+		targetType := 0
+		if uctx != nil {
+			targetType = uctx.TargetType
+		}
+		result, err := s.useSilverVoucher(ctx, char, it, tpl, 1, targetType)
+		if err != nil {
+			return nil, nil, err
+		}
+		return it, result, nil
+	}
+	if isCapacityBook(it.TemplateID) {
+		targetType := 0
+		if uctx != nil {
+			targetType = uctx.TargetType
+		}
+		result, err := s.useCapacityBooks(ctx, char, it, tpl, 1, targetType)
+		if err != nil {
+			return nil, nil, err
+		}
+		return it, result, nil
 	}
 
 	if tpl == nil {
@@ -1277,6 +1319,13 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	var tpl *models.ItemTemplateTemplate
 	if s.gameDataRec != nil {
 		tpl = s.gameDataRec.GetItem(it.TemplateID)
+	}
+
+	if it.TemplateID == 1132 {
+		return s.useSilverVoucher(ctx, char, it, tpl, count, targetType)
+	}
+	if isCapacityBook(it.TemplateID) {
+		return s.useCapacityBooks(ctx, char, it, tpl, count, targetType)
 	}
 
 	totalHPHealed := 0
@@ -1538,7 +1587,7 @@ func (s *Service) SortTempBag(ctx context.Context, charID int64) ([]*item.Item, 
 	// Filter only normal temp bag items (slot index 0-99)
 	items := make([]*item.Item, 0)
 	for _, it := range allTempItems {
-		if it.SlotIndex < 100 {
+		if it.SlotIndex >= 0 && it.SlotIndex < 100 {
 			items = append(items, it)
 		}
 	}

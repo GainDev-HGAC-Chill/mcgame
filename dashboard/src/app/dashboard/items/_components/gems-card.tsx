@@ -41,7 +41,7 @@ export function GemsCard({
     return (
         <Card className="min-w-0">
             <CardHeader>
-                <CardTitle>Embedded Gems</CardTitle>
+                <CardTitle>Đá khảm</CardTitle>
             </CardHeader>
             <CardContent>
                 {socketCount > 0 ? (
@@ -52,7 +52,7 @@ export function GemsCard({
                                 className="flex flex-col gap-2"
                             >
                                 <Label htmlFor={`send-gem-${index}`}>
-                                    Socket {index + 1}
+                                    Ô khảm {index + 1}
                                 </Label>
                                 <Select
                                     value={gemValue || "__none__"}
@@ -73,8 +73,8 @@ export function GemsCard({
                                                 <SelectValue
                                                     placeholder={
                                                         gemOptionsLoading
-                                                            ? "Loading gem list..."
-                                                            : "Select gem"
+                                                            ? "Đang tải danh sách đá..."
+                                                            : "Chọn đá khảm"
                                                     }
                                                 />
                                             </SelectTrigger>
@@ -96,14 +96,14 @@ export function GemsCard({
                                                           : `Gem #${gemValue}`
                                                   })()
                                                 : gemOptionsLoading
-                                                  ? "Loading gem list..."
-                                                  : "Select gem"}
+                                                  ? "Đang tải danh sách đá..."
+                                                  : "Chọn đá khảm"}
                                         </TooltipContent>
                                     </Tooltip>
                                     <SelectContent>
                                         <SelectGroup>
                                             <SelectItem value="__none__">
-                                                No gem
+                                                Không có đá
                                             </SelectItem>
                                             {gemOptions.map(gem => (
                                                 <SelectItem
@@ -121,7 +121,7 @@ export function GemsCard({
                     </div>
                 ) : (
                     <div className="rounded-xl border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                        This template has no sockets for embedding gems.
+                        Mẫu này không có ô khảm đá.
                     </div>
                 )}
             </CardContent>

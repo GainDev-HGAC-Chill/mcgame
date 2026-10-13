@@ -38,7 +38,7 @@ function formatDateTime(value: string | null): string {
     if (!value) return "-"
     const parsed = new Date(value)
     if (Number.isNaN(parsed.valueOf())) return value
-    return new Intl.DateTimeFormat("en-US", {
+    return new Intl.DateTimeFormat("vi-VN", {
         dateStyle: "short",
         timeStyle: "medium",
     }).format(parsed)
@@ -88,13 +88,13 @@ export default function PlayersPage() {
             <div className="grid gap-4 md:grid-cols-3">
                 <Card>
                     <CardHeader className="pb-3">
-                        <CardDescription>Online realtime</CardDescription>
+                        <CardDescription>Trực tuyến theo thời gian thực</CardDescription>
                         <CardTitle>{onlinePlayers}</CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>
                     <CardHeader className="pb-3">
-                        <CardDescription>Currently showing</CardDescription>
+                        <CardDescription>Đang hiển thị</CardDescription>
                         <CardTitle>
                             {players.length} / {totalPlayers}
                         </CardTitle>
@@ -102,7 +102,7 @@ export default function PlayersPage() {
                 </Card>
                 <Card>
                     <CardHeader className="pb-3">
-                        <CardDescription>Last refreshed</CardDescription>
+                        <CardDescription>Lần làm mới gần nhất</CardDescription>
                         <CardTitle className="text-base">
                             {formatDateTime(lastRefreshedAt)}
                         </CardTitle>
@@ -112,10 +112,9 @@ export default function PlayersPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Search players</CardTitle>
+                    <CardTitle>Tìm người chơi</CardTitle>
                     <CardDescription>
-                        Search by player name, account, player ID, or UID. The
-                        list auto-refreshes every 5 seconds.
+                        Tìm theo tên người chơi, tài khoản, ID hoặc UID. Danh sách tự làm mới mỗi 5 giây.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -123,7 +122,7 @@ export default function PlayersPage() {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
-                                placeholder="Enter name, account, ID, or UID..."
+                                placeholder="Nhập tên, tài khoản, ID hoặc UID..."
                                 value={searchTerm}
                                 onChange={event =>
                                     setSearchTerm(event.target.value)
@@ -139,15 +138,14 @@ export default function PlayersPage() {
                             <RefreshCw
                                 className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
                             />
-                            Refresh
+                            Làm mới
                         </Button>
                     </div>
 
                     {totalPlayers > players.length ? (
                         <p className="text-sm text-muted-foreground">
-                            Showing up to {players.length} of {totalPlayers}{" "}
-                            most recent players. Use search for server-side
-                            filtering.
+                            Hiển thị tối đa {players.length} trên {totalPlayers}{" "}
+                            người chơi gần nhất. Dùng tìm kiếm để lọc trên máy chủ.
                         </p>
                     ) : null}
 
@@ -155,7 +153,7 @@ export default function PlayersPage() {
                         <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                             {error instanceof Error
                                 ? error.message
-                                : "Failed to load players"}
+                                : "Không tải được người chơi"}
                         </div>
                     ) : null}
                 </CardContent>
@@ -163,10 +161,9 @@ export default function PlayersPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Player list</CardTitle>
+                    <CardTitle>Danh sách người chơi</CardTitle>
                     <CardDescription>
-                        Online status is fetched from Redis runtime, not the
-                        Postgres online column.
+                        Trạng thái trực tuyến lấy từ Redis đang chạy, không phải cột online trong Postgres.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -174,14 +171,14 @@ export default function PlayersPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>ID</TableHead>
-                                <TableHead>Player</TableHead>
-                                <TableHead>Account</TableHead>
-                                <TableHead>Level</TableHead>
-                                <TableHead>Server</TableHead>
-                                <TableHead>Map</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Last active</TableHead>
-                                <TableHead>Actions</TableHead>
+                                <TableHead>Người chơi</TableHead>
+                                <TableHead>Tài khoản</TableHead>
+                                <TableHead>Cấp độ</TableHead>
+                                <TableHead>Máy chủ</TableHead>
+                                <TableHead>Bản đồ</TableHead>
+                                <TableHead>Trạng thái</TableHead>
+                                <TableHead>Hoạt động gần nhất</TableHead>
+                                <TableHead>Thao tác</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -191,7 +188,7 @@ export default function PlayersPage() {
                                         colSpan={9}
                                         className="h-24 text-center text-muted-foreground"
                                     >
-                                        Loading player list...
+                                        Đang tải danh sách người chơi...
                                     </TableCell>
                                 </TableRow>
                             ) : players.length === 0 ? (
@@ -200,7 +197,7 @@ export default function PlayersPage() {
                                         colSpan={9}
                                         className="h-24 text-center text-muted-foreground"
                                     >
-                                        No players found.
+                                        Không tìm thấy người chơi.
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -254,8 +251,8 @@ export default function PlayersPage() {
                                                 }
                                             >
                                                 {player.online
-                                                    ? "Online"
-                                                    : "Offline"}
+                                                    ? "Trực tuyến"
+                                                    : "Ngoại tuyến"}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-sm">
@@ -273,7 +270,7 @@ export default function PlayersPage() {
                                                     }
                                                 >
                                                     <Eye className="mr-1 h-4 w-4" />
-                                                    View
+                                                    Xem
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
@@ -285,7 +282,7 @@ export default function PlayersPage() {
                                                     }
                                                 >
                                                     <Settings className="mr-1 h-4 w-4" />
-                                                    Manage
+                                                    Quản lý
                                                 </Button>
                                             </div>
                                         </TableCell>
@@ -304,10 +301,10 @@ export default function PlayersPage() {
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>
-                            {selectedPlayer?.playerName ?? "Player detail"}
+                            {selectedPlayer?.playerName ?? "Chi tiết người chơi"}
                         </DialogTitle>
                         <DialogDescription>
-                            Player ID {selectedPlayer?.id ?? "-"} | UID{" "}
+                            ID người chơi {selectedPlayer?.id ?? "-"} | UID{" "}
                             {selectedPlayer?.playerUid ?? "-"}
                         </DialogDescription>
                     </DialogHeader>
@@ -315,59 +312,59 @@ export default function PlayersPage() {
                     {selectedPlayer ? (
                         <div className="grid gap-4 md:grid-cols-2">
                             <DetailField
-                                label="Account"
+                                label="Tài khoản"
                                 value={selectedPlayer.accountName}
                             />
                             <DetailField
-                                label="Server"
+                                label="Máy chủ"
                                 value={`${selectedPlayer.serverKey} (#${selectedPlayer.serverId})`}
                             />
                             <DetailField
-                                label="Level"
+                                label="Cấp độ"
                                 value={String(selectedPlayer.level)}
                             />
                             <DetailField
-                                label="Sex"
+                                label="Giới tính"
                                 value={formatSexLabel(selectedPlayer.sex)}
                             />
                             <DetailField
-                                label="Map / Instance"
+                                label="Bản đồ / Phụ bản"
                                 value={`${selectedPlayer.mapId} / ${selectedPlayer.instanceId}`}
                             />
                             <DetailField
-                                label="Position"
+                                label="Vị trí"
                                 value={`${selectedPlayer.position.x}, ${selectedPlayer.position.y}`}
                             />
                             <DetailField
-                                label="Online"
+                                label="Trực tuyến"
                                 value={
-                                    selectedPlayer.online ? "Online" : "Offline"
+                                    selectedPlayer.online ? "Trực tuyến" : "Ngoại tuyến"
                                 }
                             />
                             <DetailField
-                                label="Last seen"
+                                label="Lần xuất hiện gần nhất"
                                 value={formatDateTime(
                                     selectedPlayer.lastSeenAt
                                 )}
                             />
                             <DetailField
-                                label="Last login"
+                                label="Đăng nhập gần nhất"
                                 value={formatDateTime(
                                     selectedPlayer.lastLoginAt
                                 )}
                             />
                             <DetailField
-                                label="Last move"
+                                label="Di chuyển gần nhất"
                                 value={formatDateTime(
                                     selectedPlayer.lastMoveAt
                                 )}
                             />
                             <DetailField
-                                label="Updated at"
+                                label="Cập nhật lúc"
                                 value={formatDateTime(selectedPlayer.updatedAt)}
                             />
                             <DetailField
-                                label="Created at"
+                                label="Tạo lúc"
                                 value={formatDateTime(selectedPlayer.createdAt)}
                             />
                         </div>

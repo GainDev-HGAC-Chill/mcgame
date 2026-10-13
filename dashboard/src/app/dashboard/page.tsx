@@ -60,7 +60,7 @@ export default function DashboardPage() {
             const entry = serverSettings.find(item => item.key === MAINTENANCE_KEY)
             setMaintenance(Boolean(entry?.value))
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to load dashboard")
+            toast.error(error instanceof Error ? error.message : "Không tải được bảng quản trị")
         } finally {
             setLoading(false)
         }
@@ -74,9 +74,9 @@ export default function DashboardPage() {
         try {
             const updated = await gatewayConfigService.update(line.id, { status: next })
             setLines(prev => prev.map(l => (l.id === updated.id ? updated : l)))
-            toast.success(`Line ${line.id} set to ${next}`)
+            toast.success(`Đã đổi trạng thái kênh ${line.id}`)
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Status update failed")
+            toast.error(error instanceof Error ? error.message : "Cập nhật trạng thái thất bại")
         }
     }
 
@@ -85,9 +85,9 @@ export default function DashboardPage() {
         try {
             await gatewayConfigService.remove(deleteTarget.id)
             setLines(prev => prev.filter(l => l.id !== deleteTarget.id))
-            toast.success(`Line ${deleteTarget.id} deleted`)
+            toast.success(`Đã xóa kênh ${deleteTarget.id}`)
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Delete failed")
+            toast.error(error instanceof Error ? error.message : "Xóa thất bại")
         } finally {
             setDeleteTarget(null)
         }
@@ -105,11 +105,11 @@ export default function DashboardPage() {
             setMaintenance(Boolean(item.value))
             toast.success(
                 next
-                    ? "Maintenance enabled — all connected players are being kicked"
-                    : "Maintenance disabled — logins re-enabled",
+                    ? "Đã bật bảo trì — đang ngắt kết nối tất cả người chơi"
+                    : "Đã tắt bảo trì — cho phép đăng nhập lại",
             )
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to update maintenance mode")
+            toast.error(error instanceof Error ? error.message : "Không cập nhật được chế độ bảo trì")
         } finally {
             setMaintenanceBusy(false)
             setPendingMaintenance(null)
@@ -120,34 +120,34 @@ export default function DashboardPage() {
         <div className="space-y-6 p-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">Gateway Lines</h1>
+                    <h1 className="text-2xl font-bold">Kênh kết nối máy chủ</h1>
                     <p className="text-sm text-muted-foreground">
-                        Live operator config for the line list served via getLineInfo. Changes propagate in &lt;1s.
-                        Flipping a line to offline/maintenance kicks all connected players on that line.
+                        Cấu hình danh sách kênh trả về qua getLineInfo. Thay đổi có hiệu lực trong dưới 1 giây.
+                        Chuyển kênh sang ngoại tuyến/bảo trì sẽ ngắt kết nối tất cả người chơi trên kênh đó.
                     </p>
                 </div>
                 <Button asChild>
-                    <Link href="/dashboard/lines/new">New Line</Link>
+                    <Link href="/dashboard/lines/new">Thêm kênh</Link>
                 </Button>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Global maintenance</CardTitle>
+                    <CardTitle>Bảo trì toàn hệ thống</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="flex items-center justify-between gap-4">
                         <div className="space-y-1">
                             <p className="text-sm font-medium">
-                                Maintenance mode
+                                Chế độ bảo trì
                                 {maintenance === true ? (
-                                    <Badge variant="destructive" className="ml-2">enabled</Badge>
+                                    <Badge variant="destructive" className="ml-2">Bật</Badge>
                                 ) : maintenance === false ? (
-                                    <Badge variant="secondary" className="ml-2">disabled</Badge>
+                                    <Badge variant="secondary" className="ml-2">Tắt</Badge>
                                 ) : null}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                When enabled, all logins are blocked and every connected player is kicked.
+                                Khi bật, mọi lượt đăng nhập đều bị chặn và tất cả người chơi bị ngắt kết nối.
                             </p>
                         </div>
                         <Switch
@@ -161,27 +161,27 @@ export default function DashboardPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Configured lines ({lines.length})</CardTitle>
+                    <CardTitle>Kênh đã cấu hình ({lines.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
-                        <p className="text-sm text-muted-foreground">Loading…</p>
+                        <p className="text-sm text-muted-foreground">Đang tải…</p>
                     ) : lines.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                            No lines yet. Create one to start advertising channels to the Flash client.
+                            Chưa có kênh. Tạo kênh để hiển thị danh sách cho máy khách Flash.
                         </p>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>ID</TableHead>
-                                    <TableHead>Name</TableHead>
+                                    <TableHead>Tên</TableHead>
                                     <TableHead>URL</TableHead>
-                                    <TableHead className="text-right">Max</TableHead>
-                                    <TableHead>Auction</TableHead>
-                                    <TableHead>Guild</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead className="text-right">Tối đa</TableHead>
+                                    <TableHead>Đấu giá</TableHead>
+                                    <TableHead>Bang hội</TableHead>
+                                    <TableHead>Trạng thái</TableHead>
+                                    <TableHead className="text-right">Thao tác</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -216,22 +216,22 @@ export default function DashboardPage() {
                                                     </SelectValue>
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="online">online</SelectItem>
-                                                    <SelectItem value="maintenance">maintenance</SelectItem>
-                                                    <SelectItem value="offline">offline</SelectItem>
+                                                    <SelectItem value="online">Trực tuyến</SelectItem>
+                                                    <SelectItem value="maintenance">Bảo trì</SelectItem>
+                                                    <SelectItem value="offline">Ngoại tuyến</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </TableCell>
                                         <TableCell className="text-right space-x-2">
                                             <Button variant="outline" size="sm" asChild>
-                                                <Link href={`/dashboard/lines/${line.id}`}>Edit</Link>
+                                                <Link href={`/dashboard/lines/${line.id}`}>Chỉnh sửa</Link>
                                             </Button>
                                             <Button
                                                 variant="destructive"
                                                 size="sm"
                                                 onClick={() => setDeleteTarget(line)}
                                             >
-                                                Delete
+                                                Xóa
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -245,15 +245,15 @@ export default function DashboardPage() {
             <AlertDialog open={deleteTarget !== null} onOpenChange={open => !open && setDeleteTarget(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete line {deleteTarget?.id}?</AlertDialogTitle>
+                        <AlertDialogTitle>Xóa kênh {deleteTarget?.id}?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            The Flash client will stop advertising this line within ~1 second. Already-connected
-                            players are not kicked. This action is irreversible.
+                            Máy khách Flash sẽ ngừng hiển thị kênh này sau khoảng 1 giây. Người chơi đã kết nối
+                            không bị ngắt kết nối. Không thể hoàn tác thao tác này.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                        <AlertDialogCancel>Hủy</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete}>Xóa</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -266,19 +266,19 @@ export default function DashboardPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>
                             {pendingMaintenance
-                                ? "Enable maintenance mode?"
-                                : "Disable maintenance mode?"}
+                                ? "Bật chế độ bảo trì?"
+                                : "Tắt chế độ bảo trì?"}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             {pendingMaintenance
-                                ? "All currently-connected players will be kicked within ~1 second, and new logins will be rejected with a 'server not ready' message until this is turned off."
-                                : "Logins will be re-enabled immediately. Connected players (if any) are unaffected."}
+                                ? "Tất cả người chơi đang kết nối sẽ bị ngắt trong khoảng 1 giây. Đăng nhập mới bị từ chối với thông báo máy chủ chưa sẵn sàng cho đến khi tắt bảo trì."
+                                : "Cho phép đăng nhập lại ngay. Người chơi đang kết nối (nếu có) không bị ảnh hưởng."}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={maintenanceBusy}>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel disabled={maintenanceBusy}>Hủy</AlertDialogCancel>
                         <AlertDialogAction onClick={commitMaintenance} disabled={maintenanceBusy}>
-                            {maintenanceBusy ? "Applying…" : "Confirm"}
+                            {maintenanceBusy ? "Đang áp dụng…" : "Xác nhận"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

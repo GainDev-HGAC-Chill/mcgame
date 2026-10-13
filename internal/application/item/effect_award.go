@@ -189,7 +189,7 @@ func (h *awardEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *
 				}
 			}
 		default:
-			grantedItems, err := h.grantItemAward(ctx, char.ID, award.AwardID, award.AwardType, award.Count, award.ItemQuality, award.PreNameType)
+			grantedItems, err := h.grantItemAward(ctx, char.ID, award.AwardID, award.AwardType, award.Count, award.ItemQuality, award.PreNameType, award.Payload)
 			if err != nil {
 				return nil, err
 			}
@@ -259,9 +259,9 @@ func (h *awardEffectHandler) ensureAwardCapacity(ctx context.Context, charID int
 				ColorCode:  colorCode,
 			})
 		default:
-			colorCode := 0
-			if award.ItemQuality > 0 {
-				colorCode = domainitem.EquipmentColorCodeFromQuality(award.ItemQuality)
+			colorCode, err := h.awardItemColorCode(award.AwardType, award.AwardID, award.ItemQuality, award.Payload)
+			if err != nil {
+				return err
 			}
 			bagRewards = append(bagRewards, bagRewardSpec{
 				TemplateID: award.AwardID,
@@ -311,7 +311,7 @@ func (h *awardEffectHandler) grantPetAward(ctx context.Context, charID int64, te
 	return h.itemService.petService.ContractPets(ctx, charID, templateIDs)
 }
 
-func (h *awardEffectHandler) grantItemAward(ctx context.Context, charID int64, templateID int, awardType int, count int, quality int, preNameType int) ([]*GrantedItemResult, error) {
+func (h *awardEffectHandler) grantItemAward(ctx context.Context, charID int64, templateID int, awardType int, count int, quality int, preNameType int, payload map[string]interface{}) ([]*GrantedItemResult, error) {
 	if h.itemService == nil {
 		return nil, nil
 	}
@@ -320,9 +320,9 @@ func (h *awardEffectHandler) grantItemAward(ctx context.Context, charID int64, t
 		return h.grantEquipmentAward(ctx, charID, templateID, count, quality, preNameType)
 	}
 
-	colorCode := 0
-	if quality > 0 {
-		colorCode = domainitem.EquipmentColorCodeFromQuality(quality)
+	colorCode, colorErr := h.awardItemColorCode(awardType, templateID, quality, payload)
+	if colorErr != nil {
+		return nil, colorErr
 	}
 
 	var (
@@ -393,7 +393,7 @@ func normalizePetAwardQuality(quality float64) float64 {
 	if quality <= 0 {
 		return 0
 	}
-	return quality
+	return quality / 10
 }
 
 func (h *awardEffectHandler) grantTitleAward(ctx context.Context, charID int64, titleID int) (*GrantedTitleResult, error) {

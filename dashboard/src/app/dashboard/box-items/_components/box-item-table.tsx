@@ -85,20 +85,20 @@ export function BoxItemTable({
                         <TableHeader className="sticky top-0 z-10 bg-background">
                             <TableRow>
                                 <TableHead className="w-[70px]">ID</TableHead>
-                                <TableHead className="w-[80px]">Icon</TableHead>
+                                <TableHead className="w-[80px]">Biểu tượng</TableHead>
                                 <TableHead>Tên vật phẩm</TableHead>
                                 <TableHead className="w-[170px]">
-                                    Use type
+                                    Cách sử dụng
                                 </TableHead>
                                 <TableHead className="w-[100px]">
-                                    Template
+                                    Mẫu
                                 </TableHead>
-                                <TableHead className="w-[80px]">Kind</TableHead>
+                                <TableHead className="w-[80px]">Nhóm</TableHead>
                                 <TableHead className="w-[80px]">
-                                    Level
+                                    Cấp độ
                                 </TableHead>
                                 <TableHead className="w-[80px]">
-                                    Stack
+                                    Số lượng cộng dồn
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
@@ -176,13 +176,13 @@ export function BoxItemTable({
                                                     )}
                                                 </Badge>
                                                 <span className="font-mono text-muted-foreground">
-                                                    Use {item.useType}
+                                                    Sử dụng {item.useType}
                                                 </span>
                                             </div>
                                         </TableCell>
 
                                         <TableCell className="font-mono text-xs">
-                                            Type {item.templateType}
+                                            Loại {item.templateType}
                                         </TableCell>
                                         <TableCell className="text-xs">
                                             {getKindLabel(item.kind)}

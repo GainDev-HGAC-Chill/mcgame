@@ -37,8 +37,7 @@ func (h *Handler) BuyAmountItemClient(ctx *rtmp.RPCContext, args []interface{}) 
 	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: res.NewMoney})
 	_ = ctx.Connection.SendCallback("onAddItem", res.ItemData)
 	sendPurchaseSlotUpdates(ctx, res)
-
-	h.checkQuestUpdates(ctx, charID)
+	h.refreshQuestProgress(ctx, charID)
 
 	return true, nil
 }
@@ -68,8 +67,7 @@ func (h *Handler) BuyItemClient(ctx *rtmp.RPCContext, args []interface{}) (inter
 
 	currencyKey := getCurrencyKey(res.CurrencyType)
 	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: res.NewMoney})
-
-	h.checkQuestUpdates(ctx, charID)
+	h.refreshQuestProgress(ctx, charID)
 
 	return nil, nil
 }
@@ -99,8 +97,7 @@ func (h *Handler) BuySystemItemClient(ctx *rtmp.RPCContext, args []interface{}) 
 
 	currencyKey := getCurrencyKey(res.CurrencyType)
 	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: res.NewMoney})
-
-	h.checkQuestUpdates(ctx, charID)
+	h.refreshQuestProgress(ctx, charID)
 
 	return nil, nil
 }
@@ -249,8 +246,7 @@ func (h *Handler) BuySystemItemMulti(ctx *rtmp.RPCContext, args []interface{}) (
 
 	currencyKey := getCurrencyKey(res.CurrencyType)
 	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: res.NewMoney})
-
-	h.checkQuestUpdates(ctx, charID)
+	h.refreshQuestProgress(ctx, charID)
 
 	return map[string]interface{}{"success": res.Success, "items": res.Items}, nil
 }

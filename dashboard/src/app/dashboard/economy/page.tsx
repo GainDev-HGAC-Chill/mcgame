@@ -86,35 +86,35 @@ export default function EconomyPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
-                            Total transactions today
+                            Tổng giao dịch hôm nay
                         </CardTitle>
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">15,234</div>
                         <p className="text-xs text-muted-foreground">
-                            +8.2% from yesterday
+                            +8,2% so với hôm qua
                         </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
-                            Transaction value
+                            Giá trị giao dịch
                         </CardTitle>
                         <TrendingUp className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">$12,456</div>
                         <p className="text-xs text-muted-foreground">
-                            +12.5% from yesterday
+                            +12,5% so với hôm qua
                         </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
-                            Suspicious transactions
+                            Giao dịch đáng ngờ
                         </CardTitle>
                         <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
@@ -123,14 +123,14 @@ export default function EconomyPage() {
                             {suspiciousTransactions.length}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Needs review
+                            Cần kiểm tra
                         </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
-                            Items in shop
+                            Vật phẩm trong cửa hàng
                         </CardTitle>
                         <Package className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
@@ -139,7 +139,7 @@ export default function EconomyPage() {
                             {shopItems.length}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Currently on sale
+                            Đang bán
                         </p>
                     </CardContent>
                 </Card>
@@ -150,13 +150,13 @@ export default function EconomyPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                        Economy alerts
+                        Cảnh báo kinh tế
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     {economyAlerts.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                            No alerts.
+                            Không có cảnh báo.
                         </p>
                     ) : (
                         <div className="space-y-3">
@@ -200,20 +200,20 @@ export default function EconomyPage() {
             <Tabs defaultValue="transactions" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="transactions">
-                        Transaction log
+                        Nhật ký giao dịch
                     </TabsTrigger>
-                    <TabsTrigger value="shop">Shop management</TabsTrigger>
+                    <TabsTrigger value="shop">Quản lý cửa hàng</TabsTrigger>
                     <TabsTrigger value="suspicious">
-                        Suspicious transactions
+                        Giao dịch đáng ngờ
                     </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="transactions" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Transaction history</CardTitle>
+                            <CardTitle>Lịch sử giao dịch</CardTitle>
                             <CardDescription>
-                                All in-game transactions
+                                Tất cả giao dịch trong trò chơi
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -221,7 +221,7 @@ export default function EconomyPage() {
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
-                                        placeholder="Search transactions..."
+                                        placeholder="Tìm giao dịch..."
                                         value={searchTerm}
                                         onChange={e =>
                                             setSearchTerm(e.target.value)
@@ -232,19 +232,19 @@ export default function EconomyPage() {
                             </div>
                             {transactions.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">
-                                    No transactions yet.
+                                    Chưa có giao dịch.
                                 </p>
                             ) : (
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>ID</TableHead>
-                                            <TableHead>Player</TableHead>
-                                            <TableHead>Type</TableHead>
-                                            <TableHead>Amount</TableHead>
-                                            <TableHead>Currency</TableHead>
-                                            <TableHead>Description</TableHead>
-                                            <TableHead>Time</TableHead>
+                                            <TableHead>Người chơi</TableHead>
+                                            <TableHead>Loại</TableHead>
+                                            <TableHead>Số lượng</TableHead>
+                                            <TableHead>Tiền tệ</TableHead>
+                                            <TableHead>Mô tả</TableHead>
+                                            <TableHead>Thời gian</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -309,33 +309,33 @@ export default function EconomyPage() {
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <CardTitle>Shop management</CardTitle>
+                                    <CardTitle>Quản lý cửa hàng</CardTitle>
                                     <CardDescription>
-                                        Configure prices and items in the shop
+                                        Cấu hình giá và vật phẩm trong cửa hàng
                                     </CardDescription>
                                 </div>
                                 <Button onClick={handleCreateShopItem}>
                                     <Package className="h-4 w-4 mr-2" />
-                                    Add item
+                                    Thêm vật phẩm
                                 </Button>
                             </div>
                         </CardHeader>
                         <CardContent>
                             {shopItems.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">
-                                    No shop items configured.
+                                    Chưa cấu hình vật phẩm cửa hàng.
                                 </p>
                             ) : (
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Item</TableHead>
-                                            <TableHead>Type</TableHead>
-                                            <TableHead>Price</TableHead>
-                                            <TableHead>Currency</TableHead>
-                                            <TableHead>Stock</TableHead>
-                                            <TableHead>Category</TableHead>
-                                            <TableHead>Action</TableHead>
+                                            <TableHead>Vật phẩm</TableHead>
+                                            <TableHead>Loại</TableHead>
+                                            <TableHead>Giá</TableHead>
+                                            <TableHead>Tiền tệ</TableHead>
+                                            <TableHead>Tồn kho</TableHead>
+                                            <TableHead>Nhóm</TableHead>
+                                            <TableHead>Thao tác</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -367,7 +367,7 @@ export default function EconomyPage() {
                                                 <TableCell>
                                                     {item.stock === -1 ? (
                                                         <Badge variant="success">
-                                                            Unlimited
+                                                            Không giới hạn
                                                         </Badge>
                                                     ) : (
                                                         <span>
@@ -396,7 +396,7 @@ export default function EconomyPage() {
                                                         <DialogContent>
                                                             <DialogHeader>
                                                                 <DialogTitle>
-                                                                    Edit{" "}
+                                                                    Chỉnh sửa{" "}
                                                                     {
                                                                         selectedItem?.name
                                                                     }
@@ -420,7 +420,7 @@ export default function EconomyPage() {
                                                                 </div>
                                                                 <div>
                                                                     <Label>
-                                                                        Stock
+                                                                        Tồn kho
                                                                     </Label>
                                                                     <Input
                                                                         type="number"
@@ -432,22 +432,20 @@ export default function EconomyPage() {
                                                                         }
                                                                     />
                                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                                        Enter -1
-                                                                        for
-                                                                        unlimited
+                                                                        Nhập -1 để không giới hạn
                                                                     </p>
                                                                 </div>
                                                             </div>
                                                             <div className="flex justify-end gap-2">
                                                                 <Button variant="outline">
-                                                                    Cancel
+                                                                    Hủy
                                                                 </Button>
                                                                 <Button
                                                                     onClick={
                                                                         handleSaveShopItem
                                                                     }
                                                                 >
-                                                                    Save
+                                                                    Lưu
                                                                 </Button>
                                                             </div>
                                                         </DialogContent>
@@ -467,28 +465,28 @@ export default function EconomyPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                                Suspicious transactions
+                                Giao dịch đáng ngờ
                             </CardTitle>
                             <CardDescription>
-                                Transactions that need review
+                                Giao dịch cần kiểm tra
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             {suspiciousTransactions.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">
-                                    No suspicious transactions.
+                                    Không có giao dịch đáng ngờ.
                                 </p>
                             ) : (
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>ID</TableHead>
-                                            <TableHead>Player</TableHead>
-                                            <TableHead>Type</TableHead>
-                                            <TableHead>Amount</TableHead>
-                                            <TableHead>Description</TableHead>
-                                            <TableHead>Time</TableHead>
-                                            <TableHead>Action</TableHead>
+                                            <TableHead>Người chơi</TableHead>
+                                            <TableHead>Loại</TableHead>
+                                            <TableHead>Số lượng</TableHead>
+                                            <TableHead>Mô tả</TableHead>
+                                            <TableHead>Thời gian</TableHead>
+                                            <TableHead>Thao tác</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -536,7 +534,7 @@ export default function EconomyPage() {
                                                             variant="outline"
                                                             size="sm"
                                                         >
-                                                            Details
+                                                            Chi tiết
                                                         </Button>
                                                     </TableCell>
                                                 </TableRow>

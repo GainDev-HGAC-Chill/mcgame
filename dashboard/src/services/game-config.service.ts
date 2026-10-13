@@ -41,7 +41,7 @@ export type GameConfigPatch = {
 export const gameConfigService = {
     async list(group: GameConfigGroup): Promise<GameConfigEntry[]> {
         const res = await fetchAPI<ListResponse>(`/game-config/${group}`)
-        if (!res.ok || !res.items) throw new Error(res.message || `failed to list ${group}`)
+        if (!res.ok || !res.items) throw new Error(res.message || "Không tải được danh sách cấu hình")
         return res.items
     },
 
@@ -50,7 +50,7 @@ export const gameConfigService = {
             method: "PATCH",
             body: JSON.stringify(patch),
         })
-        if (!res.ok || !res.item) throw new Error(res.message || `failed to update ${group}`)
+        if (!res.ok || !res.item) throw new Error(res.message || "Không cập nhật được cấu hình")
         return res.item
     },
 
@@ -59,7 +59,7 @@ export const gameConfigService = {
             method: "DELETE",
             body: JSON.stringify({ key }),
         })
-        if (!res.ok || !res.key) throw new Error(res.message || `failed to delete ${group} key`)
+        if (!res.ok || !res.key) throw new Error(res.message || "Không xóa được khóa cấu hình")
         return res.key
     },
 }

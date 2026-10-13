@@ -41,6 +41,7 @@ const (
 	FeatureFairy           = "fairy"
 	FeatureFairySkin       = "fairy_skin"
 	FeaturePetStoneInlay   = "pet_stone_inlay"
+	FeatureBloodBag        = "blood_bag"
 )
 
 type CharacterProgression struct {
@@ -102,4 +103,8 @@ type Repository interface {
 	UpsertPetFeatureState(ctx context.Context, state *PetFeatureState) error
 	GetActiveMount(ctx context.Context, charID int64) (*ActiveMount, error)
 	PPVEChallengeNextFloor(ctx context.Context, charID int64, maxFloor int, freeChallenges int, today string) (*PPVEChallengeResult, error)
+}
+
+type BloodBagPurchaseRepository interface {
+	CommitBloodBagPurchase(ctx context.Context, charID int64, newGold int64, state map[string]interface{}) error
 }

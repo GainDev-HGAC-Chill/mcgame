@@ -1,6 +1,6 @@
 # MCGame Server
 
-`mcgame` is a server that you can use to run the backend of a Flash MMO client on your own machine. It's written in Go 1.23, and runs as a Docker Compose stack.
+`mcgame` is a server that you can use to run the backend of a Flash MMO client on your own machine. Its current source requires Go 1.26 or newer, and runs as a Docker Compose stack.
 
 The server speaks RTMPE v6 (HMAC-SHA256 + DH + RC4) with AMF0 over the wire, so an unmodified Flash client can connect to it. Game state is stored in a [Supabase](https://supabase.com) Postgres database and cached in Redis. An admin dashboard is included.
 
@@ -16,10 +16,16 @@ It runs as a monolith by default. It can also run as a `main` server (auth + reg
 - [Docker](https://docs.docker.com/get-docker/) with the Compose v2 plugin
 - GNU Make on macOS and Linux (on Windows use the Go tool below)
 - [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), used to apply the migrations to the compose database
-- To build and test the server on the host: Go 1.23
+- To build and test the server on the host: Go 1.26 or newer (see `go.mod`)
 - To open the client: the Flash Player projector in [`docs/flashplayer/`](./docs/flashplayer/) (Windows or macOS)
 
 #### Windows: no `make` needed
+
+For safe Local/LAN operation and actual validation status, see [Windows deployment](docs/local-lan-deployment/setup.md). The Go manager also supports `start`, `stop`, `restart`, `status`, `logs`, `check`, `client`, `local` and `lan`. Setup refuses existing secrets/database; never use reset to troubleshoot deployment.
+
+For remote players on the same Radmin VPN network, use `bin\game.exe radmin start`; see [Radmin setup and restricted firewall rules](docs/local-lan-deployment/radmin.md). Database and admin ports remain host-only.
+
+Players can register through the Flash login's **Đăng ký** button or `http://<game-host>:8888/register.html`. Simple credentials such as ID `1` / password `1` are allowed when the ID is unused. After registration, return to Flash and create a character to receive the configured starter package (level90,999999 gold and999999 kim phiếu). Use only on trusted Local/Radmin networks; do not reuse important passwords over HTTP. Registration does not expose the dashboard/database or publish another host port.
 
 On macOS and Linux use `make`. On Windows use the bundled Go tool [`cmd/game`](./cmd/game/), which does the same as `make game <setup|up|down|reset>` natively, with no `make`, `sh`, `openssl` or `node`. Install these once (PowerShell):
 

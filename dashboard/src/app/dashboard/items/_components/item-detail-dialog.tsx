@@ -159,10 +159,10 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
                                 <FieldRow label="Bảng template">
                                     {item.templateTableName} (TBL {item.templateTableId})
                                 </FieldRow>
-                                <FieldRow label="Kind">
+                                <FieldRow label="Nhóm">
                                     {intVal(t, "kind")} - {getKindLabel(intVal(t, "kind"))}
                                 </FieldRow>
-                                <FieldRow label="Type">
+                                <FieldRow label="Loại">
                                     {intVal(t, "type")} - {getTemplateTypeLabel(intVal(t, "type"))}
                                 </FieldRow>
                                 <FieldRow label="Cách dùng">
@@ -180,10 +180,10 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
                                 <FieldRow label="Giao dịch">
                                     {getTradableLabel(intVal(t, "tradable"))} ({intVal(t, "tradable")})
                                 </FieldRow>
-                                <FieldRow label="Icon Code" mono>{val(t, "icon_code")}</FieldRow>
-                                <FieldRow label="Color">{val(t, "color")}</FieldRow>
-                                <FieldRow label="Color Code">{val(t, "color_code")}</FieldRow>
-                                <FieldRow label="Res Code" mono>{val(t, "res_code")}</FieldRow>
+                                <FieldRow label="Mã biểu tượng" mono>{val(t, "icon_code")}</FieldRow>
+                                <FieldRow label="Màu">{val(t, "color")}</FieldRow>
+                                <FieldRow label="Mã màu">{val(t, "color_code")}</FieldRow>
+                                <FieldRow label="Mã tài nguyên" mono>{val(t, "res_code")}</FieldRow>
                             </div>
                         </div>
 
@@ -194,7 +194,7 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
                                     <FieldRow label="Vị trí">{val(t, "position")}</FieldRow>
                                     <FieldRow label="Độ bền tối đa">{val(t, "endure_max")}</FieldRow>
                                     <FieldRow label="Số lỗ khảm">{val(t, "hole_num")}</FieldRow>
-                                    <FieldRow label="Set ID">{val(t, "suit_id")}</FieldRow>
+                                    <FieldRow label="ID bộ trang bị">{val(t, "suit_id")}</FieldRow>
                                     <FieldRow label="Số dòng thuộc tính chính">{val(t, "bind_prop_num")}</FieldRow>
                                     <FieldRow label="Thuộc tính chính 1">
                                         {getPropTypeLabel(intVal(t, "main_prop1"))} ({intVal(t, "main_prop1")}) = {val(t, "main_prop_num1")}
@@ -208,17 +208,17 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
                                     <FieldRow label="Thuộc tính phụ 2">
                                         {getPropTypeLabel(intVal(t, "prop2"))} ({intVal(t, "prop2")}) = {val(t, "prop_num2")}
                                     </FieldRow>
-                                    <FieldRow label="Active Equip ID">{val(t, "active_equip_id")}</FieldRow>
-                                    <FieldRow label="Active Prop Type">{val(t, "active_prop_type")}</FieldRow>
-                                    <FieldRow label="Active Prop Num">{val(t, "active_prop_num")}</FieldRow>
+                                    <FieldRow label="ID trang bị kích hoạt">{val(t, "active_equip_id")}</FieldRow>
+                                    <FieldRow label="Loại thuộc tính kích hoạt">{val(t, "active_prop_type")}</FieldRow>
+                                    <FieldRow label="Giá trị thuộc tính kích hoạt">{val(t, "active_prop_num")}</FieldRow>
                                     <FieldRow label="Có thể sửa">{intVal(t, "repairable") === 1 ? "Có" : "Không"}</FieldRow>
                                     <FieldRow label="Có thể chế tạo">{intVal(t, "makable") === 1 ? "Có" : "Không"}</FieldRow>
                                     <FieldRow label="Tỉ lệ thành công">{val(t, "succ_rate")}</FieldRow>
                                     <FieldRow label="ID template nâng cấp tiếp">{val(t, "next_equ_tid")}</FieldRow>
-                                    <FieldRow label="Bright Code" mono>{val(t, "bright_code")}</FieldRow>
-                                    <FieldRow label="Wav Code" mono>{val(t, "wav_code")}</FieldRow>
-                                    <FieldRow label="Single Flag">{val(t, "single_flag")}</FieldRow>
-                                    <FieldRow label="Is Test">{val(t, "is_test")}</FieldRow>
+                                    <FieldRow label="Mã hiệu ứng sáng" mono>{val(t, "bright_code")}</FieldRow>
+                                    <FieldRow label="Mã âm thanh" mono>{val(t, "wav_code")}</FieldRow>
+                                    <FieldRow label="Cờ đơn">{val(t, "single_flag")}</FieldRow>
+                                    <FieldRow label="Dùng thử">{val(t, "is_test")}</FieldRow>
                                     <FieldRow label="T">{val(t, "t")}</FieldRow>
                                 </div>
                             </div>
@@ -228,9 +228,9 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
                             <div>
                                 <h4 className="text-sm font-semibold mb-2">Yêu cầu nghề nghiệp</h4>
                                 <div className="rounded-lg border px-3">
-                                    <FieldRow label="Req Class">{val(t, "req_class")}</FieldRow>
+                                    <FieldRow label="Nghề yêu cầu">{val(t, "req_class")}</FieldRow>
                                     {"req_class_id" in t && (
-                                        <FieldRow label="Req Class ID">{val(t, "req_class_id")}</FieldRow>
+                                        <FieldRow label="ID nghề yêu cầu">{val(t, "req_class_id")}</FieldRow>
                                     )}
                                 </div>
                             </div>
@@ -255,7 +255,7 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
                             <div>
                                 <h4 className="text-sm font-semibold mb-2">Kỹ năng</h4>
                                 <div className="rounded-lg border px-3">
-                                    <FieldRow label="Skill ID">{val(t, "skill_id")}</FieldRow>
+                                    <FieldRow label="ID kỹ năng">{val(t, "skill_id")}</FieldRow>
                                     <FieldRow label="Loại thuộc tính">{getPropTypeLabel(intVal(t, "prop_type"))} ({intVal(t, "prop_type")})</FieldRow>
                                     <FieldRow label="Số dòng thuộc tính">{val(t, "propl_num")}</FieldRow>
                                     <FieldRow label="ID nâng cấp tiếp">{val(t, "next_jewel_tid")}</FieldRow>
@@ -265,9 +265,9 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
 
                         {"artifact_skill" in t && val(t, "artifact_skill") !== "-" && val(t, "artifact_skill") !== "" && (
                             <div>
-                                <h4 className="text-sm font-semibold mb-2">Thần Khí Skill</h4>
+                                <h4 className="text-sm font-semibold mb-2">Kỹ năng thần khí</h4>
                                 <div className="rounded-lg border px-3">
-                                    <FieldRow label="Artifact Skill">{val(t, "artifact_skill")}</FieldRow>
+                                    <FieldRow label="Kỹ năng thần khí">{val(t, "artifact_skill")}</FieldRow>
                                 </div>
                             </div>
                         )}
@@ -276,19 +276,19 @@ export function ItemDetailDialog({ open, onOpenChange, item }: ItemDetailDialogP
                             <div>
                                 <h4 className="text-sm font-semibold mb-2">Thời gian chế tạo</h4>
                                 <div className="rounded-lg border px-3">
-                                    <FieldRow label="Pro Time">{val(t, "pro_time")}</FieldRow>
+                                    <FieldRow label="Thời gian chế tạo">{val(t, "pro_time")}</FieldRow>
                                 </div>
                             </div>
                         )}
 
                         {"res_code_male" in t && val(t, "res_code_male") !== "-" && val(t, "res_code_male") !== "" && (
                             <div>
-                                <h4 className="text-sm font-semibold mb-2">Res Code</h4>
+                                <h4 className="text-sm font-semibold mb-2">Mã tài nguyên</h4>
                                 <div className="rounded-lg border px-3">
-                                    <FieldRow label="Res Code Male" mono>{val(t, "res_code_male")}</FieldRow>
-                                    <FieldRow label="Res Code Male 2" mono>{val(t, "res_code_male2")}</FieldRow>
-                                    <FieldRow label="Res Code Female" mono>{val(t, "res_code_female")}</FieldRow>
-                                    <FieldRow label="Res Code Female 2" mono>{val(t, "res_code_female2")}</FieldRow>
+                                    <FieldRow label="Mã tài nguyên nam" mono>{val(t, "res_code_male")}</FieldRow>
+                                    <FieldRow label="Mã tài nguyên nam 2" mono>{val(t, "res_code_male2")}</FieldRow>
+                                    <FieldRow label="Mã tài nguyên nữ" mono>{val(t, "res_code_female")}</FieldRow>
+                                    <FieldRow label="Mã tài nguyên nữ 2" mono>{val(t, "res_code_female2")}</FieldRow>
                                 </div>
                             </div>
                         )}

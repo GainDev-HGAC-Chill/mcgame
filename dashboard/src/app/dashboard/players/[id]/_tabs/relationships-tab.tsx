@@ -94,7 +94,7 @@ function RelationshipEditDialog({
         if (form.nickname !== "") payload.nickname = form.nickname
 
         if (Object.keys(payload).length <= 1) {
-            toast.error("No changes to apply")
+            toast.error("Không có thay đổi để áp dụng")
             return
         }
 
@@ -132,7 +132,7 @@ function RelationshipEditDialog({
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
                     <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Type</Label>
+                        <Label className="text-xs">Loại</Label>
                         <Select
                             value={form.type}
                             onValueChange={v => set("type", v)}
@@ -155,7 +155,7 @@ function RelationshipEditDialog({
                         </Select>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Intimacy</Label>
+                        <Label className="text-xs">Thân mật</Label>
                         <Input
                             type="number"
                             placeholder={String(relationship.intimacy)}
@@ -164,7 +164,7 @@ function RelationshipEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Group ID</Label>
+                        <Label className="text-xs">ID nhóm</Label>
                         <Input
                             type="number"
                             placeholder={String(relationship.groupId)}
@@ -173,7 +173,7 @@ function RelationshipEditDialog({
                         />
                     </div>
                     <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Nickname</Label>
+                        <Label className="text-xs">Biệt danh</Label>
                         <Input
                             placeholder={relationship.nickname}
                             value={form.nickname}
@@ -191,14 +191,14 @@ function RelationshipEditDialog({
                             onClose()
                         }}
                     >
-                        <X className="mr-1 h-4 w-4" /> Cancel
+                        <X className="mr-1 h-4 w-4" /> Hủy
                     </Button>
                     <Button
                         size="sm"
                         onClick={handleSave}
                         disabled={action.isPending}
                     >
-                        Apply
+                        Áp dụng
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -248,13 +248,13 @@ function CreateRelationshipCard({
     const handleCreate = () => {
         const type = toInt(form.type)
         if (type === undefined) {
-            toast.error("Type is required")
+            toast.error("Vui lòng chọn loại quan hệ")
             return
         }
         const otherId = toInt(form.otherId)
         const otherName = form.otherName.trim()
         if (otherId === undefined && otherName === "") {
-            toast.error("Provide an other ID or name")
+            toast.error("Nhập ID hoặc tên nhân vật đối phương")
             return
         }
 
@@ -282,35 +282,35 @@ function CreateRelationshipCard({
     return (
         <Card>
             <CardHeader className="pb-3">
-                <CardTitle className="text-base">Create relationship</CardTitle>
+                <CardTitle className="text-base">Tạo quan hệ</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                        <Label className="text-xs">Other ID</Label>
+                        <Label className="text-xs">ID đối phương</Label>
                         <Input
                             type="number"
-                            placeholder="character id"
+                            placeholder="ID nhân vật"
                             value={form.otherId}
                             onChange={e => set("otherId", e.target.value)}
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Other Name</Label>
+                        <Label className="text-xs">Tên đối phương</Label>
                         <Input
-                            placeholder="character name"
+                            placeholder="Tên nhân vật"
                             value={form.otherName}
                             onChange={e => set("otherName", e.target.value)}
                         />
                     </div>
                     <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Type</Label>
+                        <Label className="text-xs">Loại</Label>
                         <Select
                             value={form.type}
                             onValueChange={v => set("type", v)}
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Select type" />
+                                <SelectValue placeholder="Chọn loại" />
                             </SelectTrigger>
                             <SelectContent>
                                 {RELATIONSHIP_TYPES.map(t => (
@@ -325,27 +325,27 @@ function CreateRelationshipCard({
                         </Select>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Group ID</Label>
+                        <Label className="text-xs">ID nhóm</Label>
                         <Input
                             type="number"
-                            placeholder="optional"
+                            placeholder="Tùy chọn"
                             value={form.groupId}
                             onChange={e => set("groupId", e.target.value)}
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Intimacy</Label>
+                        <Label className="text-xs">Thân mật</Label>
                         <Input
                             type="number"
-                            placeholder="optional"
+                            placeholder="Tùy chọn"
                             value={form.intimacy}
                             onChange={e => set("intimacy", e.target.value)}
                         />
                     </div>
                     <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Nickname</Label>
+                        <Label className="text-xs">Biệt danh</Label>
                         <Input
-                            placeholder="optional"
+                            placeholder="Tùy chọn"
                             value={form.nickname}
                             onChange={e => set("nickname", e.target.value)}
                         />
@@ -367,7 +367,7 @@ function CreateRelationshipCard({
                         onClick={handleCreate}
                         disabled={action.isPending}
                     >
-                        Create
+                        Tạo
                     </Button>
                 </div>
             </CardContent>
@@ -390,7 +390,7 @@ export function RelationshipsTab({ playerId }: { playerId: number }) {
     const handleDelete = (rel: Relationship) => {
         if (
             !confirm(
-                `Delete relationship with ${rel.otherName} (#${rel.otherId})?`
+                `Xóa quan hệ với ${rel.otherName} (#${rel.otherId})?`
             )
         )
             return
@@ -406,7 +406,7 @@ export function RelationshipsTab({ playerId }: { playerId: number }) {
     if (isLoading) {
         return (
             <div className="py-12 text-center text-muted-foreground">
-                Loading relationships...
+                Đang tải quan hệ...
             </div>
         )
     }
@@ -424,7 +424,7 @@ export function RelationshipsTab({ playerId }: { playerId: number }) {
         <div className="space-y-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <CardTitle className="text-base">Relationships</CardTitle>
+                    <CardTitle className="text-base">Quan hệ</CardTitle>
                     <Badge variant="secondary" className="font-mono">
                         {relationships.length}
                     </Badge>
@@ -432,20 +432,20 @@ export function RelationshipsTab({ playerId }: { playerId: number }) {
                 <CardContent>
                     {relationships.length === 0 ? (
                         <p className="py-6 text-center text-sm text-muted-foreground">
-                            No relationships.
+                            Chưa có quan hệ.
                         </p>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Other</TableHead>
-                                    <TableHead>Group</TableHead>
-                                    <TableHead>Nickname</TableHead>
-                                    <TableHead>Intimacy</TableHead>
-                                    <TableHead>Created</TableHead>
+                                    <TableHead>Loại</TableHead>
+                                    <TableHead>Đối phương</TableHead>
+                                    <TableHead>Nhóm</TableHead>
+                                    <TableHead>Biệt danh</TableHead>
+                                    <TableHead>Thân mật</TableHead>
+                                    <TableHead>Ngày tạo</TableHead>
                                     <TableHead className="text-right">
-                                        Actions
+                                        Thao tác
                                     </TableHead>
                                 </TableRow>
                             </TableHeader>

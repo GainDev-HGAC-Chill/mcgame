@@ -268,7 +268,7 @@ export default function ActivitiesPage() {
                                 className="rounded-md border p-3 text-sm"
                             >
                                 <p className="font-medium">
-                                    Type {item.type}: {item.behavior}
+                                    Loại {item.type}: {item.behavior}
                                 </p>
                                 <p className="mt-1 text-muted-foreground">
                                     {item.flag}
@@ -291,19 +291,19 @@ export default function ActivitiesPage() {
                                         ID
                                     </TableHead>
                                     <TableHead className="min-w-[220px]">
-                                        Name
+                                        Tên
                                     </TableHead>
                                     <TableHead className="w-[84px]">
-                                        Enable
+                                        Bật
                                     </TableHead>
                                     <TableHead className="min-w-[360px]">
-                                        Type
+                                        Loại
                                     </TableHead>
                                     <TableHead className="w-[90px]">
                                         Flag
                                     </TableHead>
                                     <TableHead className="min-w-[220px]">
-                                        Note
+                                        Ghi chú
                                     </TableHead>
                                     <TableHead className="w-[110px]" />
                                 </TableRow>
@@ -371,7 +371,7 @@ export default function ActivitiesPage() {
                                                     }
                                                 >
                                                     <SelectTrigger className="h-8">
-                                                        <SelectValue placeholder="Choose activity type" />
+                                                        <SelectValue placeholder="Chọn loại hoạt động" />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {activityTypeOptions.map(

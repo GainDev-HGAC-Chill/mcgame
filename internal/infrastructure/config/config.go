@@ -9,6 +9,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -23,15 +24,16 @@ const (
 )
 
 type Config struct {
-	Server       ServerConfig      `mapstructure:"server"`
-	AuthDatabase DatabaseConfig    `mapstructure:"auth_database"`
-	Database     DatabaseConfig    `mapstructure:"database"`
-	Redis        RedisConfig       `mapstructure:"redis"`
-	AdminHTTP    AdminHTTPConfig   `mapstructure:"admin_http"`
-	RTMP         RTMPConfig        `mapstructure:"rtmp"`
-	Logging      LoggingConfig     `mapstructure:"logging"`
-	Gateway      GatewayConfig     `mapstructure:"gateway"`
-	Performance  PerformanceConfig `mapstructure:"performance"`
+	Server       ServerConfig       `mapstructure:"server"`
+	AuthDatabase DatabaseConfig     `mapstructure:"auth_database"`
+	Database     DatabaseConfig     `mapstructure:"database"`
+	Redis        RedisConfig        `mapstructure:"redis"`
+	AdminHTTP    AdminHTTPConfig    `mapstructure:"admin_http"`
+	Registration RegistrationConfig `mapstructure:"registration"`
+	RTMP         RTMPConfig         `mapstructure:"rtmp"`
+	Logging      LoggingConfig      `mapstructure:"logging"`
+	Gateway      GatewayConfig      `mapstructure:"gateway"`
+	Performance  PerformanceConfig  `mapstructure:"performance"`
 }
 
 type PerformanceConfig struct {
@@ -39,8 +41,9 @@ type PerformanceConfig struct {
 }
 
 type GatewayConfig struct {
-	Mode   ServerMode `mapstructure:"mode"`
-	LineID int        `mapstructure:"line_id"`
+	Mode       ServerMode `mapstructure:"mode"`
+	LineID     int        `mapstructure:"line_id"`
+	PublicHost string     `mapstructure:"public_host"`
 }
 
 type ServerConfig struct {
@@ -122,6 +125,9 @@ func Load() (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	if cfg.Gateway.PublicHost != "" && net.ParseIP(cfg.Gateway.PublicHost) == nil {
+		return nil, fmt.Errorf("gateway public_host must be an IP address")
+	}
 
 	return &cfg, nil
 }
@@ -158,6 +164,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("admin_http.host", "0.0.0.0")
 	v.SetDefault("admin_http.port", 8080)
 	v.SetDefault("admin_http.secret", "")
+	v.SetDefault("registration.enabled", false)
+	v.SetDefault("registration.host", "127.0.0.1")
+	v.SetDefault("registration.port", 8081)
 
 	v.SetDefault("rtmp.host", "0.0.0.0")
 	v.SetDefault("rtmp.port", 1935)
@@ -174,6 +183,7 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("gateway.mode", "monolith")
 	v.SetDefault("gateway.line_id", 0)
+	v.SetDefault("gateway.public_host", "")
 
 	v.SetDefault("performance.debug_log_player_data", false)
 }

@@ -117,19 +117,27 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 
 	if err := h.charService.Update(ctx.Context, char); err != nil {
 		h.logger.Error("Failed to update character after item use", zap.Error(err))
+		if it.TemplateID == 1132 {
+			return nil, fmt.Errorf("failed to persist silver voucher credit after consumption; do not automatically replay: %w", err)
+		}
+		if updates, ok := result["capacity_updates"].(map[string]interface{}); ok && len(updates) > 0 {
+			return nil, fmt.Errorf("failed to persist expansion capacity after book consumption; book preservation is not guaranteed: %w", err)
+		}
 	}
 
 	h.finalizeBookUse(ctx, char, result, pendingBookUse)
 
 	if equipped, _ := result["equipped"].(bool); equipped {
-		targetSID := usedItem.CalculateSID()
-		ctx.Connection.SendCallback("onMoveItem", float64(oldSID), float64(targetSID), float64(it.ID))
-
+		oldSIDs := map[int64]int{it.ID: oldSID}
+		changed := []*domainitem.Item{usedItem}
 		if displaced, ok := result["displaced"].(*domainitem.Item); ok && displaced != nil {
-			sourceSID := 1 + usedItem.SlotIndex
-			ctx.Connection.SendCallback("onMoveItem", float64(sourceSID), float64(displaced.CalculateSID()), float64(displaced.ID))
+			oldSIDs[displaced.ID] = usedItem.CalculateSID()
+			changed = append(changed, displaced)
 		}
-
+		if err := h.refreshEquipmentSlots(ctx.Connection, oldSIDs, changed); err != nil {
+			return nil, err
+		}
+		h.syncHPMPAfterEquipChange(ctx.Context, ctx.Connection, char)
 		h.sendCharacterElementUpdate(ctx, char)
 		h.sendStatUpdate(ctx, char)
 		ctx.Connection.SendCallback("onEquipActiveList", h.itemService.BuildEquipActiveList(ctx.Context, characterID))
@@ -224,6 +232,12 @@ func (h *Handler) UseMultiItem(ctx *rtmp.RPCContext, args []interface{}) (interf
 
 	if err := h.charService.Update(ctx.Context, char); err != nil {
 		h.logger.Error("Failed to update character after multi-item use", zap.Error(err))
+		if usedItem, ok := result["used_item"].(*domainitem.Item); ok && usedItem.TemplateID == 1132 {
+			return nil, fmt.Errorf("failed to persist silver voucher credit after consumption; do not automatically replay: %w", err)
+		}
+		if updates, ok := result["capacity_updates"].(map[string]interface{}); ok && len(updates) > 0 {
+			return nil, fmt.Errorf("failed to persist expansion capacity after book consumption; book preservation is not guaranteed: %w", err)
+		}
 	}
 
 	if _, hasHP := result["hp_healed"]; hasHP {
@@ -240,9 +254,18 @@ func (h *Handler) UseMultiItem(ctx *rtmp.RPCContext, args []interface{}) (interf
 
 	if remaining, ok := result["remaining"].(int); ok && remaining <= 0 {
 		if itemID, ok := result["item_id"].(int64); ok {
-			ctx.Connection.SendCallback("onDelCharactorSlot", float64(itemID), slotID)
+			deleteSID := slotID
+			if usedItem, ok := result["used_item"].(*domainitem.Item); ok {
+				deleteSID = int64(usedItem.CalculateSID())
+			}
+			ctx.Connection.SendCallback("onDelCharactorSlot", float64(itemID), deleteSID)
 		}
+	} else if usedItem, ok := result["used_item"].(*domainitem.Item); ok {
+		ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(usedItem))
 	}
+	sendCapacityUpdate(ctx, result)
+	h.sendStructuredRewardCallbacks(ctx, result, char)
+	delete(result, "used_item")
 
 	h.logger.Info("Multi item used",
 		zap.Int64("character_id", charID),
@@ -354,6 +377,7 @@ func (h *Handler) sendEffectCallbacks(ctx *rtmp.RPCContext, result map[string]in
 	if result == nil {
 		return
 	}
+	sendCapacityUpdate(ctx, result)
 
 	if msg, ok := result["message"].(string); ok && msg != "" {
 		ctx.Connection.SendCallback("onSystemMidMsgOrNote", msg)

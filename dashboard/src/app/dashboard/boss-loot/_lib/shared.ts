@@ -50,7 +50,7 @@ export const BOSS_LOOT_REWARD_TYPES = [
     { value: 19, label: "Trang bị" },
     { value: 508, label: "Vật phẩm nhiệm vụ (508)" },
     { value: 509, label: "Vật phẩm nhiệm vụ (509)" },
-    { value: 550, label: "Pet item bag (550)" },
+    { value: 550, label: "Túi vật phẩm thú cưng (550)" },
     { value: 30, label: "Tiền tệ cơ bản (Bạc/Vàng/Danh vọng)" },
     { value: 31, label: "Kinh nghiệm" },
     { value: 35, label: "Tiền tệ wallet (warSprite, heiyaoshiPoint, …)" },

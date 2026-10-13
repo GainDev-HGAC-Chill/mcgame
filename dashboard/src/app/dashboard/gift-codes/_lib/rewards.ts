@@ -240,12 +240,12 @@ export function summarizeRewardDraft(draft: GiftCodeRewardDraft): string {
         const count = Math.max(1, parseInteger(draft.count, 1))
         const itemTitle =
             draft.itemName.trim() ||
-            (itemId > 0 ? `Item #${itemId}` : "No item selected")
+            (itemId > 0 ? `Vật phẩm #${itemId}` : "Chưa chọn vật phẩm")
         return `${itemTitle} x${count}`
     }
 
     const amount = Math.max(0, parseInteger(draft.amount, 0))
-    return `${option?.label || draft.type}: ${amount.toLocaleString("en-US")}`
+    return `${option?.label || draft.type}: ${amount.toLocaleString("vi-VN")}`
 }
 
 function createDraftId(): string {

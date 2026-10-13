@@ -33,16 +33,20 @@ func (r *PetRepository) Save(ctx context.Context, p *pet.Pet) error {
 }
 
 func (r *PetRepository) create(ctx context.Context, p *pet.Pet) error {
+	return createPet(ctx, r.db.pool, p)
+}
+
+func createPet(ctx context.Context, queryer creationQueryer, p *pet.Pet) error {
 	propertyJSON, err := json.Marshal(p.Property)
 	if err != nil {
-		propertyJSON = []byte("{}")
+		return pkgerrors.Wrap(err, "failed to marshal new pet properties")
 	}
 
 	now := time.Now()
 	p.CreatedAt = now
 	p.UpdatedAt = now
 
-	err = r.db.pool.QueryRow(ctx,
+	err = queryer.QueryRow(ctx,
 		"select player.create_character_pet($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27::jsonb, $28, $29, $30, $31, $32, $33)",
 		p.CharacterID, p.TemplateID, p.Name, p.Level, p.Experience,
 		p.AptStrength, p.AptAgility, p.AptStamina, p.AptIntelligence, p.AptEnergy,
@@ -61,6 +65,10 @@ func (r *PetRepository) create(ctx context.Context, p *pet.Pet) error {
 }
 
 func (r *PetRepository) update(ctx context.Context, p *pet.Pet) error {
+	return updatePet(ctx, r.db.pool, p)
+}
+
+func updatePet(ctx context.Context, queryer creationQueryer, p *pet.Pet) error {
 	propertyJSON, err := json.Marshal(p.Property)
 	if err != nil {
 		propertyJSON = []byte("{}")
@@ -69,7 +77,7 @@ func (r *PetRepository) update(ctx context.Context, p *pet.Pet) error {
 	p.UpdatedAt = time.Now()
 
 	var updated bool
-	err = r.db.pool.QueryRow(ctx,
+	err = queryer.QueryRow(ctx,
 		"select player.update_character_pet($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27::jsonb, $28, $29, $30, $31, $32)",
 		p.ID,
 		p.TemplateID, p.Name, p.Level, p.Experience,
@@ -89,6 +97,33 @@ func (r *PetRepository) update(ctx context.Context, p *pet.Pet) error {
 		return pkgerrors.ErrNotFound
 	}
 
+	return nil
+}
+
+func (r *PetRepository) ApplyFusion(ctx context.Context, mainPet *pet.Pet, consumedPetIDs []int64) error {
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to begin pet fusion")
+	}
+	defer tx.Rollback(ctx)
+
+	if mainPet != nil {
+		if err := updatePet(ctx, tx, mainPet); err != nil {
+			return err
+		}
+	}
+	for _, petID := range consumedPetIDs {
+		var deleted bool
+		if err := tx.QueryRow(ctx, "select player.delete_character_pet($1)", petID).Scan(&deleted); err != nil {
+			return pkgerrors.Wrap(err, "failed to delete fusion material pet")
+		}
+		if !deleted {
+			return pkgerrors.ErrNotFound
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return pkgerrors.Wrap(err, "failed to commit pet fusion")
+	}
 	return nil
 }
 

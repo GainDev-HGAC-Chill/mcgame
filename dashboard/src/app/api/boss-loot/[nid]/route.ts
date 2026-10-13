@@ -104,7 +104,7 @@ export async function GET(
     const { nid: nidStr } = await context.params
     const nid = parseNid(nidStr)
     if (nid === null) {
-        return NextResponse.json({ error: "invalid nid" }, { status: HTTP_STATUS.BAD_REQUEST })
+        return NextResponse.json({ error: "Mã NPC không hợp lệ" }, { status: HTTP_STATUS.BAD_REQUEST })
     }
 
     try {
@@ -244,7 +244,7 @@ export async function PUT(
     const nid = parseNid(nidStr)
     if (nid === null) {
         return NextResponse.json(
-            { ok: false, message: "invalid nid" },
+            { ok: false, message: "Mã NPC không hợp lệ" },
             { status: HTTP_STATUS.BAD_REQUEST }
         )
     }
@@ -254,7 +254,7 @@ export async function PUT(
         body = (await request.json()) as { drops?: unknown }
     } catch {
         return NextResponse.json(
-            { ok: false, message: "invalid JSON body" },
+            { ok: false, message: "Nội dung JSON không hợp lệ" },
             { status: HTTP_STATUS.BAD_REQUEST }
         )
     }

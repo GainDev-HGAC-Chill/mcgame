@@ -76,7 +76,7 @@ export function LootFilters(props: Props) {
                     </Select>
                 </div>
                 <div className="w-28">
-                    <Label className="text-xs">Lv tối thiểu</Label>
+                    <Label className="text-xs">Cấp tối thiểu</Label>
                     <Input
                         type="number"
                         min={1}
@@ -91,7 +91,7 @@ export function LootFilters(props: Props) {
                     />
                 </div>
                 <div className="w-28">
-                    <Label className="text-xs">Lv tối đa</Label>
+                    <Label className="text-xs">Cấp tối đa</Label>
                     <Input
                         type="number"
                         min={1}

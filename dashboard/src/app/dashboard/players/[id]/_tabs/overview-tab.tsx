@@ -66,11 +66,11 @@ export function OverviewTab({
 
     const handleTransport = () => {
         if (transportMapId <= 0) {
-            toast.error("Select a map first")
+            toast.error("Vui lòng chọn bản đồ trước")
             return
         }
         if (!selectedMap) {
-            toast.error("Map data not loaded yet")
+            toast.error("Dữ liệu bản đồ chưa tải xong")
             return
         }
         action.mutate({
@@ -91,47 +91,47 @@ export function OverviewTab({
         <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
                 <FieldGroup label="ID" value={char.id as number} />
-                <FieldGroup label="Name" value={char.name as string} />
-                <FieldGroup label="Level" value={char.level as number} />
-                <FieldGroup label="Class ID" value={char.classId as number} />
+                <FieldGroup label="Tên" value={char.name as string} />
+                <FieldGroup label="Cấp độ" value={char.level as number} />
+                <FieldGroup label="ID nghề" value={char.classId as number} />
                 <FieldGroup
-                    label="Gender"
-                    value={char.gender === 1 ? "Female" : "Male"}
+                    label="Giới tính"
+                    value={char.gender === 1 ? "Nữ" : "Nam"}
                 />
                 <FieldGroup
-                    label="Map / Position"
+                    label="Bản đồ / Vị trí"
                     value={`${char.posMapId} (${char.posX}, ${char.posY})`}
                 />
                 <FieldGroup
-                    label="Online"
-                    value={online ? "Online" : "Offline"}
+                    label="Trực tuyến"
+                    value={online ? "Trực tuyến" : "Ngoại tuyến"}
                 />
-                <FieldGroup label="GM Level" value={char.gmLevel as number} />
+                <FieldGroup label="Cấp GM" value={char.gmLevel as number} />
             </div>
 
             {online && session && (
                 <Card>
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base">
-                            Live Session
+                            Phiên trực tuyến
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid gap-4 md:grid-cols-4">
                             <FieldGroup
-                                label="Live Map"
+                                label="Bản đồ trực tuyến"
                                 value={session.mapId}
                             />
                             <FieldGroup
-                                label="Channel"
+                                label="Kênh"
                                 value={session.channelId}
                             />
                             <FieldGroup
-                                label="Position"
+                                label="Vị trí"
                                 value={`${session.positionX}, ${session.positionY}`}
                             />
                             <FieldGroup
-                                label="Connected"
+                                label="Thời điểm kết nối"
                                 value={session.connectedAt}
                             />
                         </div>
@@ -141,7 +141,7 @@ export function OverviewTab({
 
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Quick Actions</CardTitle>
+                    <CardTitle className="text-base">Thao tác nhanh</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex flex-wrap gap-3">
@@ -151,19 +151,18 @@ export function OverviewTab({
                             onClick={handleKick}
                             disabled={!online || action.isPending}
                         >
-                            Kick Player
+                            Ngắt kết nối người chơi
                         </Button>
                     </div>
 
                     <div className="space-y-3">
-                        <p className="text-sm font-medium">Transport Player</p>
+                        <p className="text-sm font-medium">Di chuyển người chơi</p>
                         <p className="text-xs text-muted-foreground">
-                            Drops the player at the selected map&apos;s safe
-                            spawn point.
+                            Di chuyển người chơi đến điểm xuất hiện an toàn của bản đồ đã chọn.
                         </p>
                         <div className="flex flex-wrap items-end gap-3">
                             <div className="space-y-1">
-                                <Label className="text-xs">Map</Label>
+                                <Label className="text-xs">Bản đồ</Label>
                                 <MapPicker
                                     value={transportMapId}
                                     onChange={setTransportMapId}
@@ -171,7 +170,7 @@ export function OverviewTab({
                                 />
                             </div>
                             <div className="space-y-1">
-                                <Label className="text-xs">Safe Position</Label>
+                                <Label className="text-xs">Vị trí an toàn</Label>
                                 <p className="h-9 rounded-md border border-input bg-muted/40 px-3 py-2 text-sm font-mono">
                                     {safePosLabel}
                                 </p>
@@ -185,7 +184,7 @@ export function OverviewTab({
                                     !selectedMap
                                 }
                             >
-                                Transport
+                                Di chuyển
                             </Button>
                         </div>
                     </div>

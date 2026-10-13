@@ -105,6 +105,7 @@ type Server struct {
 	characterProvider     CharacterProvider
 	characterUpdater      CharacterUpdater
 	characterCacheUpdater CharacterCacheUpdater
+	progressionStats      ProgressionStatProvider
 	playerTransporter     PlayerTransporter
 	itemProvider          ItemProvider
 	itemFinder            ItemFinder

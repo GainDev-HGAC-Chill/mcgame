@@ -21,7 +21,16 @@ PM state is now persisted on `player.characters` and mirrored into `public.accou
 - package `3` costs `2888` gold and adds `180` days
 - PM purchase now floors `pmExp` to the purchased package's base PM threshold, so a first `buyPm(2)` starts at `15000` and a first `buyPm(3)` starts at `45000`
 - downgrade RPC abuse is rejected server-side while PM is still active
-- successful purchase also sends `onBuyPm`, compatibility alias `onAddPm`, `onAddMoney("gold", -cost, newGold)`, `onUPP({"gold": ...})`, and `updateScenePmLevel`
+- successful purchase returns `{level, data:{pmExp, activeType, keepDay, activeTime}}` through the transaction responder, and retains `onAddPm`, `onAddMoney(cid, "gold", -cost, newGold)`, `onUPP({"gold": ...})`, and `updateScenePmLevel` pushes
+
+### Responder callback correction (2026-10-12)
+
+- `PmPanel.as:879` calls `buyPm` with `new Responder(onBuyPm)`; `PmPanel.as:1567` calls `initPmData` with `new Responder(onInitPmData)`. These are panel-local functions, not named connection callbacks. The server must not push `onBuyPm` or `onInitPmData` in addition to returning the responder payload.
+- `initPmData` returns `{data:{pmExp, activeType, keepDay, activeTime}, date, flag, processFlag, findback}` without named pushes. Purchase business failures retain `onRedMsg` and return `false`, which the client's `onBuyPm` truthiness guard ignores. Returning `nil, nil` would skip `_result` entirely (`connection_rpc.go`) and leave the responder unanswered. Validation and init service errors use the existing RPC error path.
+- Other VIP RPCs inspected: `doPmOperation` uses a null responder (`PmPanel.as:1329`) and must retain `flushProcesFlag`; `getVipShopConfig`, `getVipShopCharConfig`, and `buyVipShopItem` use responders (`VipShopPanel.as:1018/1070`, `796`, `544`) and already return payloads, including non-nil failure payloads. VIP shop money-unlock uses the shared `unlockMoney` responder (`VipShopPanel.as:1225`); `shop/misc.go` returns `true`/`false` on all paths and needs no change. `PmInfoPanel.as` has no additional RPC calls.
+- `docs/client/system/CallBack.as` has an aborted decompilation, so absence of names there is not evidence against existing global pushes. Preserve membership, currency, scene, and claim pushes; do not edit ActionScript.
+- Regression coverage: `activity/pm_responder_test.go` checks exact returned init/buy envelopes, absence of invalid named callbacks, retained success pushes and their arguments, falsy purchase failures, and validation errors. Tests use in-memory repositories/transport only.
+- Validation: `go test ./internal/presentation/rtmp/handlers/activity ./internal/application/activity ./internal/presentation/rtmp/handlers/shop` passed (shop has no tests). Scoped `-race` testing could not run because the host has CGO disabled. No database/player actions, deployment, or client edits performed.
 
 Daily PM exp:
 

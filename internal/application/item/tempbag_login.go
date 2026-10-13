@@ -6,6 +6,7 @@ package item
 
 import (
 	"strconv"
+	"time"
 
 	domainchar "mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
@@ -13,6 +14,8 @@ import (
 
 func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainitem.Item) map[string]interface{} {
 	tempList := make(map[string]interface{})
+	mxTempList := make(map[string]interface{})
+	installedBags := make(map[string]interface{})
 	normalItemCount := 0
 	mxItemCount := 0
 
@@ -20,10 +23,19 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 		if it == nil || it.SlotType != domainitem.SlotTypeTempBag {
 			continue
 		}
-		tempList[strconv.Itoa(it.SlotIndex)] = s.BuildClientItemDTO(it)
+		if slot, installed := tempBagInstalledSlot(it.SlotIndex); installed {
+			expiresAt, timed := tempBagExpiry(it)
+			installedBags[strconv.Itoa(slot)] = map[string]interface{}{
+				"tid": it.TemplateID,
+				"ot":  timed && !time.Now().Before(expiresAt),
+			}
+			continue
+		}
 		if it.SlotIndex >= 100 {
+			mxTempList[strconv.Itoa(it.SlotIndex-100)] = s.BuildClientItemDTO(it)
 			mxItemCount++
 		} else {
+			tempList[strconv.Itoa(it.SlotIndex)] = s.BuildClientItemDTO(it)
 			normalItemCount++
 		}
 	}
@@ -35,9 +47,11 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 	mxTempbagNum := min(max(mxCount, 0), 5)
 
 	slotCapacity := []int{6, 6, 12, 12, 12}
-	extraSlots := 0
-	for i := 0; i < normalCount && i < 5; i++ {
-		extraSlots += slotCapacity[i]
+	extraSlots := s.tempBagCapacity(items, time.Now())
+	if len(installedBags) == 0 {
+		for i := 0; i < normalCount && i < 5; i++ {
+			extraSlots += slotCapacity[i]
+		}
 	}
 	mxExtraSlots := 0
 	for i := 0; i < mxCount && i < 5; i++ {
@@ -46,7 +60,7 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 
 	return map[string]interface{}{
 		"tempList":    tempList,
-		"tempBag":     map[string]interface{}{},
+		"tempBag":     installedBags,
 		"tempSlotNum": extraSlots,
 		"tempbagNum":  tempbagNum,
 		"curNum":      normalItemCount,
@@ -57,7 +71,7 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 			"tempbagNum":  mxTempbagNum,
 			"curNum":      mxItemCount,
 			"tempBag":     map[string]interface{}{},
-			"tempList":    map[string]interface{}{},
+			"tempList":    mxTempList,
 		},
 	}
 }

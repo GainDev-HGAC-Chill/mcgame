@@ -74,7 +74,7 @@ export const ITEM_KIND_LABELS: Record<number, string> = {
     4: "Trang sức",
     5: "Vật phẩm",
     6: "Nguyên liệu",
-    7: "Pet",
+    7: "Thú cưng",
     8: "Thần khí",
     9: "Trang bị pet",
     10: "Phi hành",
@@ -215,7 +215,7 @@ export const KIND_LABELS: Record<number, string> = {
     4: "Trang sức",
     5: "Vật phẩm",
     6: "Nguyên liệu",
-    7: "Pet",
+    7: "Thú cưng",
     8: "Thần khí",
     9: "Trang bị pet",
     10: "Phi hành",
@@ -226,87 +226,87 @@ export const KIND_LABELS: Record<number, string> = {
 }
 
 export const PROP_TYPE_OPTIONS: LabelOption[] = [
-    { value: 1, label: "Max HP" },
-    { value: 2, label: "Max MP" },
-    { value: 3, label: "Energy" },
-    { value: 4, label: "Phys ATK" },
-    { value: 5, label: "Magic ATK" },
-    { value: 6, label: "Phys DEF" },
-    { value: 7, label: "Magic DEF" },
-    { value: 8, label: "Accuracy" },
-    { value: 9, label: "Evasion" },
-    { value: 10, label: "Counter" },
-    { value: 11, label: "Speed" },
-    { value: 12, label: "Combo" },
-    { value: 13, label: "Critical" },
-    { value: 14, label: "Armor Pen" },
-    { value: 20, label: "STR" },
-    { value: 21, label: "AGI" },
-    { value: 22, label: "INT" },
-    { value: 23, label: "STA" },
-    { value: 24, label: "Max HP (%)" },
-    { value: 25, label: "Max MP (%)" },
-    { value: 26, label: "Revival Rate" },
-    { value: 27, label: "Crit Resist" },
-    { value: 28, label: "Debuff Resist" },
-    { value: 29, label: "Pen Resist" },
+    { value: 1, label: "HP tối đa" },
+    { value: 2, label: "MP tối đa" },
+    { value: 3, label: "Tinh thần" },
+    { value: 4, label: "Công vật lý" },
+    { value: 5, label: "Công phép" },
+    { value: 6, label: "Thủ vật lý" },
+    { value: 7, label: "Thủ phép" },
+    { value: 8, label: "Chính xác" },
+    { value: 9, label: "Né tránh" },
+    { value: 10, label: "Phản kích" },
+    { value: 11, label: "Tốc độ" },
+    { value: 12, label: "Liên kích" },
+    { value: 13, label: "Bạo kích" },
+    { value: 14, label: "Xuyên giáp" },
+    { value: 20, label: "Sức mạnh" },
+    { value: 21, label: "Nhanh nhẹn" },
+    { value: 22, label: "Trí lực" },
+    { value: 23, label: "Thể lực" },
+    { value: 24, label: "HP tối đa (%)" },
+    { value: 25, label: "MP tối đa (%)" },
+    { value: 26, label: "Tỷ lệ hồi sinh" },
+    { value: 27, label: "Kháng bạo kích" },
+    { value: 28, label: "Kháng hiệu ứng xấu" },
+    { value: 29, label: "Kháng xuyên giáp" },
 ]
 
 export const ACTIVE_PROP_OPTIONS: LabelOption[] = [
-    { value: 1, label: "Phys ATK" },
-    { value: 2, label: "Magic ATK" },
-    { value: 3, label: "Critical" },
-    { value: 4, label: "Armor Pen" },
-    { value: 5, label: "Phys DMG Reduction" },
-    { value: 6, label: "Magic DMG Reduction" },
-    { value: 7, label: "DMG Reduction" },
-    { value: 8, label: "HP Boost" },
+    { value: 1, label: "Công vật lý" },
+    { value: 2, label: "Công phép" },
+    { value: 3, label: "Bạo kích" },
+    { value: 4, label: "Xuyên giáp" },
+    { value: 5, label: "Giảm sát thương vật lý" },
+    { value: 6, label: "Giảm sát thương phép" },
+    { value: 7, label: "Giảm sát thương" },
+    { value: 8, label: "Tăng HP" },
 ]
 
 export const ELEMENT_OPTIONS: LabelOption[] = [
-    { value: 0, label: "None" },
-    { value: 1, label: "Light" },
-    { value: 2, label: "Dark" },
-    { value: 3, label: "Wind" },
-    { value: 4, label: "Earth" },
-    { value: 5, label: "Water" },
-    { value: 6, label: "Fire" },
+    { value: 0, label: "Không có" },
+    { value: 1, label: "Ánh sáng" },
+    { value: 2, label: "Bóng tối" },
+    { value: 3, label: "Phong" },
+    { value: 4, label: "Thổ" },
+    { value: 5, label: "Thủy" },
+    { value: 6, label: "Hỏa" },
 ]
 
 export const QILING_PROP_OPTIONS: LabelOption[] = [
-    { value: 1, label: "Max HP" },
-    { value: 2, label: "Max MP" },
-    { value: 4, label: "Phys ATK" },
-    { value: 5, label: "Magic ATK" },
-    { value: 6, label: "Phys DEF" },
-    { value: 7, label: "Magic DEF" },
-    { value: 8, label: "Accuracy" },
-    { value: 9, label: "Evasion" },
-    { value: 10, label: "Counter" },
-    { value: 11, label: "Speed" },
-    { value: 12, label: "Combo" },
-    { value: 13, label: "Critical" },
-    { value: 14, label: "Armor Pen" },
-    { value: 31, label: "Crit Resist" },
-    { value: 32, label: "Debuff Accuracy" },
-    { value: 34, label: "Immunity" },
-    { value: 58, label: "Debuff Resist" },
-    { value: 59, label: "Final Phys DMG Red" },
-    { value: 60, label: "Final Magic DMG Red" },
-    { value: 61, label: "Pen Resist" },
-    { value: 62, label: "Final Phys DMG Boost" },
-    { value: 63, label: "Final Magic DMG Boost" },
-    { value: 71, label: "Crit Rate" },
-    { value: 72, label: "Crit Break" },
+    { value: 1, label: "HP tối đa" },
+    { value: 2, label: "MP tối đa" },
+    { value: 4, label: "Công vật lý" },
+    { value: 5, label: "Công phép" },
+    { value: 6, label: "Thủ vật lý" },
+    { value: 7, label: "Thủ phép" },
+    { value: 8, label: "Chính xác" },
+    { value: 9, label: "Né tránh" },
+    { value: 10, label: "Phản kích" },
+    { value: 11, label: "Tốc độ" },
+    { value: 12, label: "Liên kích" },
+    { value: 13, label: "Bạo kích" },
+    { value: 14, label: "Xuyên giáp" },
+    { value: 31, label: "Kháng bạo kích" },
+    { value: 32, label: "Chính xác hiệu ứng xấu" },
+    { value: 34, label: "Miễn nhiễm" },
+    { value: 58, label: "Kháng hiệu ứng xấu" },
+    { value: 59, label: "Giảm sát thương vật lý cuối" },
+    { value: 60, label: "Giảm sát thương phép cuối" },
+    { value: 61, label: "Kháng xuyên giáp" },
+    { value: 62, label: "Tăng sát thương vật lý cuối" },
+    { value: 63, label: "Tăng sát thương phép cuối" },
+    { value: 71, label: "Tỷ lệ bạo kích" },
+    { value: 72, label: "Phá kháng bạo kích" },
 ]
 
 export const PRE_NAME_TYPE_OPTIONS: LabelOption[] = [
-    { value: 0, label: "None" },
-    { value: 1, label: "Normal" },
-    { value: 2, label: "Enhanced" },
-    { value: 3, label: "Exquisite" },
-    { value: 4, label: "Perfect" },
-    { value: 5, label: "Excellent" },
+    { value: 0, label: "Không có" },
+    { value: 1, label: "Bình thường" },
+    { value: 2, label: "Cường hóa" },
+    { value: 3, label: "Tinh xảo" },
+    { value: 4, label: "Hoàn mỹ" },
+    { value: 5, label: "Trác việt" },
 ]
 
 const QILING_PROP_SUFFIX: Record<number, 1 | 2 | 3> = {
@@ -336,18 +336,18 @@ const QILING_PROP_SUFFIX: Record<number, 1 | 2 | 3> = {
 }
 
 const QILING_QUALITY_STEPS = [
-    { minRatio: 1, label: "Orange", color: "#FA5B05" },
-    { minRatio: 0.41, label: "Purple", color: "#FF33FF" },
-    { minRatio: 0.24, label: "Blue", color: "#0066FF" },
-    { minRatio: 0.11, label: "Green", color: "#00FF00" },
-    { minRatio: 0, label: "White", color: "#FFFFFF" },
+    { minRatio: 1, label: "Cam", color: "#FA5B05" },
+    { minRatio: 0.41, label: "Tím", color: "#FF33FF" },
+    { minRatio: 0.24, label: "Lam", color: "#0066FF" },
+    { minRatio: 0.11, label: "Lục", color: "#00FF00" },
+    { minRatio: 0, label: "Trắng", color: "#FFFFFF" },
 ] as const
 
 export const PROP_SLOT_LABELS: Record<EditablePropSlot, string> = {
-    main1: "Main line 1",
-    main2: "Main line 2",
-    prop1: "Sub line 1",
-    prop2: "Sub line 2",
+    main1: "Dòng chính 1",
+    main2: "Dòng chính 2",
+    prop1: "Dòng phụ 1",
+    prop2: "Dòng phụ 2",
     active: "Soul",
 }
 
@@ -361,7 +361,7 @@ export function parseCSVIntegers(raw: string): number[] {
     for (const token of tokens) {
         const parsed = Number.parseInt(token, 10)
         if (!Number.isFinite(parsed) || parsed <= 0) {
-            throw new Error(`Invalid positive integer value: ${token}`)
+            throw new Error(`Số nguyên dương không hợp lệ: ${token}`)
         }
         out.push(parsed)
     }
@@ -413,7 +413,7 @@ export function getTemplateTableLabel(
         return "Equipt"
     }
     if (tableID === 29 || tableName === "item_template") {
-        return "Item"
+        return "Vật phẩm"
     }
     return tableName || `Table ${tableID}`
 }
@@ -591,7 +591,7 @@ export function getQilingTierMeta(
 ): { label: string; color: string } {
     if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) {
         return {
-            label: "White",
+            label: "Trắng",
             color: "#FFFFFF",
         }
     }
@@ -612,7 +612,7 @@ export function isMagicWeaponPosition(position: number): boolean {
 }
 
 export function getGemOptionLabel(gem: GemOption): string {
-    return `${gem.name} (#${gem.itemId}) | Lv ${gem.gemLevel} | ${getPropTypeLabel(gem.statType)} +${gem.value}`
+    return `${gem.name} (#${gem.itemId}) | Cấp ${gem.gemLevel} | ${getPropTypeLabel(gem.statType)} +${gem.value}`
 }
 
 export function getQualityLabel(value: number): string {

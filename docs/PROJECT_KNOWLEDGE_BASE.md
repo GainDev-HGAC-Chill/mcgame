@@ -187,6 +187,8 @@ This file is an **index** of per-feature memory documents under `docs/memory/`. 
 
 ## Database, Cache & Infrastructure
 
+- [Windows Local/LAN Deployment](memory/local-lan-deployment.md) — safe Go management commands, separate client profiles, restricted ports, runtime test evidence and WSL restart blocker.
+
 - [Gateway Config & Runtime Config](memory/gateway-config-runtime.md) — `public.gateway_config` + `server_settings` / `game_tuning` / `gm_settings` tables, LISTEN/NOTIFY hot-reload, mode collapse to monolith/line, dashboard CRUD pages.
 - [Database & Infrastructure](memory/database-infrastructure.md) — Supabase deployment, dev compose, Redis cache, giftcode tables, infra layer, migrations, game-data export, seed sync, missing-cell remediation, character table split, DB-function workflow.
 - [Cache Write-Behind Contract](memory/cache-write-behind.md) — `Cached*Repository.Update` write-behind, quest repo wiring, debug player-data dump flag.

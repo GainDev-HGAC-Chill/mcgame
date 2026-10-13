@@ -15,18 +15,18 @@ import {
 } from "../_components/character-field-form"
 
 const FIELDS: CharacterField[] = [
-    { key: "maxHp", label: "Max HP", dtoKey: "hpMax" },
-    { key: "maxMp", label: "Max MP", dtoKey: "mpMax" },
-    { key: "maxSp", label: "Max SP", dtoKey: "spMax" },
-    { key: "attack", label: "Attack", dtoKey: "baseAttack" },
-    { key: "defense", label: "Defense", dtoKey: "baseDefense" },
-    { key: "magicAttack", label: "Magic Attack", dtoKey: "baseMagicAttack" },
-    { key: "magicDefense", label: "Magic Defense", dtoKey: "baseMagicDefense" },
-    { key: "hit", label: "Hit", dtoKey: "propHit" },
-    { key: "dodge", label: "Dodge", dtoKey: "propDodge" },
-    { key: "critical", label: "Critical", dtoKey: "propCritical" },
-    { key: "criticalDmg", label: "Critical Dmg", dtoKey: "baseCriticalDmg" },
-    { key: "speed", label: "Speed", dtoKey: "propSpeed" },
+    { key: "maxHp", label: "HP tối đa", dtoKey: "hpMax" },
+    { key: "maxMp", label: "MP tối đa", dtoKey: "mpMax" },
+    { key: "maxSp", label: "SP tối đa", dtoKey: "spMax" },
+    { key: "attack", label: "Công vật lý", dtoKey: "baseAttack" },
+    { key: "defense", label: "Thủ vật lý", dtoKey: "baseDefense" },
+    { key: "magicAttack", label: "Công phép", dtoKey: "baseMagicAttack" },
+    { key: "magicDefense", label: "Thủ phép", dtoKey: "baseMagicDefense" },
+    { key: "hit", label: "Chính xác", dtoKey: "propHit" },
+    { key: "dodge", label: "Né tránh", dtoKey: "propDodge" },
+    { key: "critical", label: "Bạo kích", dtoKey: "propCritical" },
+    { key: "criticalDmg", label: "Sát thương bạo kích", dtoKey: "baseCriticalDmg" },
+    { key: "speed", label: "Tốc độ", dtoKey: "propSpeed" },
 ]
 
 export function CombatStatsTab({
@@ -49,10 +49,9 @@ export function CombatStatsTab({
         <div className="space-y-6">
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Current Combat Stats</CardTitle>
+                    <CardTitle className="text-base">Chỉ số chiến đấu hiện tại</CardTitle>
                     <CardDescription>
-                        Derived on the server from attributes, aptitude, equipment, buffs,
-                        and other runtime modifiers.
+                        Máy chủ tính từ thuộc tính, tư chất, trang bị, hiệu ứng và các yếu tố khác đang áp dụng.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -76,23 +75,23 @@ export function CombatStatsTab({
 
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Refresh Derived Stats</CardTitle>
+                    <CardTitle className="text-base">Làm mới chỉ số tổng hợp</CardTitle>
                     <CardDescription>
-                        Derived combat stats are no longer edited directly. Refresh this
-                        player to recalculate the cached server-side values.
+                        Không chỉnh sửa trực tiếp chỉ số chiến đấu tổng hợp. Làm mới người chơi
+                        để máy chủ tính lại chỉ số trong bộ nhớ đệm.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                        Use attribute, progression, equipment, buff, or item actions to
-                        change the source inputs. This action only forces a recalculation.
+                        Dùng thao tác thuộc tính, tiến trình, trang bị, hiệu ứng hoặc vật phẩm để thay đổi
+                        dữ liệu nguồn. Thao tác này chỉ yêu cầu tính lại chỉ số.
                     </p>
                     <Button
                         size="sm"
                         onClick={handleRefresh}
                         disabled={mutate.isPending}
                     >
-                        Refresh Stats
+                        Làm mới chỉ số
                     </Button>
                 </CardContent>
             </Card>

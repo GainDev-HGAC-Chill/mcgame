@@ -73,11 +73,9 @@ func (r *CachedCharacterRepository) ExistsByName(ctx context.Context, name strin
 
 func (r *CachedCharacterRepository) UpdatePosition(ctx context.Context, id int64, pos character.Position) error {
 	if data := r.cache.GetPlayer(id); data != nil {
-		char := data.GetCharacter()
-		if char != nil {
+		r.cache.UpdateCachedCharacter(id, func(char *character.Character) {
 			char.MoveTo(pos)
-			data.MarkCharacterDirty()
-		}
+		})
 		return nil
 	}
 	return r.delegate.UpdatePosition(ctx, id, pos)
@@ -85,13 +83,11 @@ func (r *CachedCharacterRepository) UpdatePosition(ctx context.Context, id int64
 
 func (r *CachedCharacterRepository) UpdateStats(ctx context.Context, id int64, hp, mp, sp int) error {
 	if data := r.cache.GetPlayer(id); data != nil {
-		char := data.GetCharacter()
-		if char != nil {
+		r.cache.UpdateCachedCharacter(id, func(char *character.Character) {
 			char.CurrentHP = hp
 			char.CurrentMP = mp
 			char.CurrentSP = sp
-			data.MarkCharacterDirty()
-		}
+		})
 		return nil
 	}
 	return r.delegate.UpdateStats(ctx, id, hp, mp, sp)

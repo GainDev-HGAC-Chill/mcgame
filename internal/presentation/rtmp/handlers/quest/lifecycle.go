@@ -85,6 +85,11 @@ func (h *Handler) TakeQuest(ctx *rtmp.RPCContext, args []interface{}) (interface
 }
 
 func (h *Handler) TakeBuildQuest(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	if len(args) == 1 {
+		if request, ok := args[0].(map[string]interface{}); ok {
+			args = []interface{}{request["id"], request["nid"]}
+		}
+	}
 	if len(args) < 2 {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
@@ -103,11 +108,6 @@ func (h *Handler) TakeBuildQuest(ctx *rtmp.RPCContext, args []interface{}) (inte
 	}
 
 	objectives := h.questService.GetInitialObjectives(questID)
-	if len(args) >= 3 {
-		if list, ok := args[2].([]interface{}); ok {
-			objectives = h.parseObjectives(list)
-		}
-	}
 
 	qp, err := h.questService.AcceptQuestFromNPC(ctx.Context, characterID, questID, npcID, objectives)
 	if err != nil {
@@ -228,9 +228,12 @@ func (h *Handler) FinishQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 		}
 	}
 
+	if err := h.questService.ValidateQuestTurnIn(ctx.Context, characterID, questID); err != nil {
+		return map[string]interface{}{"flag": false, "info": "Hãy đến đúng NPC trả nhiệm vụ; chưa nhận thưởng."}, nil
+	}
 	_, rewards, err := h.questService.CompleteQuest(ctx.Context, characterID, questID)
 	if err != nil {
-		return map[string]interface{}{"flag": false, "msg": err.Error()}, nil
+		return map[string]interface{}{"flag": false, "info": err.Error()}, nil
 	}
 
 	h.logger.Info("Quest completed", zap.Int64("character_id", characterID), zap.Int("quest_id", questID), zap.Any("rewards", rewards))
@@ -240,8 +243,10 @@ func (h *Handler) FinishQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 			for _, change := range consumed {
 				deleted, _ := change["deleted"].(bool)
 				if deleted {
-					if sid, ok := change["sid"].(int); ok {
-						_ = ctx.Connection.SendCallback("onDelCharactorSlot", sid)
+					itemID, hasItemID := change["id"].(int64)
+					sid, hasSID := change["sid"].(int)
+					if hasItemID && hasSID {
+						_ = ctx.Connection.SendCallback("onDelCharactorSlot", itemID, sid)
 					}
 					continue
 				}
@@ -345,13 +350,11 @@ func (h *Handler) FinishQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 		}
 	}
 
-	_ = ctx.Connection.SendCallback("onUpdateAchieve")
-	_ = ctx.Connection.SendCallback("onUpdateSafeBattleMid")
-
 	rtmputils.CheckBagCapacityWarning(ctx.Context, ctx.Connection, h.itemService, characterID)
 
 	activeQuests, _ := h.questService.GetActiveQuests(ctx.Context, characterID)
 	if h.questNotify != nil {
+		h.questNotify.PushQuestProgress(ctx, characterID)
 		mapID, _ := ctx.Connection.GetSceneInfo()
 		h.questNotify.PushNpcQuestStatesByMap(ctx, characterID, mapID)
 	}

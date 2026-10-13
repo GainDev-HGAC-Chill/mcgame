@@ -140,12 +140,13 @@ type GrantedItem struct {
 }
 
 type Outcome struct {
-	Record    *dailysignin.Record
-	Day       int
-	AwardDay  int
-	Granted   []GrantedItem
-	GoldSpent int64
-	GoldLeft  int64
+	Record       *dailysignin.Record
+	Day          int
+	AwardDay     int
+	Granted      []GrantedItem
+	GoldSpent    int64
+	GoldLeft     int64
+	GoldBindLeft int64
 }
 
 type rewardBundle map[int][]*dailysignin.Reward
@@ -359,10 +360,11 @@ func (s *Service) GetAward(ctx context.Context, characterID int64) (*Outcome, er
 	}
 
 	return &Outcome{
-		Record:    res.Record,
-		AwardDay:  today,
-		GoldSpent: -tier.GoldAmount,
-		GoldLeft:  char.Gold + char.GoldBind,
+		Record:       res.Record,
+		AwardDay:     today,
+		GoldSpent:    -tier.GoldAmount,
+		GoldLeft:     char.Gold,
+		GoldBindLeft: char.GoldBind,
 	}, nil
 }
 
@@ -410,7 +412,7 @@ func (s *Service) Retroactive(ctx context.Context, characterID int64) (*Outcome,
 	}
 
 	bundle := s.fetchRewardBundle(ctx)
-	out := &Outcome{Record: res.Record, Day: missed, GoldSpent: spent, GoldLeft: left}
+	out := &Outcome{Record: res.Record, Day: missed, GoldSpent: spent, GoldLeft: left, GoldBindLeft: char.GoldBind}
 	out.Granted = append(out.Granted, s.grantFromBundle(ctx, characterID, bundle, dailysignin.IncDaily, false)...)
 	if rollHit {
 		out.Granted = append(out.Granted, s.grantFromBundle(ctx, characterID, bundle, dailysignin.IncCritBonus, false)...)
@@ -458,10 +460,11 @@ func (s *Service) UpCrit(ctx context.Context, characterID int64) (*Outcome, erro
 	}
 
 	return &Outcome{
-		Record:    res.Record,
-		AwardDay:  s.computeAwardDay(ctx, res.Record, now),
-		GoldSpent: spent,
-		GoldLeft:  left,
+		Record:       res.Record,
+		AwardDay:     s.computeAwardDay(ctx, res.Record, now),
+		GoldSpent:    spent,
+		GoldLeft:     left,
+		GoldBindLeft: char.GoldBind,
 	}, nil
 }
 
@@ -510,7 +513,7 @@ func (s *Service) DoLegacySignin(ctx context.Context, characterID int64) (*Legac
 
 func (s *Service) spendGold(ctx context.Context, char *domainchar.Character, amount int64) (int64, int64, error) {
 	if amount <= 0 {
-		return 0, char.Gold + char.GoldBind, nil
+		return 0, char.Gold, nil
 	}
 	if char.GoldBind+char.Gold < amount {
 		return 0, 0, pkgerrors.ErrInsufficientFunds
@@ -527,7 +530,7 @@ func (s *Service) spendGold(ctx context.Context, char *domainchar.Character, amo
 	if err := s.chars.Update(ctx, char); err != nil {
 		return 0, 0, err
 	}
-	return amount, char.Gold + char.GoldBind, nil
+	return amount, char.Gold, nil
 }
 
 func (s *Service) rollPercent(percent int) bool {

@@ -9,6 +9,7 @@ import (
 	"context"
 	"strings"
 
+	"mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/item"
 	pkgerrors "mcgame-server/pkg/errors"
 )
@@ -178,6 +179,17 @@ func shouldTrackWarmInventorySlot(slotType item.SlotType, slotIndex int) bool {
 }
 
 func (r *CachedItemRepository) Update(ctx context.Context, it *item.Item) error {
+	if it.SlotType == item.SlotTypeEquipped {
+		_, err := r.UpdateEquippedSlotsConditional(ctx, it.CharacterID, func(_ *character.Character, items []*item.Item) ([]*item.Item, error) {
+			for _, current := range items {
+				if current.ID == it.ID && current.SlotType == item.SlotTypeEquipped && current.SlotIndex == it.SlotIndex && current.TemplateID == it.TemplateID {
+					return []*item.Item{it}, nil
+				}
+			}
+			return nil, pkgerrors.ErrCannotEquip
+		})
+		return err
+	}
 	if data := r.cache.GetPlayer(it.CharacterID); data != nil {
 		data.SetItem(it)
 		if r.cache.warmLoader != nil && shouldTrackWarmInventorySlot(it.SlotType, it.SlotIndex) {
@@ -226,6 +238,9 @@ func (r *CachedItemRepository) DeleteByCharacterID(ctx context.Context, charID i
 }
 
 func (r *CachedItemRepository) MoveItem(ctx context.Context, id int64, slotType item.SlotType, slotIndex int) error {
+	if slotType == item.SlotTypeEquipped {
+		return pkgerrors.ErrCannotEquip
+	}
 	r.cache.mu.RLock()
 	for _, data := range r.cache.activeSessions {
 		if it := data.GetItem(id); it != nil {
@@ -261,6 +276,9 @@ func (r *CachedItemRepository) UpdateStack(ctx context.Context, id int64, stackC
 		if it := data.GetItem(id); it != nil {
 			r.cache.mu.RUnlock()
 			it.StackCount = stackCount
+			if it.SlotType == item.SlotTypeEquipped {
+				return r.Update(ctx, it)
+			}
 			data.SetItem(it)
 			return nil
 		}

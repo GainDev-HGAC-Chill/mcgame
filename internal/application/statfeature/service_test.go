@@ -341,6 +341,7 @@ func TestBuildCharacterLoginStateUsesProgressionAndFeatureState(t *testing.T) {
 			{CharacterID: 9, FeatureKey: domainfeature.FeatureExplorerMedal, State: map[string]interface{}{"info": "100|0"}},
 			{CharacterID: 9, FeatureKey: domainfeature.FeatureContractPet, State: map[string]interface{}{"hp": 50, "hpExp": 10}},
 			{CharacterID: 9, FeatureKey: domainfeature.FeatureMonsterHeart, State: map[string]interface{}{"bag": map[string]interface{}{"ren": map[string]interface{}{"5001": map[string]interface{}{"itemId": 5001, "n": 3}}}, "data": map[string]interface{}{}}},
+			{CharacterID: 9, FeatureKey: domainfeature.FeatureBloodBag, State: map[string]interface{}{"characterHp": 5000, "characterMp": 10000, "petHp": 15000, "petMp": 20000}},
 		},
 	}
 
@@ -358,6 +359,9 @@ func TestBuildCharacterLoginStateUsesProgressionAndFeatureState(t *testing.T) {
 	}
 	if got, want := loginState["soulChip"], int64(7); got != want {
 		t.Fatalf("soulChip = %v, want %v", got, want)
+	}
+	if got, want := loginState["ep"], "|5000|10000|15000|20000"; got != want {
+		t.Fatalf("ep = %v, want %v", got, want)
 	}
 	astrologicData, ok := loginState["astrologicData"].(map[string]interface{})
 	if !ok {

@@ -132,9 +132,9 @@ function normalizeDraftEntries(
 function formatBookState(value: number): string {
     switch (value) {
         case 1:
-            return "1 · Activated"
+            return "1 · Đã kích hoạt"
         case 2:
-            return "2 · Claimed"
+            return "2 · Đã nhận"
         default:
             return String(value)
     }
@@ -154,7 +154,7 @@ function formatBookSecondary(
 ): string {
     const option = lookup.get(id)
     if (!option) {
-        return "Name lookup unavailable"
+        return "Không thể tra cứu tên"
     }
 
     const parts = [`${option.type === 2 ? "Flyer" : "Dress"}`]
@@ -185,7 +185,7 @@ function formatRecipeSecondary(
 ): string {
     const option = lookup.get(id)
     if (!option) {
-        return "Name lookup unavailable"
+        return "Không thể tra cứu tên"
     }
 
     const parts = [option.type === 2 ? "Chip" : "Recipe"]
@@ -399,7 +399,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
             if (raw === "") continue
             const value = Number(raw)
             if (!Number.isFinite(value)) {
-                toast.error(`Invalid value for ${key}`)
+                toast.error(`Giá trị không hợp lệ cho ${key}`)
                 return
             }
             payload[key] = Math.trunc(value)
@@ -426,7 +426,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
         }
 
         if (Object.keys(payload).length === 0) {
-            toast.error("No dress panel changes to apply")
+            toast.error("Không có thay đổi thời trang để áp dụng")
             return
         }
 
@@ -465,58 +465,57 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                        Current Dress Panel Data
+                        Dữ liệu thời trang hiện tại
                     </CardTitle>
                     <CardDescription>
-                        These values back the client DRESS_PANEL state and
-                        activeDress material checks.
+                        Các giá trị này dùng cho trạng thái DRESS_PANEL và kiểm tra nguyên liệu activeDress của máy khách.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                         <FieldCard
-                            label="Crystal"
+                            label="Pha lê"
                             value={currentNumber(char.dressBagCrystal)}
                         />
                         <FieldCard
-                            label="Jewel"
+                            label="Ngọc"
                             value={currentNumber(char.dressBagJewel)}
                         />
                         <FieldCard
-                            label="Extract"
+                            label="Tinh chất"
                             value={currentNumber(char.dressExtract)}
                         />
                         <FieldCard
-                            label="Score"
+                            label="Điểm"
                             value={currentNumber(char.dressScore)}
                         />
                         <FieldCard
-                            label="Fake Dress ID"
+                            label="ID thời trang hiển thị"
                             value={currentNumber(char.dressFakeDressId)}
                         />
                         <FieldCard
-                            label="Fake Flyer ID"
+                            label="ID phi hành hiển thị"
                             value={currentNumber(char.dressFakeFlyDressId)}
                         />
                     </div>
                     <div className="grid gap-4 lg:grid-cols-2">
                         <CounterOverviewSection
-                            title="Current Book Entries"
-                            description="Book states use the saved dress/flyer ID as the key. Value 1 means activated, value 2 means claimed."
+                            title="Sổ sưu tập hiện tại"
+                            description="Sổ sưu tập dùng ID thời trang/phi hành làm khóa. Giá trị 1 là đã kích hoạt, 2 là đã nhận."
                             entries={currentBookEntries}
                             formatPrimary={resolveBookPrimary}
                             formatSecondary={resolveBookSecondary}
                             formatValue={formatBookState}
-                            emptyLabel="No dress or flyer entries saved."
+                            emptyLabel="Chưa lưu thời trang hoặc phi hành."
                         />
                         <CounterOverviewSection
-                            title="Current Recipe Entries"
-                            description="Recipe rows store owned recipe or chip quantities keyed by recipe ID."
+                            title="Công thức hiện tại"
+                            description="Mỗi dòng lưu số lượng công thức hoặc mảnh sở hữu theo ID công thức."
                             entries={currentRecipeEntries}
                             formatPrimary={resolveRecipePrimary}
                             formatSecondary={resolveRecipeSecondary}
-                            formatValue={value => `${value} owned`}
-                            emptyLabel="No recipe or chip counts saved."
+                            formatValue={value => `Sở hữu ${value}`}
+                            emptyLabel="Chưa lưu số lượng công thức hoặc mảnh."
                         />
                     </div>
                 </CardContent>
@@ -525,18 +524,17 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                        Set Dress Panel Data
+                        Đặt dữ liệu thời trang
                     </CardTitle>
                     <CardDescription>
-                        Leave a numeric field empty to keep it unchanged. Book
-                        and Recipe rows edit the saved key/value entries
-                        directly.
+                        Để trống trường số để giữ nguyên. Các dòng sổ sưu tập và công thức
+                        chỉnh sửa trực tiếp khóa/giá trị đã lưu.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                         <div className="space-y-1">
-                            <Label className="text-xs">Crystal</Label>
+                            <Label className="text-xs">Pha lê</Label>
                             <Input
                                 type="number"
                                 placeholder={String(
@@ -549,7 +547,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Jewel</Label>
+                            <Label className="text-xs">Ngọc</Label>
                             <Input
                                 type="number"
                                 placeholder={String(
@@ -562,7 +560,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Extract</Label>
+                            <Label className="text-xs">Tinh chất</Label>
                             <Input
                                 type="number"
                                 placeholder={String(
@@ -575,7 +573,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Score</Label>
+                            <Label className="text-xs">Điểm</Label>
                             <Input
                                 type="number"
                                 placeholder={String(
@@ -586,7 +584,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Fake Dress ID</Label>
+                            <Label className="text-xs">ID thời trang hiển thị</Label>
                             <Input
                                 type="number"
                                 placeholder={String(
@@ -599,7 +597,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Fake Flyer ID</Label>
+                            <Label className="text-xs">ID phi hành hiển thị</Label>
                             <Input
                                 type="number"
                                 placeholder={String(
@@ -614,50 +612,47 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                     </div>
                     <div className="grid gap-4 lg:grid-cols-2">
                         <CounterEditorSection
-                            title="Book Entries"
-                            description="Choose the dress or flyer by name, then set the saved book state."
-                            emptyLabel="No draft book rows. Add one when you want to change book data."
-                            valueLabel="State"
-                            valueHint="Use 1 for activated and 2 for claimed."
-                            selectPlaceholder="Select dress or flyer"
+                            title="Sổ sưu tập"
+                            description="Chọn thời trang hoặc phi hành theo tên, rồi đặt trạng thái sổ sưu tập."
+                            emptyLabel="Chưa có dòng chỉnh sửa sổ sưu tập. Thêm dòng để thay đổi dữ liệu."
+                            valueLabel="Trạng thái"
+                            valueHint="Dùng 1 cho đã kích hoạt, 2 cho đã nhận."
+                            selectPlaceholder="Chọn thời trang hoặc phi hành"
                             entries={bookEntries}
                             options={bookSelectOptions}
                             formatSecondary={resolveBookSecondary}
                             onAdd={addBookEntry}
                             onChange={updateBookEntry}
                             onRemove={removeBookEntry}
-                            fallbackInputLabel="Dress ID"
+                            fallbackInputLabel="ID thời trang"
                         />
                         <CounterEditorSection
-                            title="Recipe Entries"
-                            description="Choose the recipe or chip by name, then set how many the player owns."
-                            emptyLabel="No draft recipe rows. Add one when you want to change recipe data."
-                            valueLabel="Count"
-                            valueHint="Use the owned quantity for that recipe or chip."
-                            selectPlaceholder="Select recipe or chip"
+                            title="Công thức"
+                            description="Chọn công thức hoặc mảnh theo tên, rồi đặt số lượng người chơi sở hữu."
+                            emptyLabel="Chưa có dòng chỉnh sửa công thức. Thêm dòng để thay đổi dữ liệu."
+                            valueLabel="Số lượng"
+                            valueHint="Nhập số lượng công thức hoặc mảnh đang sở hữu."
+                            selectPlaceholder="Chọn công thức hoặc mảnh"
                             entries={recipeEntries}
                             options={recipeSelectOptions}
                             formatSecondary={resolveRecipeSecondary}
                             onAdd={addRecipeEntry}
                             onChange={updateRecipeEntry}
                             onRemove={removeRecipeEntry}
-                            fallbackInputLabel="Recipe ID"
+                            fallbackInputLabel="ID công thức"
                         />
                     </div>
                     {catalogError ? (
                         <p className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                            Name lookup is unavailable right now, so the editor
-                            falls back to numeric IDs.{" "}
+                            Hiện không thể tra cứu tên, nên trình chỉnh sửa dùng ID dạng số.{" "}
                             {catalogError instanceof Error
                                 ? catalogError.message
                                 : ""}
                         </p>
                     ) : null}
                     <p className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                        Updating crystal and jewel here changes the persisted
-                        `dressInfo.bag` values that `activeDress` consumes.
-                        Online players receive the exact `onUpdateDressInto`
-                        callback so DRESS_PANEL refreshes immediately.
+                        Cập nhật pha lê và ngọc tại đây thay đổi `dressInfo.bag` mà `activeDress` sử dụng.
+                        Người chơi trực tuyến nhận `onUpdateDressInto` để DRESS_PANEL làm mới ngay.
                     </p>
                     <div className="flex flex-wrap gap-2">
                         <Button
@@ -665,7 +660,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                             onClick={handleApply}
                             disabled={action.isPending}
                         >
-                            Apply Dress Panel Changes
+                            Áp dụng thay đổi thời trang
                         </Button>
                         <Button
                             variant="outline"
@@ -673,7 +668,7 @@ export function DressPanelTab({ char, playerId }: DressPanelTabProps) {
                             onClick={resetEditors}
                             disabled={action.isPending}
                         >
-                            Reset Editor
+                            Đặt lại trình chỉnh sửa
                         </Button>
                     </div>
                 </CardContent>

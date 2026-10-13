@@ -1,5 +1,11 @@
 # Cache Write-Behind Contract (2026-04-27)
 
+## Cache ownership and autosave crash repair (2026-10-11)
+
+Fatal map iteration/write during Redis autosave disconnected Gain at 19:07:15. PlayerData now owns detached entities: clone on reads/writes/initial load, including nested maps/slices, nullable fields and pet private bonuses. Full Redis and dirty DB snapshots are detached before I/O. Gameplay must explicitly Save/Update read copies; mutating a returned pointer alone no longer changes cache. Character position/stats use atomic patches; UpdateCachedCharacter returns an independent result.
+
+DB saves and Redis snapshot writes are serialized per player. Snapshot revision acknowledgement retains updates arriving during persistence, while trimming successfully saved deletion prefixes. Do not replace this with unconditional ClearDirty after I/O. Debug dump/stat reads are protected. See [Autosave cache crash research](../research/2026-10-11_04_AUTOSAVE_CACHE_CRASH_RESEARCH.md) for evidence, tests and remaining limits; client `Battle.battleOnEnd` logout #1009 itself is not patched.
+
 All `Cached*Repository.Update` methods follow strict write-behind: when the player is in `PlayerCache.activeSessions`, mark the entity dirty in the in-memory `PlayerData` and return without touching the DB. The DB flush happens only via `PlayerCache.SaveAllDirty` (driven by `appcenter.Service` on a 60s tick) or `SaveAndEvict` on disconnect. Both flush paths call the **raw delegate repo** (`c.charRepo.Update`, `c.itemRepo.Update`, etc.) — never the cached wrapper, so there is no recursion.
 
 The `delegate.Update` fallback inside a cached repo is reserved for the offline-character case (player not in `activeSessions`, e.g., admin tooling, batch jobs).

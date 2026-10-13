@@ -48,6 +48,7 @@ var validActions = map[string]bool{
 	"set_currency":        true,
 	"set_attributes":      true,
 	"advance_progression": true,
+	"set_target_level":    true,
 	"set_progression":     true,
 	"set_combat_stats":    true,
 	"set_resources":       true,
@@ -132,6 +133,8 @@ func (s *Server) handlePlayerAction(w http.ResponseWriter, r *http.Request) {
 		s.executeSetAttributes(w, ctx, charData, req.Payload)
 	case "advance_progression":
 		s.executeAdvanceProgression(w, ctx, charData, req.Payload)
+	case "set_target_level":
+		s.executeSetTargetLevel(w, ctx, charData, req.Payload)
 	case "set_progression":
 		s.executeSetProgression(w, ctx, charData, req.Payload)
 	case "set_combat_stats":

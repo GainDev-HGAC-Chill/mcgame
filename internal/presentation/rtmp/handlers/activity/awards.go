@@ -4,7 +4,6 @@
 package activity
 
 import (
-	"encoding/json"
 	"time"
 
 	"mcgame-server/internal/infrastructure/rtmp"
@@ -23,39 +22,9 @@ func (h *Handler) GetStageConsumeAwardList(ctx *rtmp.RPCContext, args []interfac
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID))
 
-	now := time.Now().Unix()
-	stageData := map[string]interface{}{
-		"stageNum": 3,
-		"0": map[string]interface{}{
-			"start": now - 86400,
-			"end":   now + 86400,
-			"awardList": map[string]interface{}{
-				"0": map[string]interface{}{"min": 100, "max": 500, "award": []interface{}{}, "point": 10},
-				"1": map[string]interface{}{"min": 500, "max": 1000, "award": []interface{}{}, "point": 20},
-			},
-		},
-		"1": map[string]interface{}{
-			"start": now - 86400,
-			"end":   now + 86400,
-			"awardList": map[string]interface{}{
-				"0": map[string]interface{}{"min": 1000, "max": 2000, "award": []interface{}{}, "point": 30},
-			},
-		},
-		"2": map[string]interface{}{
-			"start": now - 86400,
-			"end":   now + 86400,
-			"awardList": map[string]interface{}{
-				"0": map[string]interface{}{"min": 2000, "max": 0, "award": []interface{}{}, "point": 50},
-			},
-		},
-	}
-
-	consumptionTotals := map[string]interface{}{
-		"0": map[string]interface{}{"total": 300, "start": now - 86400, "end": now + 86400},
-		"1": map[string]interface{}{"total": 1500, "start": now - 86400, "end": now + 86400},
-		"2": map[string]interface{}{"total": 2500, "start": now - 86400, "end": now + 86400},
-	}
-
+	stageData := map[string]interface{}{"stageNum": 0}
+	consumptionTotals := map[string]interface{}{}
+	h.sendActivityCallback(ctx, "onGetStageConsumeAwardList", stageData, consumptionTotals)
 	response := []interface{}{stageData, consumptionTotals}
 
 	h.logger.Info("GetStageConsumeAwardList: returning stage consume award list",
@@ -75,14 +44,9 @@ func (h *Handler) GetConsumeAwardList(ctx *rtmp.RPCContext, args []interface{}) 
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID))
 
-	now := time.Now().Unix()
-	awardStages := map[string]interface{}{
-		"0": map[string]interface{}{"i": 100, "j": 500, "start": now - 86400, "end": now + 86400, "award": []interface{}{}, "point": 10},
-		"1": map[string]interface{}{"i": 500, "j": 1000, "start": now - 86400, "end": now + 86400, "award": []interface{}{}, "point": 20},
-		"2": map[string]interface{}{"i": 1000, "j": 0, "start": now - 86400, "end": now + 86400, "award": []interface{}{}, "point": 30},
-	}
-
-	response := []interface{}{awardStages, 750}
+	awardStages := map[string]interface{}{}
+	h.sendActivityCallback(ctx, "onGetConsumeAwardList", awardStages, 0)
+	response := []interface{}{awardStages, 0}
 
 	h.logger.Info("GetConsumeAwardList: returning consume award list",
 		zap.Uint32("conn_id", ctx.ConnID),
@@ -101,12 +65,7 @@ func (h *Handler) GetPointAward(ctx *rtmp.RPCContext, args []interface{}) (inter
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID))
 
-	now := time.Now().Unix()
-	response := map[string]interface{}{
-		"firstTime": map[string]interface{}{"id": 0, "key": "", "value": "", "type": "", "itemId": "", "timeRange": "", "start": 0, "q": 0, "binded": 1},
-		"1":         map[string]interface{}{"itemId": 1001, "binded": 1, "start": now - 86400, "end": now + 86400, "q": 1, "value": 100, "type": 18},
-		"2":         map[string]interface{}{"itemId": 1002, "binded": 0, "start": now - 86400, "end": now + 86400, "q": 1, "value": 200, "type": 18},
-	}
+	response := map[string]interface{}{}
 
 	h.logger.Info("GetPointAward: returning point award list",
 		zap.Uint32("conn_id", ctx.ConnID),
@@ -125,23 +84,14 @@ func (h *Handler) SearchGameGift(ctx *rtmp.RPCContext, args []interface{}) (inte
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID))
 
-	gifts := []map[string]interface{}{
-		{"giftid": 1001, "code": "GIFT001", "name": "Welcome Gift"},
-		{"giftid": 1002, "code": "GIFT002", "name": "New Player Gift"},
-	}
-
-	jsonData, marshalErr := json.Marshal(gifts)
-	if marshalErr != nil {
-		h.logger.Error("SearchGameGift: failed to marshal gifts", zap.Error(marshalErr))
-		return nil, pkgerrors.ErrSystemError
-	}
+	h.sendActivityCallback(ctx, "onGetItemIdAward", "[]")
 
 	h.logger.Info("SearchGameGift: returning game gifts",
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID),
-		zap.Int("gift_count", len(gifts)))
+		zap.Int("gift_count", 0))
 
-	return string(jsonData), nil
+	return "[]", nil
 }
 
 func (h *Handler) GetShopAward(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -154,14 +104,7 @@ func (h *Handler) GetShopAward(ctx *rtmp.RPCContext, args []interface{}) (interf
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID))
 
-	now := time.Now().Unix()
-	response := map[string]interface{}{
-		"firstTime":   map[string]interface{}{"id": 0, "key": "", "value": "", "type": "", "itemId": "", "timeRange": "", "start": 0, "q": 0, "binded": 1},
-		"information": map[string]interface{}{"text": "Shop Award Activity"},
-		"1":           map[string]interface{}{"i": 10, "j": 50, "itemType": 18, "itemId": 2001, "binded": 1, "start": now - 86400, "end": now + 86400},
-		"2":           map[string]interface{}{"i": 50, "j": 100, "itemType": 18, "itemId": 2002, "binded": 0, "start": now - 86400, "end": now + 86400},
-		"3":           map[string]interface{}{"i": 100, "j": 0, "itemType": 18, "itemId": 2003, "binded": 1, "start": now - 86400, "end": now + 86400},
-	}
+	response := map[string]interface{}{}
 
 	h.logger.Info("GetShopAward: returning shop award list",
 		zap.Uint32("conn_id", ctx.ConnID),

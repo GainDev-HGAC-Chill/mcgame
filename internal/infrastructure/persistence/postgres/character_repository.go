@@ -97,6 +97,10 @@ func (r *CharacterRepository) FindByName(ctx context.Context, name string) (*cha
 }
 
 func (r *CharacterRepository) Create(ctx context.Context, char *character.Character) error {
+	return createCharacter(ctx, r.db.pool, char)
+}
+
+func createCharacter(ctx context.Context, queryer creationQueryer, char *character.Character) error {
 	char.NormalizeSlotFields()
 	petGuardDataJSON := marshalPetGuardData(char.PetGuardData)
 	bossDailyJSON := marshalBossDaily(char.BossDaily)
@@ -124,7 +128,7 @@ func (r *CharacterRepository) Create(ctx context.Context, char *character.Charac
 		char.PMExp, pmProcessDataJSON, char.PMFindback, petGuardDataJSON, bossDailyJSON,
 	}
 
-	if err := r.db.pool.QueryRow(ctx, "select player.create_character_full("+positionalArgs(len(args))+")", args...).Scan(&char.ID); err != nil {
+	if err := queryer.QueryRow(ctx, "select player.create_character_full("+positionalArgs(len(args))+")", args...).Scan(&char.ID); err != nil {
 		return pkgerrors.Wrap(err, "failed to create character")
 	}
 

@@ -95,14 +95,14 @@ func getCurrencyKey(currencyType int) string {
 	case 64:
 		return "mcbeans"
 	case 0:
-		return "honor"
+		return "exPoint"
 	default:
 		return "money"
 	}
 }
 
 func (h *Handler) GetShopConfig(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	
+
 	result := []interface{}{0, "", []interface{}{}}
 	if err := ctx.Connection.SendCallback("onGetShopConfig", result); err != nil {
 		h.logger.Error("Failed to send onGetShopConfig callback", zap.Uint32("conn_id", ctx.ConnID), zap.Error(err))
@@ -112,7 +112,7 @@ func (h *Handler) GetShopConfig(ctx *rtmp.RPCContext, args []interface{}) (inter
 }
 
 func (h *Handler) GetLimitShopConfig(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	
+
 	result := []interface{}{0, "", []interface{}{}}
 	if err := ctx.Connection.SendCallback("onGetLimitShopConfig", result); err != nil {
 		h.logger.Error("Failed to send onGetLimitShopConfig callback", zap.Uint32("conn_id", ctx.ConnID), zap.Error(err))
@@ -122,7 +122,7 @@ func (h *Handler) GetLimitShopConfig(ctx *rtmp.RPCContext, args []interface{}) (
 }
 
 func (h *Handler) GetRemainShopConfig(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	
+
 	result := []interface{}{0, "", []interface{}{}}
 	if err := ctx.Connection.SendCallback("onGetRemainShopConfig", result); err != nil {
 		h.logger.Error("Failed to send onGetRemainShopConfig callback", zap.Uint32("conn_id", ctx.ConnID), zap.Error(err))

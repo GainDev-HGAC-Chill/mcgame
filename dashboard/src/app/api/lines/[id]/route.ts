@@ -101,46 +101,46 @@ export async function PATCH(
 ) {
     const { id: idParam } = await params
     const id = parseID(idParam)
-    if (id === null) return badRequest("invalid id")
+    if (id === null) return badRequest("ID không hợp lệ")
 
     let payload: LineUpdatePayload
     try {
         payload = (await request.json()) as LineUpdatePayload
     } catch {
-        return badRequest("invalid JSON body")
+        return badRequest("Nội dung JSON không hợp lệ")
     }
 
     try {
         const existing = await loadExistingLine(id)
         if (!existing) {
             return NextResponse.json(
-                { ok: false, error_code: "not_found", message: "line not found" },
+                { ok: false, error_code: "not_found", message: "Không tìm thấy kênh" },
                 { status: HTTP_STATUS.NOT_FOUND }
             )
         }
 
         const name = payload.name !== undefined ? String(payload.name).trim() : existing.name
         if (!name || name.length > NAME_MAX || rejectControlBytes(name)) {
-            return badRequest("invalid name")
+            return badRequest("Tên kênh không hợp lệ")
         }
 
         const url = payload.url !== undefined ? String(payload.url).trim() : existing.url
         if (!url || url.length > URL_MAX || rejectControlBytes(url)) {
-            return badRequest("invalid url")
+            return badRequest("URL không hợp lệ")
         }
         if (!/^rtmpe?:\/\//i.test(url)) {
-            return badRequest("url must start with rtmp:// or rtmpe://")
+            return badRequest("URL phải bắt đầu bằng rtmp:// hoặc rtmpe://")
         }
 
         const maxClients =
             payload.maxClients !== undefined ? asInt(payload.maxClients, existing.max_clients) : existing.max_clients
         if (maxClients < 0 || maxClients > MAX_CLIENTS_MAX) {
-            return badRequest("invalid max_clients")
+            return badRequest("Số người chơi tối đa không hợp lệ")
         }
 
         const status = payload.status !== undefined ? String(payload.status).trim() : existing.status
         if (!ALLOWED_STATUS.includes(status as (typeof ALLOWED_STATUS)[number])) {
-            return badRequest("invalid status")
+            return badRequest("Trạng thái không hợp lệ")
         }
 
         const sortOrder =
@@ -173,7 +173,7 @@ export async function DELETE(
 ) {
     const { id: idParam } = await params
     const id = parseID(idParam)
-    if (id === null) return badRequest("invalid id")
+    if (id === null) return badRequest("ID không hợp lệ")
 
     try {
         const supabase = createAdminClient()
@@ -182,7 +182,7 @@ export async function DELETE(
         const removed = data === true
         if (!removed) {
             return NextResponse.json(
-                { ok: false, error_code: "not_found", message: "line not found" },
+                { ok: false, error_code: "not_found", message: "Không tìm thấy kênh" },
                 { status: HTTP_STATUS.NOT_FOUND }
             )
         }

@@ -30,14 +30,11 @@ func TestBuildTBagPayload_SeparatesNormalAndMxAndIgnoresOtherBags(t *testing.T) 
 	if !ok {
 		t.Fatalf("tempList = %v, want map", out["tempList"])
 	}
-	if len(tempList) != 2 {
-		t.Fatalf("tempList entries = %d, want 2 (both temp items; the SlotTypeBag item excluded)", len(tempList))
+	if len(tempList) != 1 {
+		t.Fatalf("tempList entries = %d, want 1 normal temp item", len(tempList))
 	}
 	if _, has := tempList["1"]; !has {
 		t.Fatalf("tempList missing normal slot 1")
-	}
-	if _, has := tempList["101"]; !has {
-		t.Fatalf("tempList missing mx slot 101")
 	}
 	if _, has := tempList["5"]; has {
 		t.Fatalf("tempList contains slot 5, but SlotTypeBag items must be excluded")
@@ -49,5 +46,9 @@ func TestBuildTBagPayload_SeparatesNormalAndMxAndIgnoresOtherBags(t *testing.T) 
 	}
 	if mx["curNum"] != 1 {
 		t.Fatalf("mx.curNum = %v, want 1 (one temp item with slot >= 100)", mx["curNum"])
+	}
+	mxList, ok := mx["tempList"].(map[string]interface{})
+	if !ok || mxList["1"] == nil {
+		t.Fatalf("mx.tempList missing slot 1: %v", mx["tempList"])
 	}
 }

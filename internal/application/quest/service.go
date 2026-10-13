@@ -48,6 +48,8 @@ type Service struct {
 	refreshCounts     sync.Map
 	loopRepo          quest.LoopRepository
 	guildMembership   GuildMembership
+	friendRepository  FriendRepository
+	mutationLocks     [64]sync.Mutex
 	loopBossSummonsMu sync.Mutex
 	loopBossSummons   map[int64]*LoopBossSummon
 }
@@ -120,8 +122,20 @@ func (s *Service) CanAcceptQuestWithSnapshot(ctx context.Context, char *characte
 		return false, "Gender requirement not met"
 	}
 
-	if questTpl.ReqClass != "" && questTpl.ReqClass != "0" {
+	if int(questTpl.Type) == 11 {
+		if s.guildMembership == nil {
+			return false, "Guild requirement checker unavailable"
+		}
+		inGuild, err := s.guildMembership.IsInGuild(ctx, char.ID)
+		if err != nil || !inGuild {
+			return false, "Guild membership required"
+		}
+	}
+	if questTpl.ReqClass != "" && questTpl.ReqClass != "0" && questTpl.ReqClass != "all" {
 		allowedClasses := questTpl.ParsePipeDelimitedInts(questTpl.ReqClass)
+		if len(allowedClasses) == 0 {
+			return false, "Invalid class requirement"
+		}
 		if len(allowedClasses) > 0 {
 			allowed := false
 			for _, classID := range allowedClasses {
@@ -137,7 +151,7 @@ func (s *Service) CanAcceptQuestWithSnapshot(ctx context.Context, char *characte
 	}
 
 	if s.gameDataManager == nil {
-		return true, ""
+		return false, "Quest catalog unavailable"
 	}
 
 	preConditions := s.gameDataManager.GetQuestPre(questID)
@@ -153,7 +167,7 @@ func (s *Service) CanAcceptQuestWithSnapshot(ctx context.Context, char *characte
 		switch int(pre.Kind) {
 		case quest.RequireKindItem:
 			if s.itemService == nil {
-				continue
+				return false, "Item requirement checker unavailable"
 			}
 			required := int(pre.Num)
 			if required <= 0 {
@@ -183,7 +197,12 @@ func (s *Service) CanAcceptQuestWithSnapshot(ctx context.Context, char *characte
 				if isFinished {
 					anyQuestCompleted = true
 				}
+			case 0:
+			default:
+				return false, "Invalid prerequisite mode"
 			}
+		default:
+			return false, "Unsupported prerequisite kind"
 		}
 	}
 
@@ -217,6 +236,10 @@ func (s *Service) GetQuestTemplate(id int) *models.QuestTemplate {
 }
 
 func (s *Service) EnrichQuestDTO(ctx context.Context, qp *quest.QuestProgress) map[string]interface{} {
+	if err := s.syncCollectObjectives(ctx, qp); err != nil {
+		qp.CompletionBlocked = true
+		s.logger.Warn("Failed to verify special quest requirements", zap.Int("quest_id", qp.QuestID), zap.Error(err))
+	}
 	dto := qp.ToDTO()
 	if s.gameDataManager == nil {
 		return dto
@@ -235,7 +258,12 @@ func (s *Service) EnrichQuestDTO(ctx context.Context, qp *quest.QuestProgress) m
 	data["id"] = questTpl.ID
 	data["name"] = questTpl.Name
 	data["info"] = questTpl.Info
+	policy, _ := ClassifyQuestCompletion(questTpl, s.gameDataManager.GetQuestRequire(qp.QuestID))
+	if policy == PolicyUnconfigured || policy == PolicyCurrency || policy == PolicyInvalid || (policy == PolicyCatalog && !s.catalogTargetsAvailable(qp)) {
+		data["info"] = questTpl.Info + "\n[Điều kiện nhiệm vụ chưa được cấu hình đầy đủ trên server; chưa thể nhận thưởng.]"
+	}
 	data["type"] = int(questTpl.Type)
+	data["color"] = int(questTpl.Color)
 	data["subType"] = questTpl.SubType
 	data["startText"] = questTpl.StartText
 	data["completeText"] = questTpl.CompleteText
@@ -387,6 +415,7 @@ func (s *Service) GetInitialObjectives(questID int) []quest.Objective {
 	}
 
 	reqTemplates := s.gameDataManager.GetQuestRequire(questID)
+	sort.Slice(reqTemplates, func(i, j int) bool { return reqTemplates[i].ID < reqTemplates[j].ID })
 	objectives := make([]quest.Objective, 0, len(reqTemplates))
 
 	for _, tpl := range reqTemplates {
@@ -592,7 +621,7 @@ func (s *Service) CanAcceptQuest(ctx context.Context, charID int64, questID int)
 	}
 
 	if s.gameDataManager == nil {
-		return true, "", nil
+		return false, "Quest catalog unavailable", nil
 	}
 
 	// 3. Check Quest Template Requirements (Level, Class)
@@ -611,6 +640,9 @@ func (s *Service) CanAcceptQuest(ctx context.Context, charID int64, questID int)
 }
 
 func (s *Service) AcceptQuest(ctx context.Context, charID int64, questID int, objectives []quest.Objective) (*quest.QuestProgress, error) {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	defer lock.Unlock()
 	canAccept, reason, err := s.CanAcceptQuest(ctx, charID, questID)
 	if err != nil {
 		return nil, err
@@ -623,7 +655,13 @@ func (s *Service) AcceptQuest(ctx context.Context, charID int64, questID int, ob
 		return nil, pkgerrors.ErrInvalidInput
 	}
 
+	if s.gameDataManager != nil {
+		objectives = s.GetInitialObjectives(questID)
+	}
 	qp := quest.NewQuestProgress(charID, questID, objectives)
+	if err := s.syncCollectObjectives(ctx, qp); err != nil {
+		return nil, err
+	}
 
 	if err := s.questRepo.Save(ctx, qp); err != nil {
 		return nil, err
@@ -651,6 +689,13 @@ func (s *Service) AcceptQuestFromNPC(ctx context.Context, charID int64, questID 
 }
 
 func (s *Service) CompleteQuest(ctx context.Context, charID int64, questID int) (*quest.QuestProgress, map[string]interface{}, error) {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	ctx, flushNotifications := s.deferRewardItemNotifications(ctx, charID)
+	defer func() {
+		lock.Unlock()
+		flushNotifications()
+	}()
 	if s.IsLoopChild(questID) {
 		return s.completeLoopChildQuest(ctx, charID, questID)
 	}
@@ -726,11 +771,15 @@ func (s *Service) CompleteQuest(ctx context.Context, charID int64, questID int) 
 }
 
 func (s *Service) syncCollectObjectives(ctx context.Context, qp *quest.QuestProgress) error {
-	if qp == nil {
+	if qp == nil || qp.Status != quest.QuestStatusActive {
 		return nil
 	}
-
-	changed := false
+	if err := s.reconcileCatalogObjectives(qp); err != nil {
+		return err
+	}
+	if err := s.syncSpecialRequirements(ctx, qp); err != nil {
+		return err
+	}
 
 	if s.itemService != nil {
 		type itemKey struct {
@@ -761,7 +810,6 @@ func (s *Service) syncCollectObjectives(ctx context.Context, qp *quest.QuestProg
 			current := min(count, obj.Required)
 			if obj.Current != current {
 				obj.Current = current
-				changed = true
 			}
 		}
 	}
@@ -788,14 +836,9 @@ func (s *Service) syncCollectObjectives(ctx context.Context, qp *quest.QuestProg
 				current := min(count, obj.Required)
 				if obj.Current != current {
 					obj.Current = current
-					changed = true
 				}
 			}
 		}
-	}
-
-	if changed && qp.ID != 0 {
-		return s.questRepo.Update(ctx, qp)
 	}
 
 	return nil
@@ -831,17 +874,23 @@ func (s *Service) countQualifyingPets(pets []*domainpet.Pet, obj *quest.Objectiv
 }
 
 // petQualifiesForQuestSubmit mirrors the Flash checkPet eligibility test.
-func petQualifiesForQuestSubmit(pet *domainpet.Pet, obj *quest.Objective, templateName string) bool {
-	if pet == nil {
-		return false
-	}
-	if pet.TemplateID != obj.Target {
-		return false
-	}
-	if templateName != "" && pet.Name != templateName {
-		return false
-	}
-	return domainpet.PetGrowRateMeetsQuestQuality(pet.GrowRate, obj.Quality)
+func petQualifiesForQuestSubmit(
+    pet *domainpet.Pet,
+    obj *quest.Objective,
+    templateName string,
+) bool {
+    if pet == nil || obj == nil {
+        return false
+    }
+
+    if pet.TemplateID != obj.Target {
+        return false
+    }
+
+    return domainpet.PetGrowRateMeetsQuestQuality(
+        pet.GrowRate,
+        obj.Quality,
+    )
 }
 
 func (s *Service) creatureTemplateName(creatureID int) string {
@@ -892,6 +941,7 @@ func (s *Service) consumeCollectObjectiveItems(ctx context.Context, qp *quest.Qu
 				}
 				entry := map[string]interface{}{
 					"deleted": change.Deleted,
+					"id":      change.Item.ID,
 					"sid":     change.Item.CalculateSID(),
 				}
 				if !change.Deleted {
@@ -982,6 +1032,12 @@ func (s *Service) consumeSubmitPetObjectives(ctx context.Context, qp *quest.Ques
 }
 
 func (s *Service) UpdateObjectiveProgress(ctx context.Context, charID int64, objType quest.ObjectiveType, target int, amount int) ([]*quest.QuestProgress, error) {
+	if amount <= 0 {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	defer lock.Unlock()
 	quests, err := s.questRepo.FindActiveByCharacter(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -990,12 +1046,21 @@ func (s *Service) UpdateObjectiveProgress(ctx context.Context, charID int64, obj
 	var updatedQuests []*quest.QuestProgress
 
 	for _, qp := range quests {
+		if err := s.reconcileCatalogObjectives(qp); err != nil {
+			return nil, err
+		}
+		if err := s.syncSpecialRequirements(ctx, qp); err != nil {
+			return nil, err
+		}
+		if qp.CompletionBlocked {
+			continue
+		}
 		if qp.UpdateObjective(objType, target, amount) {
 			if err := s.questRepo.Update(ctx, qp); err != nil {
 				s.logger.Warn("Failed to update quest progress",
 					zap.Int64("quest_progress_id", qp.ID),
 					zap.Error(err))
-				continue
+				return updatedQuests, err
 			}
 			updatedQuests = append(updatedQuests, qp)
 
@@ -1019,6 +1084,10 @@ func (s *Service) OnItemCollected(ctx context.Context, charID int64, itemID int,
 	if amount <= 0 {
 		return nil, nil
 	}
+	if scope, ok := ctx.Value(rewardNotificationKey{}).(*rewardNotificationScope); ok && scope.service == s && scope.characterID == charID {
+		scope.items[itemID] += amount
+		return nil, nil
+	}
 	return s.UpdateObjectiveProgress(ctx, charID, quest.ObjectiveCollectItem, itemID, amount)
 }
 
@@ -1027,23 +1096,15 @@ func (s *Service) OnNPCInteracted(ctx context.Context, charID int64, npcID int) 
 	return err
 }
 
-func (s *Service) OnLevelUp(ctx context.Context, charID int64, _, newLevel int) error {
+func (s *Service) OnLevelUp(ctx context.Context, charID int64, _, _ int) error {
 	quests, err := s.questRepo.FindActiveByCharacter(ctx, charID)
 	if err != nil {
 		return err
 	}
 
 	for _, qp := range quests {
-		for i := range qp.Objectives {
-			obj := &qp.Objectives[i]
-			if obj.Type == quest.ObjectiveReachLevel && newLevel >= obj.Target {
-				obj.Current = obj.Required
-			}
-		}
-		if err := s.questRepo.Update(ctx, qp); err != nil {
-			s.logger.Warn("Failed to update quest progress",
-				zap.Int64("quest_progress_id", qp.ID),
-				zap.Error(err))
+		if err := s.syncCollectObjectives(ctx, qp); err != nil {
+			return err
 		}
 	}
 

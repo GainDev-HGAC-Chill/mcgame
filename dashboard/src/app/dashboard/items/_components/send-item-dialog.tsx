@@ -222,11 +222,11 @@ export function SendItemDialog({
                             <div className="flex flex-col gap-6">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>Send info</CardTitle>
+                                        <CardTitle>Thông tin gửi</CardTitle>
                                     </CardHeader>
                                     <CardContent className="grid gap-4 md:grid-cols-2">
                                         <div className="flex flex-col gap-2">
-                                            <Label>Character</Label>
+                                            <Label>Nhân vật</Label>
                                             <CharacterPicker
                                                 value={playerId}
                                                 onChange={onPlayerIdChange}
@@ -236,7 +236,7 @@ export function SendItemDialog({
 
                                         <div className="flex flex-col gap-2">
                                             <Label htmlFor="send-item-count">
-                                                Quantity
+                                                Số lượng
                                             </Label>
                                             <Input
                                                 id="send-item-count"
@@ -261,7 +261,7 @@ export function SendItemDialog({
                                             <CardHeader className="flex flex-row items-start justify-between gap-4">
                                                 <div className="flex flex-col gap-1">
                                                     <CardTitle>
-                                                        Customize instance
+                                                        Tùy chỉnh vật phẩm
                                                     </CardTitle>
                                                     <p className="text-sm text-muted-foreground">
                                                         This form maps to client
@@ -274,7 +274,7 @@ export function SendItemDialog({
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-sm font-medium">
-                                                        Enable custom
+                                                        Bật tùy chỉnh
                                                     </span>
                                                     <Switch
                                                         checked={
@@ -291,11 +291,10 @@ export function SendItemDialog({
                                                 <div className="flex items-center justify-between rounded-xl border px-3 py-2">
                                                     <div className="flex flex-col gap-1">
                                                         <Label htmlFor="send-binded">
-                                                            Binded
+                                                            Khóa
                                                         </Label>
                                                         <p className="text-xs text-muted-foreground">
-                                                            Maps to `is_bound`
-                                                            and `inst.binded`
+                                                            Tương ứng với `is_bound` và `inst.binded`
                                                         </p>
                                                     </div>
                                                     <Switch
@@ -313,7 +312,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-color">
-                                                        Color
+                                                        Màu
                                                     </Label>
                                                     <Input
                                                         id="send-color"
@@ -335,7 +334,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-strengthen-level">
-                                                        UpgradeNum
+                                                        Cấp cường hóa
                                                     </Label>
                                                     <Input
                                                         id="send-strengthen-level"
@@ -357,7 +356,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-endure-left">
-                                                        Endure left
+                                                        Độ bền còn lại
                                                     </Label>
                                                     <Input
                                                         id="send-endure-left"
@@ -379,7 +378,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-endure-max">
-                                                        Endure max
+                                                        Độ bền tối đa
                                                     </Label>
                                                     <Input
                                                         id="send-endure-max"
@@ -401,7 +400,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-maker">
-                                                        Maker
+                                                        Người chế tạo
                                                     </Label>
                                                     <Input
                                                         id="send-maker"
@@ -412,7 +411,7 @@ export function SendItemDialog({
                                                                     .value
                                                             )
                                                         }
-                                                        placeholder="Crafter name"
+                                                        placeholder="Tên người chế tạo"
                                                         disabled={
                                                             sending ||
                                                             !advancedEnabled
@@ -422,7 +421,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-element">
-                                                        Element
+                                                        Nguyên tố
                                                     </Label>
                                                     <Select
                                                         value={element || "0"}
@@ -435,7 +434,7 @@ export function SendItemDialog({
                                                         }
                                                     >
                                                         <SelectTrigger id="send-element">
-                                                            <SelectValue placeholder="Select element" />
+                                                            <SelectValue placeholder="Chọn nguyên tố" />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             <SelectGroup>
@@ -463,12 +462,12 @@ export function SendItemDialog({
                                                             </SelectGroup>
                                                         </SelectContent>
                                                     </Select>
-                                                    <p className="text-xs text-muted-foreground">{`Selected: ${getElementLabel(Number.parseInt(element || "0", 10) || 0)}`}</p>
+                                                    <p className="text-xs text-muted-foreground">{`Đã chọn: ${getElementLabel(Number.parseInt(element || "0", 10) || 0)}`}</p>
                                                 </div>
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-pre-name-type">
-                                                        Pre name type
+                                                        Loại tiền tố
                                                     </Label>
                                                     <Select
                                                         value={
@@ -483,7 +482,7 @@ export function SendItemDialog({
                                                         }
                                                     >
                                                         <SelectTrigger id="send-pre-name-type">
-                                                            <SelectValue placeholder="Select prefix" />
+                                                            <SelectValue placeholder="Chọn tiền tố" />
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             <SelectGroup>
@@ -511,12 +510,12 @@ export function SendItemDialog({
                                                             </SelectGroup>
                                                         </SelectContent>
                                                     </Select>
-                                                    <p className="text-xs text-muted-foreground">{`Selected: ${getPreNameTypeLabel(Number.parseInt(preNameType || "0", 10) || 0)}`}</p>
+                                                    <p className="text-xs text-muted-foreground">{`Đã chọn: ${getPreNameTypeLabel(Number.parseInt(preNameType || "0", 10) || 0)}`}</p>
                                                 </div>
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-hole-num">
-                                                        Hole num
+                                                        Số ô khảm
                                                     </Label>
                                                     <Input
                                                         id="send-hole-num"
@@ -539,7 +538,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-bind-main-prop-1">
-                                                        Bind main prop 1
+                                                        Thưởng thuộc tính khóa 1
                                                     </Label>
                                                     <Input
                                                         id="send-bind-main-prop-1"
@@ -561,7 +560,7 @@ export function SendItemDialog({
 
                                                 <div className="flex flex-col gap-2">
                                                     <Label htmlFor="send-bind-main-prop-2">
-                                                        Bind main prop 2
+                                                        Thưởng thuộc tính khóa 2
                                                     </Label>
                                                     <Input
                                                         id="send-bind-main-prop-2"
@@ -695,13 +694,8 @@ export function SendItemDialog({
                                             <Card>
                                                 <CardContent className="pt-6">
                                                     <div className="rounded-xl border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                                                        Custom options are
-                                                        disabled. The item will
-                                                        be sent as-is from the
-                                                        template. Stackable
-                                                        items will be stacked
-                                                        into existing slots when
-                                                        possible.
+                                                        Tùy chỉnh đang tắt. Vật phẩm được gửi theo mẫu mặc định
+                                                        và cộng dồn vào ô hiện có nếu có thể.
                                                     </div>
                                                 </CardContent>
                                             </Card>
@@ -711,11 +705,8 @@ export function SendItemDialog({
                                     <Card>
                                         <CardContent className="pt-6">
                                             <div className="rounded-xl border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                                                This item does not support
-                                                custom options. It will be sent
-                                                using the template defaults and
-                                                stacked into existing slots when
-                                                possible.
+                                                Vật phẩm này không hỗ trợ tùy chỉnh. Vật phẩm được gửi theo mẫu
+                                                mặc định và cộng dồn vào ô hiện có nếu có thể.
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -731,14 +722,14 @@ export function SendItemDialog({
                                     onClick={() => onOpenChange(false)}
                                     disabled={sending}
                                 >
-                                    Cancel
+                                    Hủy
                                 </Button>
                                 <Button
                                     type="button"
                                     onClick={() => void onSubmit()}
                                     disabled={sending || !item}
                                 >
-                                    {sending ? "Sending..." : "Send item"}
+                                    {sending ? "Đang gửi..." : "Gửi vật phẩm"}
                                 </Button>
                             </DialogFooter>
                         </div>

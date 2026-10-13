@@ -33,7 +33,7 @@ type SendItemSidebarProps = {
 
 function formatTemplateExpiry(value: number): string {
     if (value <= 0) {
-        return "Permanent"
+        return "Vĩnh viễn"
     }
 
     const raw = String(value)
@@ -60,7 +60,7 @@ export function SendItemSidebar({
     return (
         <>
             <DialogHeader className="gap-2 text-left">
-                <DialogTitle>Send item to player</DialogTitle>
+                <DialogTitle>Gửi vật phẩm cho người chơi</DialogTitle>
                 <DialogDescription>{`Item #${item.itemId} - ${item.name}`}</DialogDescription>
             </DialogHeader>
 
@@ -76,7 +76,7 @@ export function SendItemSidebar({
                     />
                 ) : (
                     <div className="flex size-20 items-center justify-center rounded-lg border bg-muted text-xs text-muted-foreground">
-                        No icon
+                        Không có biểu tượng
                     </div>
                 )}
 
@@ -86,7 +86,7 @@ export function SendItemSidebar({
                         <Badge variant="secondary">{itemTypeLabel}</Badge>
                         {item.requiredLevel > 0 ? (
                             <Badge variant="outline">
-                                Lv {item.requiredLevel}
+                                Cấp {item.requiredLevel}
                             </Badge>
                         ) : null}
                     </div>
@@ -102,7 +102,7 @@ export function SendItemSidebar({
                         </Tooltip>
                         <p className="mt-1 text-sm text-muted-foreground">
                             {item.description ||
-                                "No description available for this item."}
+                                "Vật phẩm này chưa có mô tả."}
                         </p>
                     </div>
                 </div>
@@ -110,41 +110,41 @@ export function SendItemSidebar({
 
             <div className="grid gap-3 rounded-xl border bg-background p-4 text-sm">
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Type</span>
+                    <span className="text-muted-foreground">Loại</span>
                     <span className="font-medium">{itemTypeLabel}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Source table</span>
+                    <span className="text-muted-foreground">Bảng nguồn</span>
                     <span className="font-medium">{`${getTemplateTableLabel(item.templateTableId, item.templateTableName)} (TBL ${item.templateTableId})`}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Max stack</span>
+                    <span className="text-muted-foreground">Cộng dồn tối đa</span>
                     <span className="font-medium">{item.maxStack}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Template</span>
+                    <span className="text-muted-foreground">Mẫu</span>
                     <span className="font-medium">{`Type ${item.templateType} | ${getKindLabel(item.kind)}`}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Use type</span>
+                    <span className="text-muted-foreground">Cách sử dụng</span>
                     <span className="font-medium">
                         {getUseTypeLabel(item.useType)}
                     </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Binding</span>
+                    <span className="text-muted-foreground">Khóa</span>
                     <span className="font-medium">
                         {getBindTypeLabel(item.bindType)}
                     </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Trade</span>
+                    <span className="text-muted-foreground">Giao dịch</span>
                     <span className="font-medium">
                         {getTradableLabel(item.tradable)}
                     </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">Item level</span>
+                    <span className="text-muted-foreground">Cấp vật phẩm</span>
                     <span className="font-medium">
                         {item.templateLevel || "-"}
                     </span>
@@ -153,7 +153,7 @@ export function SendItemSidebar({
                     <>
                         <div className="flex items-center justify-between gap-4">
                             <span className="text-muted-foreground">
-                                Socket template
+                                Ô khảm mặc định
                             </span>
                             <span className="font-medium">
                                 {item.meta.socketCount}
@@ -161,7 +161,7 @@ export function SendItemSidebar({
                         </div>
                         <div className="flex items-center justify-between gap-4">
                             <span className="text-muted-foreground">
-                                Bind prop template
+                                Thuộc tính khóa mặc định
                             </span>
                             <span className="font-medium">
                                 {item.meta.bindPropNum}
@@ -169,7 +169,7 @@ export function SendItemSidebar({
                         </div>
                         <div className="flex items-center justify-between gap-4">
                             <span className="text-muted-foreground">
-                                Endure template
+                                Độ bền mặc định
                             </span>
                             <span className="font-medium">
                                 {item.meta.endureMax || "-"}
@@ -177,7 +177,7 @@ export function SendItemSidebar({
                         </div>
                         <div className="flex items-center justify-between gap-4">
                             <span className="text-muted-foreground">
-                                Set ID
+                                ID bộ trang bị
                             </span>
                             <span className="font-medium">
                                 {item.meta.setId || "-"}
@@ -185,7 +185,7 @@ export function SendItemSidebar({
                         </div>
                         <div className="flex items-center justify-between gap-4">
                             <span className="text-muted-foreground">
-                                Equip position
+                                Vị trí trang bị
                             </span>
                             <span className="font-medium">
                                 {item.meta.equipPosition || "-"}
@@ -193,7 +193,7 @@ export function SendItemSidebar({
                         </div>
                         <div className="flex items-center justify-between gap-4">
                             <span className="text-muted-foreground">
-                                Expiry from template
+                                Thời hạn theo mẫu
                             </span>
                             <span className="font-medium">
                                 {formatTemplateExpiry(item.meta.expireMinutes)}
@@ -209,15 +209,14 @@ export function SendItemSidebar({
 
                     <div className="flex flex-col gap-4">
                         <div className="rounded-xl border border-dashed bg-background p-4 text-sm text-muted-foreground">
-                            New item sends go through the gameserver admin API.
-                            If the character is online and in a map, the server
-                            pushes `onAddCharactorSlot` immediately. If offline,
-                            the item is saved to DB and received on next login.
+                            Vật phẩm được gửi qua API quản trị máy chủ. Nhân vật trực tuyến trong bản đồ
+                            nhận ngay `onAddCharactorSlot`; nếu ngoại tuyến, vật phẩm được lưu vào
+                            cơ sở dữ liệu và nhận khi đăng nhập lại.
                         </div>
 
                         <div className="flex flex-col gap-2">
                             <p className="text-sm font-medium">
-                                Template attributes
+                                Thuộc tính mẫu
                             </p>
                             {item.meta.stats.length > 0 ? (
                                 <div className="flex flex-col gap-2 text-sm">
@@ -231,7 +230,7 @@ export function SendItemSidebar({
                                             </span>
                                             <span className="font-medium">
                                                 {stat.value.toLocaleString(
-                                                    "en-US"
+                                                    "vi-VN"
                                                 )}
                                             </span>
                                         </div>
@@ -239,7 +238,7 @@ export function SendItemSidebar({
                                 </div>
                             ) : (
                                 <div className="rounded-lg border border-dashed bg-background px-3 py-4 text-sm text-muted-foreground">
-                                    This template has no preset property lines.
+                                    Mẫu này không có dòng thuộc tính sẵn.
                                 </div>
                             )}
                         </div>
@@ -247,9 +246,8 @@ export function SendItemSidebar({
                 </>
             ) : (
                 <div className="rounded-xl border border-dashed bg-background p-4 text-sm text-muted-foreground">
-                    This item will be sent using the item template, prioritizing
-                    stacking into existing slots if the same item and
-                    bind/durability state match.
+                    Vật phẩm được gửi theo mẫu, ưu tiên cộng dồn vào ô hiện có
+                    nếu cùng vật phẩm và trạng thái khóa/độ bền.
                 </div>
             )}
         </>

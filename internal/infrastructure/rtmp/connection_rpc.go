@@ -183,6 +183,12 @@ func (c *Connection) OnUnknownCommandMessage(timestamp uint32, cmd *rtmpmsg.Comm
 	if c.dispatcher != nil {
 		result, err := c.dispatcher.Dispatch(c, cmd.CommandName, args)
 		if err != nil {
+			if cmd.CommandName == "finishQuest" && cmd.TransactionID > 0 {
+				return c.sendRPCResult(cmd.TransactionID, map[string]interface{}{"flag": false, "info": err.Error()}, quiet)
+			}
+			if (cmd.CommandName == "MysteryExchangeItem" || cmd.CommandName == "MysteryExchangeScore") && cmd.TransactionID > 0 {
+				return c.sendRPCResult(cmd.TransactionID, false, quiet)
+			}
 			if shouldSuppressDispatchError(err) {
 				return nil
 			}

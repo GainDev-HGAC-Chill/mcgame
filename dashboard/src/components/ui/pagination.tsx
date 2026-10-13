@@ -8,7 +8,7 @@ function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
     return (
         <nav
             role="navigation"
-            aria-label="pagination"
+            aria-label="Phân trang"
             className={cn("mx-auto flex w-full justify-center", className)}
             {...props}
         />
@@ -68,7 +68,7 @@ function PaginationPrevious({
 }: React.ComponentProps<typeof PaginationLink>) {
     return (
         <PaginationLink
-            aria-label="Go to previous page"
+            aria-label="Đi đến trang trước"
             size="default"
             className={cn("gap-1 pl-2.5", className)}
             {...props}
@@ -86,7 +86,7 @@ function PaginationNext({
 }: React.ComponentProps<typeof PaginationLink>) {
     return (
         <PaginationLink
-            aria-label="Go to next page"
+            aria-label="Đi đến trang sau"
             size="default"
             className={cn("gap-1 pr-2.5", className)}
             {...props}
@@ -112,7 +112,7 @@ function PaginationEllipsis({
             {...props}
         >
             <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">More pages</span>
+            <span className="sr-only">Các trang khác</span>
         </span>
     )
 }

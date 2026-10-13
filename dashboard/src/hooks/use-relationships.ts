@@ -8,7 +8,7 @@ import type { Relationship } from "@/types/player-management"
 async function fetchRelationships(playerId: number): Promise<Relationship[]> {
     const res = await executePlayerAction(playerId, "get_relationships")
     if (!res.ok || !res.data) {
-        throw new Error(res.statusMessage || "Failed to load relationships")
+        throw new Error(res.statusMessage || "Không tải được quan hệ")
     }
     return (res.data as { relationships?: Relationship[] }).relationships ?? []
 }

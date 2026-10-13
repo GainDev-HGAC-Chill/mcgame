@@ -49,11 +49,12 @@ type Objective struct {
 	// it selects an exact color tier via getColorByQuality. For pet
 	// objectives it is the raw `q`; divide by 10 to get the growRate
 	// threshold (see domain/pet.ColorByGrowRate).
-	Quality int `json:"quality,omitempty"`
+	Quality          int      `json:"quality,omitempty"`
+	KillCreditEvents []string `json:"killCreditEvents,omitempty"`
 }
 
 func (o *Objective) IsComplete() bool {
-	return o.Current >= o.Required
+	return o.Required > 0 && o.Current >= o.Required
 }
 
 func (o *Objective) AddProgress(amount int) {

@@ -32,11 +32,10 @@ export function PropertyLinesCard({
     return (
         <Card className="min-w-0">
             <CardHeader>
-                <CardTitle>Instance property lines</CardTitle>
+                <CardTitle>Dòng thuộc tính vật phẩm</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                    The client reads `mainProp`, `prop` and `activeProp` keys
-                    directly from the instance. Values here override the
-                    template when the tooltip is displayed.
+                    Máy khách đọc trực tiếp các khóa `mainProp`, `prop` và `activeProp` của vật phẩm.
+                    Giá trị tại đây ghi đè mẫu khi hiển thị chú giải.
                 </p>
             </CardHeader>
             <CardContent className="flex min-w-0 flex-col gap-3">
@@ -47,7 +46,7 @@ export function PropertyLinesCard({
                     >
                         <div className="grid gap-3 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,0.8fr)]">
                             <div className="flex min-w-0 flex-col gap-2">
-                                <Label>Slot</Label>
+                                <Label>Ô</Label>
                                 <Input
                                     value={line.label}
                                     readOnly
@@ -58,7 +57,7 @@ export function PropertyLinesCard({
                             <div className="flex min-w-0 flex-col gap-2">
                                 <Label>
                                     {line.slot === "active"
-                                        ? "Soul activation"
+                                        ? "Kích hoạt linh hồn"
                                         : "Attribute"}
                                 </Label>
                                 <Select
@@ -69,12 +68,12 @@ export function PropertyLinesCard({
                                     disabled={sending}
                                 >
                                     <SelectTrigger className="w-full min-w-0">
-                                        <SelectValue placeholder="Select attribute" />
+                                        <SelectValue placeholder="Chọn thuộc tính" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectGroup>
                                             <SelectItem value="0">
-                                                Empty
+                                                Trống
                                             </SelectItem>
                                             {getPropOptionsForSlot(
                                                 line.slot
@@ -93,7 +92,7 @@ export function PropertyLinesCard({
                             </div>
 
                             <div className="flex min-w-0 flex-col gap-2">
-                                <Label>Value</Label>
+                                <Label>Giá trị</Label>
                                 <Input
                                     type="number"
                                     min={0}

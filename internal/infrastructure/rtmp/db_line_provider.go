@@ -6,6 +6,9 @@ package rtmp
 
 import (
 	"context"
+	"net"
+	"net/url"
+	"strings"
 
 	"mcgame-server/internal/infrastructure/config/store"
 )
@@ -17,10 +20,11 @@ type ConnectionTracker interface {
 type DBLineProvider struct {
 	store       *store.Store
 	connTracker ConnectionTracker
+	publicHost  string
 }
 
-func NewDBLineProvider(s *store.Store, connTracker ConnectionTracker) *DBLineProvider {
-	return &DBLineProvider{store: s, connTracker: connTracker}
+func NewDBLineProvider(s *store.Store, connTracker ConnectionTracker, publicHost string) *DBLineProvider {
+	return &DBLineProvider{store: s, connTracker: connTracker, publicHost: publicHost}
 }
 
 func (p *DBLineProvider) GetLineList(ctx context.Context) ([]map[string]interface{}, error) {
@@ -35,7 +39,7 @@ func (p *DBLineProvider) GetLineList(ctx context.Context) ([]map[string]interfac
 		out = append(out, map[string]interface{}{
 			"id":      line.ID,
 			"name":    line.Name,
-			"url":     line.URL,
+			"url":     publicLineURL(line.URL, p.publicHost),
 			"clients": clients,
 			"max":     line.MaxClients,
 			"status":  statusCodeFor(line.Status),
@@ -44,6 +48,29 @@ func (p *DBLineProvider) GetLineList(ctx context.Context) ([]map[string]interfac
 		})
 	}
 	return out, nil
+}
+
+func publicLineURL(value, publicHost string) string {
+	if publicHost == "" || net.ParseIP(publicHost) == nil {
+		return value
+	}
+	u, err := url.Parse(value)
+	if err != nil || (u.Scheme != "rtmp" && u.Scheme != "rtmpe") {
+		return value
+	}
+	ip := net.ParseIP(u.Hostname())
+	if !strings.EqualFold(u.Hostname(), "localhost") && (ip == nil || !ip.IsLoopback()) {
+		return value
+	}
+	port := u.Port()
+	u.Host = net.JoinHostPort(publicHost, port)
+	if port == "" {
+		u.Host = publicHost
+		if strings.Contains(publicHost, ":") {
+			u.Host = "[" + publicHost + "]"
+		}
+	}
+	return u.String()
 }
 
 func statusCodeFor(status string) int {

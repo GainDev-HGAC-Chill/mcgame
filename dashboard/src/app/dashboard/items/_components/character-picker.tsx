@@ -99,7 +99,7 @@ export function CharacterPicker({
                             <span className="truncate">
                                 {selectedChar.name}
                                 <span className="ml-1.5 text-muted-foreground">
-                                    #{selectedChar.id} Lv.{selectedChar.level}
+                                    #{selectedChar.id} Cấp {selectedChar.level}
                                 </span>
                             </span>
                         </span>
@@ -109,7 +109,7 @@ export function CharacterPicker({
                         </span>
                     ) : (
                         <span className="text-muted-foreground">
-                            Select character...
+                            Chọn nhân vật...
                         </span>
                     )}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -122,7 +122,7 @@ export function CharacterPicker({
                 <div className="flex items-center border-b px-3">
                     <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
                     <Input
-                        placeholder="Search by name or ID..."
+                        placeholder="Tìm theo tên hoặc ID..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="border-0 bg-transparent shadow-none focus-visible:ring-0"
@@ -131,11 +131,11 @@ export function CharacterPicker({
                 <div className="max-h-64 overflow-y-auto p-1">
                     {loading ? (
                         <p className="py-6 text-center text-sm text-muted-foreground">
-                            Loading...
+                            Đang tải...
                         </p>
                     ) : characters.length === 0 ? (
                         <p className="py-6 text-center text-sm text-muted-foreground">
-                            No characters found.
+                            Không tìm thấy nhân vật.
                         </p>
                     ) : (
                         characters.map(char => (
@@ -163,7 +163,7 @@ export function CharacterPicker({
                                     {char.name}
                                 </span>
                                 <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                                    #{char.id} Lv.{char.level}
+                                    #{char.id} Cấp {char.level}
                                 </span>
                             </button>
                         ))

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import {
     CalendarCheck,
     CalendarDays,
+    ClipboardList,
     ChevronLeft,
     ChevronRight,
     Gift,
@@ -31,59 +32,64 @@ type NavItem = {
 
 const navItems: NavItem[] = [
     {
-        title: "Lines",
+        title: "Kênh máy chủ",
         href: "/dashboard",
         icon: Network,
         children: [
             {
-                title: "Game Config",
+                title: "Cấu hình trò chơi",
                 href: "/dashboard/game-config",
                 icon: Settings,
             },
         ],
     },
     {
-        title: "Player Management",
+        title: "Quản lý người chơi",
         href: "/dashboard/players",
         icon: Users,
     },
     {
-        title: "Gift Codes",
+        title: "Mã quà tặng",
         href: "/dashboard/gift-codes",
         icon: Gift,
     },
     {
-        title: "Item Management",
+        title: "Quản lý vật phẩm",
         href: "/dashboard/items",
         icon: Package,
     },
     {
-        title: "Box Items",
+        title: "Hộp vật phẩm",
         href: "/dashboard/box-items",
         icon: PackageOpen,
     },
     {
-        title: "Drop Tables",
+        title: "Quản lý nhiệm vụ",
+        href: "/dashboard/quests",
+        icon: ClipboardList,
+    },
+    {
+        title: "Bảng vật phẩm rơi",
         href: "/dashboard/loot",
         icon: Swords,
     },
     {
-        title: "Boss Loot",
+        title: "Phần thưởng thủ lĩnh",
         href: "/dashboard/boss-loot",
         icon: Swords,
     },
     {
-        title: "Activities",
+        title: "Hoạt động",
         href: "/dashboard/activities",
         icon: CalendarDays,
     },
     {
-        title: "Daily Sign-In Rewards",
+        title: "Phần thưởng điểm danh",
         href: "/dashboard/daily-signin-rewards",
         icon: CalendarCheck,
     },
     {
-        title: "Scene Items",
+        title: "Vật thể bản đồ",
         href: "/dashboard/scene-items",
         icon: MapPin,
     },
@@ -115,13 +121,14 @@ export function Sidebar({ adminUser }: SidebarProps) {
                 {!collapsed ? (
                     <div className="flex items-center gap-2">
                         <Shield className="h-6 w-6 text-primary" />
-                        <span className="text-lg font-bold">GM Dashboard</span>
+                        <span className="text-lg font-bold">Bảng quản trị GM</span>
                     </div>
                 ) : null}
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => setCollapsed(current => !current)}
+                    aria-label={collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
                     className="h-8 w-8"
                 >
                     {collapsed ? (
@@ -147,7 +154,7 @@ export function Sidebar({ adminUser }: SidebarProps) {
             <div className="border-t p-4">
                 {!collapsed ? (
                     <div className="text-xs text-muted-foreground">
-                        <p>Logged in as:</p>
+                        <p>Phiên quản trị:</p>
                         <p className="font-medium text-foreground">
                             {adminUser}
                         </p>
@@ -173,6 +180,7 @@ function NavEntry({ item, pathname, collapsed, depth }: NavEntryProps) {
         <>
             <Link
                 href={item.href}
+                aria-label={item.title}
                 className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActive

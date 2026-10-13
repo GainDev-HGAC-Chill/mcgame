@@ -20,11 +20,13 @@ import (
 )
 
 type Service struct {
-	repo          character.Repository
-	gameData      *gamedata.Manager
-	skillLearner  SkillLearner
-	warSpriteInit WarSpriteInitializer
-	logger        *zap.Logger
+	repo             character.Repository
+	gameData         *gamedata.Manager
+	skillLearner     SkillLearner
+	warSpriteInit    WarSpriteInitializer
+	logger           *zap.Logger
+	creationDefaults CreationDefaultsProvider
+	creationWriter   CreationPackageWriter
 }
 
 type SkillLearner interface {
@@ -74,11 +76,15 @@ func (s *Service) Create(ctx context.Context, req *CreateRequest) (*character.Ch
 	char.SetBagSlotNum(1)
 	char.SetBankSlotNum(1)
 	s.applyClassDefaultStats(char)
+	creationPackage, err := s.prepareCreationPackage(ctx, char)
+	if err != nil {
+		return nil, err
+	}
 	char.RecalculateStats()
 	char.CurrentHP = char.MaxHP
 	char.CurrentMP = char.MaxMP
 
-	if err := s.repo.Create(ctx, char); err != nil {
+	if err := s.persistCreation(ctx, char, creationPackage); err != nil {
 		return nil, err
 	}
 

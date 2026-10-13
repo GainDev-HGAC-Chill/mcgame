@@ -30,12 +30,12 @@ import type { PetData } from "@/types/player-management"
 import { toInt } from "../_lib/numbers"
 
 const ELEMENT_LABELS: Record<number, { label: string; color: string }> = {
-    0: { label: "None", color: "text-slate-400" },
-    1: { label: "Fire", color: "text-red-500" },
-    2: { label: "Water", color: "text-blue-500" },
-    3: { label: "Wood", color: "text-green-500" },
-    4: { label: "Metal", color: "text-yellow-500" },
-    5: { label: "Earth", color: "text-amber-700" },
+    0: { label: "Không có", color: "text-slate-400" },
+    1: { label: "Hỏa", color: "text-red-500" },
+    2: { label: "Thủy", color: "text-blue-500" },
+    3: { label: "Mộc", color: "text-green-500" },
+    4: { label: "Kim", color: "text-yellow-500" },
+    5: { label: "Thổ", color: "text-amber-700" },
 }
 
 function PetCard({ pet, onClick }: { pet: PetData; onClick: () => void }) {
@@ -56,7 +56,7 @@ function PetCard({ pet, onClick }: { pet: PetData; onClick: () => void }) {
                                 {pet.petName}
                             </span>
                             <Badge variant="secondary" className="text-[10px]">
-                                Lv {pet.level}
+                                Cấp {pet.level}
                             </Badge>
                         </div>
                         <div className={`text-xs ${el.color}`}>
@@ -86,7 +86,7 @@ function PetCard({ pet, onClick }: { pet: PetData; onClick: () => void }) {
                                     variant="destructive"
                                     className="px-1 text-[10px]"
                                 >
-                                    Bound
+                                    Khóa
                                 </Badge>
                             )}
                         </div>
@@ -97,7 +97,7 @@ function PetCard({ pet, onClick }: { pet: PetData; onClick: () => void }) {
                         {pet.petName} (#{pet.id})
                     </p>
                     <p className="text-xs text-muted-foreground">
-                        Lv {pet.level} · Exp {String(pet.exp)} · Stars{" "}
+                        Cấp {pet.level} · Kinh nghiệm {String(pet.exp)} · Sao{" "}
                         {pet.upgradeNum} · Evo {pet.evolutionLv}
                     </p>
                     <div className="grid grid-cols-2 gap-x-3 text-xs">
@@ -238,7 +238,7 @@ function PetEditDialog({
         if (form.isBound !== undefined) payload.isBound = form.isBound
 
         if (Object.keys(payload).length <= 1) {
-            toast.error("No changes to apply")
+            toast.error("Không có thay đổi để áp dụng")
             return
         }
 
@@ -255,7 +255,7 @@ function PetEditDialog({
     }
 
     const handleDelete = () => {
-        if (!confirm(`Delete pet ${pet.petName} (#${pet.id})?`)) return
+        if (!confirm(`Xóa thú cưng ${pet.petName} (#${pet.id})?`)) return
         action.mutate(
             { action: "delete_pet", payload: { petId: pet.id } },
             {
@@ -288,7 +288,7 @@ function PetEditDialog({
 
                 <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-3">
                     <div className="col-span-2 space-y-1 sm:col-span-3">
-                        <Label className="text-xs">Name</Label>
+                        <Label className="text-xs">Tên</Label>
                         <Input
                             placeholder={pet.petName}
                             value={form.name}
@@ -296,7 +296,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Level</Label>
+                        <Label className="text-xs">Cấp độ</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.level)}
@@ -305,7 +305,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Experience</Label>
+                        <Label className="text-xs">Kinh nghiệm</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.exp)}
@@ -314,7 +314,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Stars</Label>
+                        <Label className="text-xs">Sao</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.upgradeNum)}
@@ -323,7 +323,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Evolution</Label>
+                        <Label className="text-xs">Tiến hóa</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.evolutionLv)}
@@ -332,7 +332,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Element</Label>
+                        <Label className="text-xs">Nguyên tố</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.element)}
@@ -341,7 +341,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">STR</Label>
+                        <Label className="text-xs">Sức mạnh</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.aptStrength)}
@@ -350,7 +350,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">AGI</Label>
+                        <Label className="text-xs">Nhanh nhẹn</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.aptAgility)}
@@ -359,7 +359,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">STA</Label>
+                        <Label className="text-xs">Thể lực</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.aptStamina)}
@@ -368,7 +368,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">INT</Label>
+                        <Label className="text-xs">Trí lực</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.aptIntelligence)}
@@ -379,7 +379,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">ENG</Label>
+                        <Label className="text-xs">Tinh thần</Label>
                         <Input
                             type="number"
                             placeholder={String(pet.aptEnergy)}
@@ -435,7 +435,7 @@ function PetEditDialog({
                         />
                     </div>
                     <div className="col-span-2 flex items-center justify-between rounded-md border border-border/40 px-3 py-2 sm:col-span-3">
-                        <Label className="text-xs">Bound</Label>
+                        <Label className="text-xs">Khóa</Label>
                         <Switch
                             checked={
                                 form.isBound ??
@@ -453,7 +453,7 @@ function PetEditDialog({
                         onClick={handleDelete}
                         disabled={action.isPending}
                     >
-                        <Trash2 className="mr-1 h-4 w-4" /> Delete
+                        <Trash2 className="mr-1 h-4 w-4" /> Xóa
                     </Button>
                     <div className="flex gap-2">
                         <Button
@@ -464,14 +464,14 @@ function PetEditDialog({
                                 onClose()
                             }}
                         >
-                            <X className="mr-1 h-4 w-4" /> Cancel
+                            <X className="mr-1 h-4 w-4" /> Hủy
                         </Button>
                         <Button
                             size="sm"
                             onClick={handleUpdate}
                             disabled={action.isPending}
                         >
-                            Apply
+                            Áp dụng
                         </Button>
                     </div>
                 </DialogFooter>
@@ -495,7 +495,7 @@ export function PetsTab({ playerId }: { playerId: number }) {
     if (isLoading) {
         return (
             <div className="py-12 text-center text-muted-foreground">
-                Loading pets...
+                Đang tải thú cưng...
             </div>
         )
     }
@@ -512,7 +512,7 @@ export function PetsTab({ playerId }: { playerId: number }) {
         <div className="space-y-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <CardTitle className="text-base">Pets</CardTitle>
+                    <CardTitle className="text-base">Thú cưng</CardTitle>
                     <Badge variant="secondary" className="font-mono">
                         {data.pets.length}/{data.petSlots}
                     </Badge>
@@ -520,7 +520,7 @@ export function PetsTab({ playerId }: { playerId: number }) {
                 <CardContent>
                     {data.pets.length === 0 ? (
                         <p className="py-6 text-center text-sm text-muted-foreground">
-                            No pets.
+                            Không có thú cưng.
                         </p>
                     ) : (
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -534,7 +534,7 @@ export function PetsTab({ playerId }: { playerId: number }) {
                         </div>
                     )}
                     <p className="mt-3 text-xs text-muted-foreground">
-                        Hover a pet for details. Click to edit or delete.
+                        Di chuột lên thú cưng để xem chi tiết. Nhấp để sửa hoặc xóa.
                     </p>
                 </CardContent>
             </Card>

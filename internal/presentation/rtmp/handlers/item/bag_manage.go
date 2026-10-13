@@ -98,32 +98,13 @@ func (h *Handler) BagSort(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		return rtmp.ErrorToResponse(err), nil
 	}
 
-	newIDs := make(map[int64]struct{}, len(itemsAfter))
-	var changes []map[string]interface{}
-	for _, it := range itemsAfter {
-		newIDs[it.ID] = struct{}{}
-		if oldSID, ok := oldSIDs[it.ID]; ok {
-			newSID := it.CalculateSID()
-			changes = append(changes, map[string]interface{}{
-				"oldId":    oldSID,
-				"newId":    newSID,
-				"stackNum": it.StackCount,
-			})
-		}
+	if err := h.refreshSortedBag(ctx.Connection, oldSIDs, itemsAfter); err != nil {
+		return nil, err
 	}
-
-	for itemID, oldSID := range oldSIDs {
-		if _, ok := newIDs[itemID]; ok {
-			continue
-		}
-		ctx.Connection.SendCallback("onDelCharactorSlot", float64(itemID), oldSID)
-	}
-
-	ctx.Connection.SendCallback("onItemSort", changes)
 
 	h.logger.Info("Bag sorted",
 		zap.Int64("character_id", characterID),
-		zap.Int("total_items", len(changes)))
+		zap.Int("total_items", len(itemsAfter)))
 
 	return map[string]interface{}{
 		"success": true,

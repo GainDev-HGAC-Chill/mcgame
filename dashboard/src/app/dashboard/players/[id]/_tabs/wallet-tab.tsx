@@ -24,6 +24,7 @@ import { usePlayerAction } from "@/hooks/use-player-detail"
 import { cn } from "@/lib/utils"
 import {
     CURRENCY_GROUPS,
+    CURRENCY_GROUP_LABELS,
     CURRENCY_OPTIONS,
     type CurrencyGroup,
     type CurrencyOption,
@@ -74,7 +75,7 @@ function CurrencyTile({
     const handleApply = async () => {
         const parsed = Number(amount)
         if (!Number.isFinite(parsed)) {
-            toast.error("Enter a valid number")
+            toast.error("Vui lòng nhập số hợp lệ")
             return
         }
         try {
@@ -128,12 +129,12 @@ function CurrencyTile({
                         </p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                        Current: {display}
+                        Hiện tại: {display}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="space-y-1">
-                        <Label className="text-[10px]">Mode</Label>
+                        <Label className="text-[10px]">Chế độ</Label>
                         <Select
                             value={mode}
                             onValueChange={v => setMode(v as CurrencyMode)}
@@ -142,13 +143,13 @@ function CurrencyTile({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="add">Add</SelectItem>
-                                <SelectItem value="set">Set</SelectItem>
+                                <SelectItem value="add">Cộng thêm</SelectItem>
+                                <SelectItem value="set">Đặt giá trị</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="flex-1 space-y-1">
-                        <Label className="text-[10px]">Amount</Label>
+                        <Label className="text-[10px]">Số lượng</Label>
                         <Input
                             autoFocus
                             type="number"
@@ -169,14 +170,14 @@ function CurrencyTile({
                         variant="ghost"
                         onClick={() => setOpen(false)}
                     >
-                        Cancel
+                        Hủy
                     </Button>
                     <Button
                         size="sm"
                         onClick={() => void handleApply()}
                         disabled={!amount || isPending}
                     >
-                        Apply
+                        Áp dụng
                     </Button>
                 </div>
             </PopoverContent>
@@ -214,7 +215,7 @@ export function WalletTab({
             {GROUPED_CURRENCIES.map(({ group, items }) => (
                 <Card key={group}>
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-base">{group}</CardTitle>
+                        <CardTitle className="text-base">{CURRENCY_GROUP_LABELS[group]}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">

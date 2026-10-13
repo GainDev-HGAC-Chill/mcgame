@@ -126,8 +126,7 @@ func (h *Handler) BuyVipShopItem(ctx *rtmp.RPCContext, args []interface{}) (inte
 			_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: result.Purchase.NewMoney})
 		}
 	}
-
-	h.checkQuestUpdates(ctx, charID)
+	h.refreshQuestProgress(ctx, charID)
 
 	return vipShopBuyPayload(result), nil
 }

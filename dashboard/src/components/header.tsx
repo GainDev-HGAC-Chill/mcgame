@@ -23,77 +23,77 @@ import { APP_ROUTES } from "@/lib/routes"
 const PAGE_HEADER_META: Record<string, { title: string; description: string }> =
     {
         "/dashboard": {
-            title: "Dashboard",
-            description: "Overview of your game server statistics",
+            title: "Bảng quản trị",
+            description: "Tổng quan máy chủ trò chơi",
         },
         "/dashboard/players": {
-            title: "Player Management",
-            description: "Search and view detailed player information",
+            title: "Quản lý người chơi",
+            description: "Tìm kiếm và xem thông tin chi tiết người chơi",
         },
         "/dashboard/items": {
-            title: "Item Management",
-            description: "Browse all in-game items",
+            title: "Quản lý vật phẩm",
+            description: "Tra cứu tất cả vật phẩm trong trò chơi",
         },
         "/dashboard/box-items": {
-            title: "Box Item Management",
+            title: "Quản lý hộp vật phẩm",
             description:
-                "Browse usable items and open each item's reward configuration workspace",
+                "Tra cứu vật phẩm có thể sử dụng và cấu hình phần thưởng",
         },
         "/dashboard/economy": {
-            title: "Economy Management",
+            title: "Quản lý kinh tế",
             description:
-                "Monitor transactions, manage shops, and review economy alerts",
+                "Theo dõi giao dịch, quản lý cửa hàng và kiểm tra cảnh báo kinh tế",
         },
         "/dashboard/events": {
-            title: "Event Management",
-            description: "Configure and manage in-game events",
+            title: "Quản lý sự kiện",
+            description: "Cấu hình và quản lý sự kiện trong trò chơi",
         },
         "/dashboard/gift-codes": {
-            title: "Gift Code Management",
-            description: "Create and manage gift codes",
+            title: "Quản lý mã quà tặng",
+            description: "Tạo và quản lý mã quà tặng",
         },
         "/dashboard/server": {
-            title: "Server Management",
-            description: "Monitor and manage game server status",
+            title: "Quản lý máy chủ",
+            description: "Theo dõi và quản lý trạng thái máy chủ trò chơi",
         },
         "/dashboard/actions": {
-            title: "GM Actions",
-            description: "Perform player management actions",
+            title: "Thao tác GM",
+            description: "Thực hiện thao tác quản lý người chơi",
         },
         "/dashboard/map-viewer": {
-            title: "Map Tile Viewer",
+            title: "Trình xem ô bản đồ",
             description:
-                "View and inspect game map tiles with coordinate information",
+                "Xem và kiểm tra các ô bản đồ cùng thông tin tọa độ",
         },
     }
 
 function resolvePageMeta(pathname: string) {
     if (pathname.startsWith("/dashboard/box-items/")) {
         return {
-            title: "Box Item Rewards",
+            title: "Phần thưởng hộp vật phẩm",
             description:
-                "Manage the reward list for the selected usable item with inline editing",
+                "Chỉnh sửa trực tiếp danh sách phần thưởng của vật phẩm đã chọn",
         }
     }
     if (pathname === "/dashboard/boss-loot") {
         return {
-            title: "Boss Loot",
+            title: "Phần thưởng thủ lĩnh",
             description:
-                "Configure schedule + daily boss loot — items, wallet currencies, and experience",
+                "Cấu hình phần thưởng thủ lĩnh theo lịch và hằng ngày: vật phẩm, tiền tệ và kinh nghiệm",
         }
     }
     if (pathname.startsWith("/dashboard/boss-loot/")) {
         return {
-            title: "Boss Loot Editor",
+            title: "Chỉnh sửa phần thưởng thủ lĩnh",
             description:
-                "Tune drop rates, qty range, tier/source filters, and reward types for this boss",
+                "Điều chỉnh tỷ lệ rơi, số lượng, bộ lọc cấp/nguồn và loại phần thưởng của thủ lĩnh",
         }
     }
 
     return (
         PAGE_HEADER_META[pathname] ?? {
-            title: "Admin Dashboard",
-            description: "Game system administration and operations",
+            title: "Bảng quản trị",
+            description: "Quản trị và vận hành hệ thống trò chơi",
         }
     )
 }
@@ -140,7 +140,7 @@ export function Header({ adminUser }: HeaderProps) {
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             type="search"
-                            placeholder="Search players, items, transactions..."
+                            placeholder="Tìm người chơi, vật phẩm, giao dịch..."
                             className="pl-10"
                         />
                     </div>
@@ -154,6 +154,7 @@ export function Header({ adminUser }: HeaderProps) {
                             <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label="Thông báo"
                                 className="relative"
                             >
                                 <Bell className="h-5 w-5" />
@@ -163,44 +164,43 @@ export function Header({ adminUser }: HeaderProps) {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-80">
-                            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                            <DropdownMenuLabel>Thông báo</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <div className="max-h-96 overflow-y-auto">
                                 <DropdownMenuItem className="flex flex-col items-start gap-1">
                                     <div className="flex items-center gap-2">
-                                        <Badge variant="warning">Warning</Badge>
+                                        <Badge variant="warning">Cảnh báo</Badge>
                                         <span className="text-xs text-muted-foreground">
-                                            2 min ago
+                                            2 phút trước
                                         </span>
                                     </div>
                                     <p className="text-sm">
-                                        Suspicious transaction detected from
-                                        player xXGamerXx
+                                        Phát hiện giao dịch đáng ngờ từ
+                                        người chơi xXGamerXx
                                     </p>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="flex flex-col items-start gap-1">
                                     <div className="flex items-center gap-2">
-                                        <Badge variant="success">Success</Badge>
+                                        <Badge variant="success">Thành công</Badge>
                                         <span className="text-xs text-muted-foreground">
-                                            15 min ago
+                                            15 phút trước
                                         </span>
                                     </div>
                                     <p className="text-sm">
-                                        Server maintenance completed
-                                        successfully
+                                        Đã hoàn tất bảo trì máy chủ
                                     </p>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="flex flex-col items-start gap-1">
                                     <div className="flex items-center gap-2">
                                         <Badge variant="destructive">
-                                            Alert
+                                            Báo động
                                         </Badge>
                                         <span className="text-xs text-muted-foreground">
-                                            1 hour ago
+                                            1 giờ trước
                                         </span>
                                     </div>
                                     <p className="text-sm">
-                                        Server 2 CPU usage above 90%
+                                        Máy chủ 2 sử dụng CPU trên 90%
                                     </p>
                                 </DropdownMenuItem>
                             </div>
@@ -212,6 +212,7 @@ export function Header({ adminUser }: HeaderProps) {
                             <Button
                                 variant="ghost"
                                 className="relative h-9 w-9 rounded-full"
+                                aria-label="Tài khoản quản trị"
                             >
                                 <Avatar className="h-9 w-9">
                                     <AvatarImage
@@ -225,7 +226,7 @@ export function Header({ adminUser }: HeaderProps) {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
-                            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                            <DropdownMenuLabel>Tài khoản của tôi</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem disabled>
                                 <User className="mr-2 h-4 w-4" />
@@ -233,7 +234,7 @@ export function Header({ adminUser }: HeaderProps) {
                             </DropdownMenuItem>
                             <DropdownMenuItem disabled>
                                 <Bell className="mr-2 h-4 w-4" />
-                                <span>Admin Session Active</span>
+                                <span>Phiên quản trị đang hoạt động</span>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -242,8 +243,8 @@ export function Header({ adminUser }: HeaderProps) {
                             >
                                 <span>
                                     {isLoggingOut
-                                        ? "Logging out..."
-                                        : "Log out"}
+                                        ? "Đang đăng xuất..."
+                                        : "Đăng xuất"}
                                 </span>
                             </DropdownMenuItem>
                         </DropdownMenuContent>

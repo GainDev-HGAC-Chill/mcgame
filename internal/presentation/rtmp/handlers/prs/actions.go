@@ -11,10 +11,10 @@ import (
 
 func (h *Handler) InitPanel(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	charID, ok := charIDFromCtx(ctx)
-	if !ok {
+	if !ok || h.service == nil {
 		return emptyPanel(), nil
 	}
-	data, err := h.service.GetPanel(ctx.Context, charID)
+	data, err := h.service.GetPanel(requestContext(ctx), charID)
 	if err != nil {
 		h.logger.Error("initPRSPanel failed", zap.Int64("char_id", charID), zap.Error(err))
 		return emptyPanel(), nil

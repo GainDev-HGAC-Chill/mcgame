@@ -83,6 +83,10 @@ This file is the single source of truth for AI coding assistants in this repo (C
 - `docs/memory/*.{md,html}` — authoritative per-feature knowledge.
 - `docs/research/*.{md,html}`, `docs/plans/*.{md,html}` — research notes and feature proposals.
 
+## AI Memory Workflow
+
+Before fixing a bug, read `docs/ai-memory/INDEX.md` and `docs/ai-memory/WORK_STATE.md`, then consult only the relevant rows/sections in `MODULE_MAP.md`, `FIX_HISTORY.md`, and `ARCHITECTURE.md`. Search source when memory is insufficient or may be stale; Markdown never overrides current code. After each fix, update only the affected memory files, and refresh `WORK_STATE.md` before ending the session.
+
 ## Subagents
 
 Spawn subagents to isolate context, parallelize independent work, or offload bulk mechanical tasks. Don't spawn when the parent needs the reasoning, when synthesis requires holding things together, or when spawn overhead dominates.

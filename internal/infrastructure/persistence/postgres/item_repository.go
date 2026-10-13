@@ -104,16 +104,20 @@ func (r *ItemRepository) FindEquipped(ctx context.Context, charID int64) ([]*ite
 }
 
 func (r *ItemRepository) Create(ctx context.Context, it *item.Item) error {
+	return createItem(ctx, r.db.pool, it)
+}
+
+func createItem(ctx context.Context, queryer creationQueryer, it *item.Item) error {
 	propertiesJSON, err := json.Marshal(it.Properties)
 	if err != nil {
-		propertiesJSON = []byte("{}")
+		return pkgerrors.Wrap(err, "failed to marshal new item properties")
 	}
 
 	now := time.Now()
 	it.CreatedAt = now
 	it.UpdatedAt = now
 
-	err = r.db.pool.QueryRow(ctx,
+	err = queryer.QueryRow(ctx,
 		"select player.create_character_item($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)",
 		it.CharacterID, it.TemplateID, it.ItemType, it.SlotType, it.SlotIndex,
 		it.StackCount, it.IsBound, it.Durability, it.MaxDurability, it.EnchantLevel,

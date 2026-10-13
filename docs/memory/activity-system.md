@@ -1,5 +1,22 @@
 # Activity System
 
+Closed Secret Treasure Hunt response and PRS shadow-removal deployed17:34:09 (2026-10-12), tests/vet/build PASS. Hunt remains closed; showPanel null and missing special-training RPCs are not claimed fixed. Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
+
+## Secret Treasure Hunt closed-gate contract (2026-10-12)
+
+- Secret Treasure Hunt is distinct from the older `canEnterTreasureHunt` flow. `ActivityCanvas.as:788–794` obtains `PANEL_SECRET_TREASUREHUNT` (952) and calls `showPanel()` only when non-null. `SecretTreasureHuntPanel.as:1695–1708` requests `sthPlayIsInGroup` with `Responder(ifShowPanel)`.
+- `ifShowPanel` at lines `1103–1122` expects an object containing `openflag` and `group`, not Boolean. The server now returns `{openflag:false, group:false}` for this unconfigured event. Flash displays its existing “Sự kiện chưa mở” notice and returns before requesting gameplay data. No event schedule, player progress, dice, rewards or eligibility is synthesized.
+- Dispatcher regression test: `internal/presentation/rtmp/handlers/activity/secret_treasure_hunt_test.go`. Focused activity/monsterheart suites pass; real Flash validation is not performed.
+- The separate reported null `showPanel` error is not reproduced or claimed fixed: the traced activity-icon caller already checks panel existence. It needs the actual client stack/caller and runtime panel/module availability; server payload changes cannot instantiate missing UI 952. No ActionScript, shared login/auth, DB or deployment changes were made for this correction.
+
+## Empty reward-panel compatibility (2026-10-11)
+
+Removed synthetic recharge/shop/gift and consume/stage rewards/totals/windows. getPointAward/getShopAward/getConsume return {}; consume/stage reads send required onGetConsumeAwardList({},0)/onGetStageConsumeAwardList({stageNum:0},{}); searchGameGift sends onGetItemIdAward("[]"). Registered typo serchForGift() returning false and getActAwardInfo(type) validating0–13 and notifying that new-server schedules/rewards are unconfigured. Do not send fake onUpdateActAwardInfo dates (zero/missing dates display current time). Full new-server event remains BLOCKED by missing configuration; empty states are not successful claims or restored billing. New RPCs remain logged. Affected suites/vet/build PASS; real Flash panel checks NOT TESTED. [Research](../research/2026-10-11_10_BAG_SORT_EVENT_PANELS_RESEARCH.md).
+
+## Featured activity reward-preview compatibility (2026-10-11)
+
+Registered `getJXHDAward(key)` after runtime missing-method reports. JXHD preview expects `[key, groups]`; the client explicitly accepts empty groups. Known eight keys receive `[key, []]` because no preview reward metadata is wired here. This is a read-only no-preview response, not implementation of event rewards or a successful claim. Do not alias point/consumption/shop RPCs with different payloads or invent items. Real preview configuration and synthetic GetJXHDList activity-window cleanup remain separate work. [Contract/tests](../research/2026-10-11_06_JXHD_PREVIEW_RPC_RESEARCH.md).
+
 ## Send Combine And Boss Daily Activity Buttons
 
 The "Sao Lap Lanh" activity icon is controlled by `startedActList`, while panel content is loaded by `getSendCombineAct`.

@@ -28,7 +28,7 @@ export function MapPicker({
     onChange,
     className,
     disabled,
-    placeholder = "Select map...",
+    placeholder = "Chọn bản đồ...",
 }: MapPickerProps) {
     const { data: maps, isLoading, error } = useMapList()
     const [open, setOpen] = useState(false)
@@ -87,22 +87,22 @@ export function MapPicker({
                         autoFocus
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        placeholder="Search by id or name..."
+                        placeholder="Tìm theo ID hoặc tên..."
                         className="h-8 border-0 p-0 shadow-none focus-visible:ring-0"
                     />
                 </div>
                 <div className="max-h-72 overflow-y-auto py-1">
                     {isLoading ? (
                         <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-                            Loading maps...
+                            Đang tải bản đồ...
                         </p>
                     ) : error ? (
                         <p className="px-3 py-4 text-center text-sm text-destructive">
-                            Failed to load maps
+                            Không tải được bản đồ
                         </p>
                     ) : filtered.length === 0 ? (
                         <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-                            No maps match
+                            Không có bản đồ phù hợp
                         </p>
                     ) : (
                         filtered.map(m => (
@@ -138,8 +138,7 @@ export function MapPicker({
                     )}
                     {maps && maps.length > filtered.length && !query && (
                         <p className="px-3 py-2 text-xs text-muted-foreground">
-                            Showing {filtered.length} of {maps.length} — type to
-                            filter
+                            Hiển thị {filtered.length} trên {maps.length} — nhập để lọc
                         </p>
                     )}
                 </div>

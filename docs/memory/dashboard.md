@@ -1,5 +1,21 @@
 # Admin Dashboard
 
+## Requested target levels and starter package editor (2026-10-12)
+
+User approved both raise/lower absolute levels, refund/recalculation and item/pet creation gifts (future characters only), then requested Vietnamese dashboard text. Implemented dedicated Vietnamese target-level control in the progression tab and starter-package editor on `/dashboard/game-config`. Starter fields: level/gold/goldBind and catalog-selected equipment/items/pets with quantity/binding/color/growth. Config writes reject unknown fields, invalid catalogs/required binding/non-pet creatures and per-bag stack capacity overflow; raw generic editor hides the reserved key. No character is granted anything by opening or saving this form.
+
+`set_target_level {targetLevel}` uses current locked cached character and inventory, retains nonlevel bonus points and preserves assets/history. Worn items that would require a higher level reject downgrade; mixed allocation/aptitude states that cannot be separated also reject. Same-level/rejected transitions do not dirty cache. Equipment commit validates current level and moves incoming/displaced items under the same lock; resource sync no longer writes a stale full character. **Offline/uncached target changes return409**, not a stale database overwrite. Online actions remain write-behind; success is not proof of completed DB flush. Dedicated UI has effect preview and explicit confirmation.
+
+Dashboard navigation/forms/labels/confirmations/error fallbacks were translated to Vietnamese; technical identifiers, enum values and wire names remain unchanged. Parent completed remaining strings after translation delegation hit usage limits. [Approved plan](../plans/2026-10-12_02_PLAYER_ADMIN_STARTER_DEFAULTS.md) · [Verification](../research/2026-10-12_10_DASHBOARD_VIETNAMESE_STARTER_IMPLEMENTATION.md). Delete-gray remains Flash selection screen; no deletion lifecycle/action or live grant was executed.
+
+Deployed game19:20:17 and final dashboard19:28:13 on2026-10-12; running/restart_count0, DB/Redis untouched. Fresh-tab browser checks/negative config API checks PASS; no config save/grant/player mutation by assistant. Reopen or hard-refresh old tabs if they retain a Next loading shell. Focused tests/typecheck/build/vet PASS; full suite retains7 baseline failures; actual creation/target change/Flash reconnect NOT TESTED.
+
+## Current local GM access (2026-10-12)
+
+Existing http://127.0.0.1:3000/dashboard/players/1 supplies Gain's Wallet/Add or Set, Resources and Items/Add Item. /dashboard/items has richer item-send options. Existing-pet edit/delete works, no direct pet-create action exists. No resources were granted by the assistant. Online wallet/capacity changes dirty cache for normal persistence; send-item attempts flush and live callback; offline/callback-failed modes may require relog.
+
+**Current security supersedes older auth notes below:** middleware passes through, layout has no auth check, admin-session creates an open session, Go admin routes do not validate secret headers and /api/admin/auth is not registered. Protection currently relies on loopback/dashboard port3000 and internal-only game admin8080. Do not publish these services to LAN/Internet or tell users an application login protects them. No new page, port or firewall rule added. [Source audit](../research/2026-10-12_01_EQUIP_SHOP_GM_RESEARCH.md).
+
 ## Admin Send Item (Rewritten)
 
 API endpoint: `POST /api/admin/players/send-item` on gameserver admin HTTP layer. Targets mcgame tables `player.characters`, `player.character_items`, `data.data_tbl_equipt_template`, `data.data_tbl_item_template`.

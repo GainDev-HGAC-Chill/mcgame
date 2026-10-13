@@ -211,19 +211,10 @@ func (h *Handler) registerLegacyActivityBacklogHandlers(dispatcher *rtmp.RPCDisp
 		return legacyStarterResponse{response: map[string]interface{}{}}
 	})
 	register("sthPlayIsInGroup", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
-		return legacyStarterResponse{response: false}
+		return legacyStarterResponse{response: map[string]interface{}{"openflag": false, "group": false}}
 	})
 	register("loadFlopRank", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
 		return legacyStarterResponse{response: map[string]interface{}{"rank": []interface{}{}, "myRank": -1}}
-	})
-	register("initPRSPanel", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
-		payload := map[string]interface{}{"bag": []interface{}{}, "data": map[string]interface{}{}}
-		return legacyStarterResponse{
-			response: payload,
-			callbacks: []legacyActivityCallback{
-				{method: "updatePRSPanel", args: []interface{}{payload}},
-			},
-		}
 	})
 	register("hulaGetRankData", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
 		payload := map[string]interface{}{"rank": []interface{}{}}

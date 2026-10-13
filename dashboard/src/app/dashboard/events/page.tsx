@@ -113,30 +113,29 @@ export default function EventsPage() {
                     <DialogTrigger asChild>
                         <Button>
                             <Plus className="h-4 w-4 mr-2" />
-                            Create new event
+                            Tạo sự kiện mới
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl">
                         <DialogHeader>
-                            <DialogTitle>Create new event</DialogTitle>
+                            <DialogTitle>Tạo sự kiện mới</DialogTitle>
                             <DialogDescription>
-                                Set up information and configuration for the new
-                                event
+                                Thiết lập thông tin và cấu hình cho sự kiện mới
                             </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                             <div>
-                                <Label htmlFor="event-name">Event name</Label>
+                                <Label htmlFor="event-name">Tên sự kiện</Label>
                                 <Input
                                     id="event-name"
-                                    placeholder="Enter event name..."
+                                    placeholder="Nhập tên sự kiện..."
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="event-type">Event type</Label>
+                                <Label htmlFor="event-type">Loại sự kiện</Label>
                                 <Select>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select event type" />
+                                        <SelectValue placeholder="Chọn loại sự kiện" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {Object.entries(EVENT_TYPES).map(
@@ -154,27 +153,27 @@ export default function EventsPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <Label>Start time</Label>
+                                    <Label>Thời gian bắt đầu</Label>
                                     <DatePicker
                                         value={eventStartDate}
                                         onChange={setEventStartDate}
-                                        placeholder="Select start date"
+                                        placeholder="Chọn ngày bắt đầu"
                                     />
                                 </div>
                                 <div>
-                                    <Label>End time</Label>
+                                    <Label>Thời gian kết thúc</Label>
                                     <DatePicker
                                         value={eventEndDate}
                                         onChange={setEventEndDate}
-                                        placeholder="Select end date"
+                                        placeholder="Chọn ngày kết thúc"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <Label htmlFor="description">Description</Label>
+                                <Label htmlFor="description">Mô tả</Label>
                                 <Textarea
                                     id="description"
-                                    placeholder="Describe the event..."
+                                    placeholder="Mô tả sự kiện..."
                                 />
                             </div>
                         </div>
@@ -183,10 +182,10 @@ export default function EventsPage() {
                                 variant="outline"
                                 onClick={() => setIsCreateDialogOpen(false)}
                             >
-                                Cancel
+                                Hủy
                             </Button>
                             <Button onClick={handleCreateEvent}>
-                                Create event
+                                Tạo sự kiện
                             </Button>
                         </div>
                     </DialogContent>
@@ -197,7 +196,7 @@ export default function EventsPage() {
                 <Card>
                     <CardContent className="py-8">
                         <p className="text-sm text-muted-foreground text-center">
-                            No events configured.
+                            Chưa cấu hình sự kiện.
                         </p>
                     </CardContent>
                 </Card>
@@ -239,7 +238,7 @@ export default function EventsPage() {
                                             }
                                         >
                                             {event.active
-                                                ? "Active"
+                                                ? "Đang hoạt động"
                                                 : "Inactive"}
                                         </Badge>
                                     </div>
@@ -251,20 +250,20 @@ export default function EventsPage() {
                                         <div className="flex items-center gap-1">
                                             <Calendar className="h-4 w-4 text-muted-foreground" />
                                             <span>
-                                                Start: {event.startTime}
+                                                Bắt đầu: {event.startTime}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 text-sm">
                                         <div className="flex items-center gap-1">
                                             <Clock className="h-4 w-4 text-muted-foreground" />
-                                            <span>End: {event.endTime}</span>
+                                            <span>Kết thúc: {event.endTime}</span>
                                         </div>
                                     </div>
 
                                     <div className="pt-4 border-t">
                                         <p className="text-sm font-medium mb-3">
-                                            Schedule configuration
+                                            Cấu hình lịch
                                         </p>
                                         <div className="space-y-2">
                                             {event.schedule.map(
@@ -276,7 +275,7 @@ export default function EventsPage() {
                                                         <div className="grid grid-cols-2 gap-2 text-sm">
                                                             <div>
                                                                 <span className="text-muted-foreground">
-                                                                    Day:{" "}
+                                                                    Ngày:{" "}
                                                                 </span>
                                                                 <span className="font-medium">
                                                                     {
@@ -289,7 +288,7 @@ export default function EventsPage() {
                                                             </div>
                                                             <div>
                                                                 <span className="text-muted-foreground">
-                                                                    Time:{" "}
+                                                                    Thời gian:{" "}
                                                                 </span>
                                                                 <span className="font-medium">
                                                                     {
@@ -320,7 +319,7 @@ export default function EventsPage() {
                                                                 <div className="flex items-center gap-1">
                                                                     <Package className="h-3 w-3 text-green-500" />
                                                                     <span className="text-muted-foreground">
-                                                                        Drop:{" "}
+                                                                        Vật phẩm rơi:{" "}
                                                                     </span>
                                                                     <span className="font-medium text-green-500">
                                                                         x
@@ -347,7 +346,7 @@ export default function EventsPage() {
                                             }
                                         >
                                             <Edit className="h-4 w-4 mr-1" />
-                                            Edit
+                                            Chỉnh sửa
                                         </Button>
                                         <Button
                                             variant="outline"
@@ -379,51 +378,51 @@ export default function EventsPage() {
                     </DialogHeader>
                     <Tabs defaultValue="info">
                         <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="info">Info</TabsTrigger>
+                            <TabsTrigger value="info">Thông tin</TabsTrigger>
                             <TabsTrigger value="schedule">
-                                Schedule & Rates
+                                Lịch và tỷ lệ
                             </TabsTrigger>
                         </TabsList>
                         <TabsContent value="info" className="space-y-4">
                             <div>
-                                <Label>Event name</Label>
+                                <Label>Tên sự kiện</Label>
                                 <Input defaultValue={selectedEvent?.name} />
                             </div>
                             <div>
-                                <Label>Description</Label>
+                                <Label>Mô tả</Label>
                                 <Textarea
                                     defaultValue={selectedEvent?.description}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <Label>Start time</Label>
+                                    <Label>Thời gian bắt đầu</Label>
                                     <DatePicker
                                         value={eventStartDate}
                                         onChange={setEventStartDate}
-                                        placeholder="Select start date"
+                                        placeholder="Chọn ngày bắt đầu"
                                     />
                                 </div>
                                 <div>
-                                    <Label>End time</Label>
+                                    <Label>Thời gian kết thúc</Label>
                                     <DatePicker
                                         value={eventEndDate}
                                         onChange={setEventEndDate}
-                                        placeholder="Select end date"
+                                        placeholder="Chọn ngày kết thúc"
                                     />
                                 </div>
                             </div>
                         </TabsContent>
                         <TabsContent value="schedule" className="space-y-4">
                             <p className="text-sm text-muted-foreground">
-                                Configure EXP and Drop rates by time slot
+                                Cấu hình tỷ lệ kinh nghiệm và vật phẩm rơi theo khung giờ
                             </p>
                             {selectedEvent?.schedule.map((schedule, index) => (
                                 <Card key={index}>
                                     <CardContent className="pt-6">
                                         <div className="space-y-4">
                                             <div>
-                                                <Label>Day of week</Label>
+                                                <Label>Ngày trong tuần</Label>
                                                 <Select
                                                     defaultValue={schedule.dayOfWeek.toString()}
                                                 >
@@ -446,7 +445,7 @@ export default function EventsPage() {
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
-                                                    <Label>Start hour</Label>
+                                                    <Label>Giờ bắt đầu</Label>
                                                     <Input
                                                         type="number"
                                                         min="0"
@@ -457,7 +456,7 @@ export default function EventsPage() {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <Label>End hour</Label>
+                                                    <Label>Giờ kết thúc</Label>
                                                     <Input
                                                         type="number"
                                                         min="0"
@@ -472,7 +471,7 @@ export default function EventsPage() {
                                                 undefined && (
                                                 <div>
                                                     <Label>
-                                                        EXP Multiplier: x
+                                                        Hệ số kinh nghiệm: x
                                                         {schedule.expMultiplier}
                                                     </Label>
                                                     <Slider
@@ -490,7 +489,7 @@ export default function EventsPage() {
                                                 undefined && (
                                                 <div>
                                                     <Label>
-                                                        Drop Multiplier: x
+                                                        Hệ số vật phẩm rơi: x
                                                         {
                                                             schedule.dropMultiplier
                                                         }
@@ -512,7 +511,7 @@ export default function EventsPage() {
                             ))}
                             <Button variant="outline" className="w-full">
                                 <Plus className="h-4 w-4 mr-2" />
-                                Add new time slot
+                                Thêm khung giờ
                             </Button>
                         </TabsContent>
                     </Tabs>
@@ -521,9 +520,9 @@ export default function EventsPage() {
                             variant="outline"
                             onClick={() => setIsEditDialogOpen(false)}
                         >
-                            Cancel
+                            Hủy
                         </Button>
-                        <Button onClick={handleSaveEvent}>Save changes</Button>
+                        <Button onClick={handleSaveEvent}>Lưu thay đổi</Button>
                     </div>
                 </DialogContent>
             </Dialog>

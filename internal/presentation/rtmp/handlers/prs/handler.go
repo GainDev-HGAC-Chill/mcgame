@@ -11,6 +11,7 @@
 package prs
 
 import (
+	"context"
 	"strconv"
 
 	appprs "mcgame-server/internal/application/prs"
@@ -49,15 +50,14 @@ func (h *Handler) RegisterHandlers(d *rtmp.RPCDispatcher) {
 }
 
 func emptyPanel() map[string]interface{} {
-	return map[string]interface{}{
-		"tid":         "0",
-		"actArr":      map[string]interface{}{},
-		"actLimitObj": map[string]interface{}{},
-		"useSid":      0,
-		"chipBag":     map[string]interface{}{},
-		"excBag":      map[string]interface{}{},
-		"isShow":      0,
+	return (&appprs.State{Tid: "0"}).Wire()
+}
+
+func requestContext(ctx *rtmp.RPCContext) context.Context {
+	if ctx != nil && ctx.Context != nil {
+		return ctx.Context
 	}
+	return context.Background()
 }
 
 func charIDFromCtx(ctx *rtmp.RPCContext) (int64, bool) {

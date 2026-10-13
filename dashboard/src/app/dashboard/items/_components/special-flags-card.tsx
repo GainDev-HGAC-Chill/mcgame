@@ -74,7 +74,7 @@ function buildQilingPreview(line: QilingDraftLine): {
         max <= 0
     ) {
         return {
-            text: "Bo trong",
+            text: "Để trống",
             color: "#94A3B8",
         }
     }
@@ -127,22 +127,20 @@ export function SpecialFlagsCard({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Flag dac biet</CardTitle>
+                <CardTitle>Cờ đặc biệt</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                    Client khong doc `flag` theo mot kieu duy nhat. Form nay uu
-                    tien build san cho thang hoa, Ky Linh va pet stone, con o
-                    duoi van giu raw override cho case dac biet.
+                    Máy khách đọc `flag` theo nhiều định dạng. Biểu mẫu hỗ trợ thăng hoa, Kỳ Linh
+                    và đá thú cưng; phần dưới cho phép ghi đè dữ liệu thô cho trường hợp đặc biệt.
                 </p>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
                 <div className="grid gap-6 2xl:grid-cols-2">
                     <div className="flex flex-col gap-4 rounded-xl border p-4">
                         <div className="flex flex-col gap-1">
-                            <p className="font-medium">flag / Thang hoa</p>
+                            <p className="font-medium">flag / Thăng hoa</p>
                             <p className="text-sm text-muted-foreground">
-                                Dung cho equipment thuong va pet equip. Truong
-                                hop than khi o vi tri 15-20 co format rieng, nen
-                                luc do ban nen paste raw override.
+                                Dùng cho trang bị thường và trang bị thú cưng. Thần khí ở vị trí 15–20
+                                có định dạng riêng; hãy dùng ghi đè dữ liệu thô.
                             </p>
                         </div>
 
@@ -151,7 +149,7 @@ export function SpecialFlagsCard({
                                 <div className="grid gap-3 md:grid-cols-3">
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="send-sublime-id">
-                                            Moc thang hoa
+                                            Mốc thăng hoa
                                         </Label>
                                         <Input
                                             id="send-sublime-id"
@@ -169,7 +167,7 @@ export function SpecialFlagsCard({
 
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="send-sublime-element">
-                                            Nguyen to
+                                            Nguyên tố
                                         </Label>
                                         <Select
                                             value={sublimeElement || "0"}
@@ -179,7 +177,7 @@ export function SpecialFlagsCard({
                                             disabled={sending}
                                         >
                                             <SelectTrigger id="send-sublime-element">
-                                                <SelectValue placeholder="Chon nguyen to" />
+                                                <SelectValue placeholder="Chọn nguyên tố" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectGroup>
@@ -205,7 +203,7 @@ export function SpecialFlagsCard({
 
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="send-sublime-add">
-                                            Bonus ti le (%)
+                                            Thưởng tỷ lệ (%)
                                         </Label>
                                         <Input
                                             id="send-sublime-add"
@@ -227,15 +225,14 @@ export function SpecialFlagsCard({
                             </>
                         ) : (
                             <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                                Item nay dung `flag` theo format rieng cua than
-                                khi/phap bao. Form tren khong tu generate cho
-                                no, ban hay dung raw override ben duoi.
+                                Vật phẩm này dùng định dạng `flag` riêng của thần khí/pháp bảo.
+                                Hãy dùng phần ghi đè dữ liệu thô bên dưới.
                             </div>
                         )}
 
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="generated-flag">
-                                Chuoi raw sinh ra
+                                Chuỗi dữ liệu được tạo
                             </Label>
                             <Textarea
                                 id="generated-flag"
@@ -248,11 +245,10 @@ export function SpecialFlagsCard({
 
                     <div className="flex flex-col gap-4 rounded-xl border p-4">
                         <div className="flex flex-col gap-1">
-                            <p className="font-medium">flag2 / Ky Linh</p>
+                            <p className="font-medium">flag2 / Kỳ Linh</p>
                             <p className="text-sm text-muted-foreground">
-                                Client doc 3 dong `0..2`, moi dong gom `t` la
-                                thuoc tinh, `v` la gia tri hien tai, `max` la
-                                tran toi da.
+                                Máy khách đọc 3 dòng `0..2`: `t` là thuộc tính,
+                                `v` là giá trị hiện tại, `max` là giới hạn tối đa.
                             </p>
                         </div>
 
@@ -279,12 +275,12 @@ export function SpecialFlagsCard({
                                                     disabled={sending}
                                                 >
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder="Chon thuoc tinh Ky Linh" />
+                                                        <SelectValue placeholder="Chọn thuộc tính Kỳ Linh" />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectGroup>
                                                             <SelectItem value="0">
-                                                                Bo trong
+                                                                Để trống
                                                             </SelectItem>
                                                             {QILING_PROP_OPTIONS.map(
                                                                 option => (
@@ -321,7 +317,7 @@ export function SpecialFlagsCard({
                                             </div>
 
                                             <div className="flex flex-col gap-2">
-                                                <Label>Gia tri hien tai</Label>
+                                                <Label>Giá trị hiện tại</Label>
                                                 <Input
                                                     type="number"
                                                     min={0}
@@ -339,7 +335,7 @@ export function SpecialFlagsCard({
                                             </div>
 
                                             <div className="flex flex-col gap-2">
-                                                <Label>Tran toi da</Label>
+                                                <Label>Giới hạn tối đa</Label>
                                                 <Input
                                                     type="number"
                                                     min={0}
@@ -361,15 +357,14 @@ export function SpecialFlagsCard({
                             </div>
                         ) : (
                             <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                                Builder nay chi hop voi equipment kind 1-4 va
-                                req level tren 150. Cac item khac van co the
-                                dung raw override.
+                                Biểu mẫu này chỉ phù hợp với trang bị nhóm 1–4 và cấp yêu cầu trên 150.
+                                Vật phẩm khác vẫn có thể dùng ghi đè dữ liệu thô.
                             </div>
                         )}
 
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="generated-flag-2">
-                                Chuoi raw sinh ra
+                                Chuỗi dữ liệu được tạo
                             </Label>
                             <Textarea
                                 id="generated-flag-2"
@@ -383,11 +378,10 @@ export function SpecialFlagsCard({
 
                 <div className="flex flex-col gap-4 rounded-xl border p-4">
                     <div className="flex flex-col gap-1">
-                        <p className="font-medium">flag3 / Pet stone</p>
+                        <p className="font-medium">flag3 / Đá thú cưng</p>
                         <p className="text-sm text-muted-foreground">
-                            Client tooltip pet equip chi check co da o o 1..6,
-                            va neu `flag3[1][2]` ton tai thi hien skill cua da o
-                            thu nhat.
+                            Chú giải trang bị thú cưng kiểm tra đá ở ô 1–6. Nếu có `flag3[1][2]`,
+                            kỹ năng đá ở ô đầu tiên sẽ được hiển thị.
                         </p>
                     </div>
 
@@ -403,7 +397,7 @@ export function SpecialFlagsCard({
                                             <div className="flex flex-col gap-1">
                                                 <span className="text-sm font-medium">{`O da ${index + 1}`}</span>
                                                 <span className="text-xs text-muted-foreground">
-                                                    Bat/tat
+                                                    Bật/tắt
                                                 </span>
                                             </div>
                                             <Switch
@@ -424,7 +418,7 @@ export function SpecialFlagsCard({
                             <div className="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)]">
                                 <div className="flex flex-col gap-2">
                                     <Label htmlFor="send-pet-stone-skill">
-                                        Skill ID o da 1
+                                        ID kỹ năng đá ở ô 1
                                     </Label>
                                     <Input
                                         id="send-pet-stone-skill"
@@ -440,23 +434,21 @@ export function SpecialFlagsCard({
                                     />
                                 </div>
                                 <div className="rounded-lg bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
-                                    Neu co skill ID, form se tu bat o da 1 va
-                                    serialize vao `flag3[1][2]` de client hien
-                                    dong `KN Bao Thach`.
+                                    Nếu có ID kỹ năng, biểu mẫu tự bật ô đá 1 và lưu vào `flag3[1][2]`
+                                    để máy khách hiển thị dòng `KN Bảo Thạch`.
                                 </div>
                             </div>
                         </>
                     ) : (
                         <div className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                            flag3 chu yeu dung cho pet equip kind 9. Item hien
-                            tai khong mo builder nay, nhung ban van co the paste
-                            raw override neu can test.
+                            flag3 chủ yếu dùng cho trang bị thú cưng nhóm 9. Vật phẩm hiện tại không hỗ trợ
+                            biểu mẫu này nhưng vẫn có thể ghi đè dữ liệu thô để thử nghiệm.
                         </div>
                     )}
 
                     <div className="flex flex-col gap-2">
                         <Label htmlFor="generated-flag-3">
-                            Chuoi raw sinh ra
+                            Chuỗi dữ liệu được tạo
                         </Label>
                         <Textarea
                             id="generated-flag-3"
@@ -469,17 +461,17 @@ export function SpecialFlagsCard({
 
                 <div className="flex flex-col gap-4 rounded-xl border border-dashed p-4">
                     <div className="flex flex-col gap-1">
-                        <p className="font-medium">Raw override</p>
+                        <p className="font-medium">Ghi đè dữ liệu thô</p>
                         <p className="text-sm text-muted-foreground">
-                            Neu textbox duoi day co gia tri, API se uu tien
-                            chuoi raw ban paste vao thay vi chuoi form tu sinh.
+                            Nếu ô bên dưới có giá trị, API ưu tiên chuỗi dữ liệu bạn nhập
+                            thay vì chuỗi biểu mẫu tự tạo.
                         </p>
                     </div>
 
                     <div className="grid gap-4 xl:grid-cols-2">
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="send-flag-override">
-                                flag raw override
+                                Ghi đè dữ liệu flag
                             </Label>
                             <Textarea
                                 id="send-flag-override"
@@ -494,7 +486,7 @@ export function SpecialFlagsCard({
 
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="send-flag-2-override">
-                                flag2 raw override
+                                Ghi đè dữ liệu flag2
                             </Label>
                             <Textarea
                                 id="send-flag-2-override"
@@ -509,7 +501,7 @@ export function SpecialFlagsCard({
 
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="send-flag-3-override">
-                                flag3 raw override
+                                Ghi đè dữ liệu flag3
                             </Label>
                             <Textarea
                                 id="send-flag-3-override"
@@ -524,7 +516,7 @@ export function SpecialFlagsCard({
 
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="send-raw-properties">
-                                Raw properties JSON
+                                Thuộc tính thô (JSON)
                             </Label>
                             <Textarea
                                 id="send-raw-properties"

@@ -812,7 +812,7 @@ export default function GiftCodesPage() {
                                             </CardHeader>
                                             <CardContent className="grid gap-4 md:grid-cols-2">
                                                 <div className="flex flex-col gap-2">
-                                                    <Label>Campaign key</Label>
+                                                    <Label>Khóa chiến dịch</Label>
                                                     <Input
                                                         placeholder="Để trống để tự sinh từ tên campaign"
                                                         value={form.campaignKey}
@@ -846,7 +846,7 @@ export default function GiftCodesPage() {
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-2">
-                                                    <Label>Created by</Label>
+                                                    <Label>Người tạo</Label>
                                                     <Input
                                                         value={form.createdBy}
                                                         onChange={event =>
@@ -1064,7 +1064,7 @@ export default function GiftCodesPage() {
                                                     <CardContent className="flex h-full flex-col gap-4 p-6">
                                                         <div className="flex flex-col gap-2">
                                                             <Label>
-                                                                Prefix
+                                                                Tiền tố
                                                             </Label>
                                                             <Input
                                                                 placeholder="Ví dụ: S1NEW"
@@ -1214,7 +1214,7 @@ export default function GiftCodesPage() {
                                     onClick={handleResetForm}
                                     disabled={actionsDisabled}
                                 >
-                                    Reset form
+                                    Đặt lại biểu mẫu
                                 </Button>
                                 <Button
                                     onClick={() =>
@@ -1294,7 +1294,7 @@ export default function GiftCodesPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Campaigns</CardTitle>
+                    <CardTitle>Chiến dịch</CardTitle>
                     <CardDescription>{summaryText}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1310,12 +1310,12 @@ export default function GiftCodesPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Campaign</TableHead>
+                                    <TableHead>Chiến dịch</TableHead>
                                     <TableHead>Trạng thái</TableHead>
                                     <TableHead>Bật / tắt</TableHead>
                                     <TableHead>Lượt dùng</TableHead>
-                                    <TableHead>Codes</TableHead>
-                                    <TableHead>Rewards</TableHead>
+                                    <TableHead>Mã quà tặng</TableHead>
+                                    <TableHead>Phần thưởng</TableHead>
                                     <TableHead>Thời gian</TableHead>
                                     <TableHead>Cập nhật</TableHead>
                                     <TableHead>Thao tác</TableHead>

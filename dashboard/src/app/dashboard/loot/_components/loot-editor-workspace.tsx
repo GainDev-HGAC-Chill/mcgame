@@ -61,7 +61,7 @@ const LOOT_REWARD_TYPE_OPTIONS = [
     { value: 19, label: "Trang bị" },
     { value: 508, label: "Vật phẩm nhiệm vụ (508)" },
     { value: 509, label: "Vật phẩm nhiệm vụ (509)" },
-    { value: 550, label: "Pet item bag (550)" },
+    { value: 550, label: "Túi vật phẩm thú cưng (550)" },
     { value: 30, label: "Tiền tệ cơ bản (money/gold/honor)" },
     { value: 31, label: "Kinh nghiệm" },
     { value: 35, label: "Tiền tệ wallet (warSprite, heiyaoshiPoint, …)" },
@@ -80,7 +80,7 @@ function gameCurrencyLabel(awardId: number) {
     const match = BOX_ITEM_GAME_CURRENCY_OPTIONS.find(
         o => Number(o.value) === awardId
     )
-    return match ? match.label : `Game currency ${awardId}`
+    return match ? match.label : `Tiền tệ trò chơi ${awardId}`
 }
 
 type DraftRow = LootDropInput & {
@@ -544,7 +544,7 @@ export function LootEditorWorkspace({ cid }: { cid: number }) {
                                             />
                                         ) : (
                                             <div className="flex h-12 w-12 items-center justify-center rounded-md border text-[11px] text-muted-foreground">
-                                                No icon
+                                                Không có biểu tượng
                                             </div>
                                         )}
 
@@ -627,7 +627,7 @@ export function LootEditorWorkspace({ cid }: { cid: number }) {
                                                               ? "$"
                                                               : r.type === 35
                                                                 ? "¤"
-                                                                : "No icon"}
+                                                                : "Không có biểu tượng"}
                                                     </div>
                                                 )}
 
@@ -637,7 +637,7 @@ export function LootEditorWorkspace({ cid }: { cid: number }) {
                                                     </div>
                                                     <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                                                         <Badge variant="secondary">
-                                                            type {r.type}
+                                                            Loại {r.type}
                                                         </Badge>
                                                         <Badge
                                                             variant="outline"
@@ -715,7 +715,7 @@ export function LootEditorWorkspace({ cid }: { cid: number }) {
 
                                             <div className="space-y-1">
                                                 <p className="text-xs font-medium text-muted-foreground">
-                                                    Qty min
+                                                    Số lượng tối thiểu
                                                 </p>
                                                 <Input
                                                     type="number"
@@ -736,7 +736,7 @@ export function LootEditorWorkspace({ cid }: { cid: number }) {
 
                                             <div className="space-y-1">
                                                 <p className="text-xs font-medium text-muted-foreground">
-                                                    Qty max
+                                                    Số lượng tối đa
                                                 </p>
                                                 <Input
                                                     type="number"
@@ -784,7 +784,7 @@ export function LootEditorWorkspace({ cid }: { cid: number }) {
                                             ) : (
                                                 <div className="space-y-1">
                                                     <p className="text-xs font-medium text-muted-foreground">
-                                                        Quest gate (qid)
+                                                        Điều kiện nhiệm vụ (qid)
                                                     </p>
                                                     <Input
                                                         type="number"
@@ -807,7 +807,7 @@ export function LootEditorWorkspace({ cid }: { cid: number }) {
                                             <div className="mt-3 grid gap-3 md:grid-cols-2">
                                                 <div className="space-y-1">
                                                     <p className="text-xs font-medium text-muted-foreground">
-                                                        Quest gate (qid)
+                                                        Điều kiện nhiệm vụ (qid)
                                                     </p>
                                                     <Input
                                                         type="number"

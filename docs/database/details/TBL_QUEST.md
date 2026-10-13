@@ -42,8 +42,8 @@ preQuestType check (AND/OR of TBL_QUEST_PRE entries)
 | `moneyType` | int | Currency type of the money reward. `-1`=none (16), `0`=none/legacy (204), `1`=bound silver, `2`=silver, `3`=bound gold, `4`=gold, `10`=battle EXP, `11`=activity points. Read in `QuestCanvas.as:1240–1261`. |
 | `moneyNum` | int | Amount of currency awarded. Used alongside `moneyType` at `QuestCanvas.as:1261`. |
 | `at` | int | Award distribution mode: `1`=all players receive all items (5393), `2`=player chooses one item from the award list (134), `3`=class-filtered items (only items whose `reqClass` matches the player's class) (3). Controls bag-space check and slot selection in `QuestPanel.as:985–1010`, `QuestCanvas.as:1279,1329`. |
-| `rt` | int | Secondary reward currency type. `0`=none. Non-zero values mirror `moneyType` encoding (1=bound silver, 2=silver, 3=bound gold, 4=gold, 10=battle EXP, 11=activity points, 13=another currency type). Used in `QuestCanvas.as:1013–1036`. |
-| `rn` | int | Amount of the secondary reward currency (`rt`). `0`=none. Read alongside `rt` at `QuestCanvas.as:1013`. |
+| `rt` | int | Currency type displayed in **requirements**, not secondary rewards: `QuestCanvas.as:1009–1038` appends it under “Yêu cầu nhiệm vụ”. Encodings shown include1=bound silver,2=silver,3=bound gold,4=gold,10=battle EXP,11=activity points,13=another currency. Actual consumption/server semantics are not recovered; do not invent a debit or treat it as a reward. |
+| `rn` | int | Currency quantity displayed with `rt` in the requirements section. `0`=no positive quantity. Current server blocks nonzero conditions pending verified semantics; see2026-10-12 full quest audit. |
 | `minLevel` | int | Minimum player level to accept this quest. When `isRebirth > 0`, compared against `player.levelRe` instead (`Player.as:1840–1857`). |
 | `maxLevel` | int | Maximum player level to accept. Same rebirth substitution as `minLevel`. |
 | `isRebirth` | int (or empty) | `0` or empty = normal level check; `1` = quest is for rebirth characters only (gates on `levelRe` instead of `level`). Checked at `Player.as:1840`, `QuestManager.as:1061`. |

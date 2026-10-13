@@ -18,6 +18,9 @@ bin/
 .git/
 .gitignore
 
+# Machine-local Docker disks, database backups, toolchains and caches.
+.local/
+
 # Docker
 docker-compose.yml
 Dockerfile
@@ -33,3 +36,7 @@ docs/tools/
 # Local config
 *.local.*
 .env
+
+# Standalone registration build output and dependencies.
+frontend/registration/dist/
+**/node_modules/

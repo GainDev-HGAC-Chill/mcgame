@@ -404,19 +404,8 @@ func (h *Handler) NpcScript(ctx *rtmp.RPCContext, args []interface{}) (interface
 			h.logger.Error("Failed to send openShopById callback", zap.Error(err))
 		}
 	case "quest_func":
-		h.logger.Info("Opening quest list for player", zap.Int64("character_id", characterID))
-		questData := map[string]interface{}{
-			"qid": 1,
-			"st":  1,
-			"data": map[string]interface{}{
-				"id":   1,
-				"name": "Thử nghiệm nhiệm vụ",
-				"type": 1,
-			},
-		}
-
-		if err := ctx.Connection.SendCallbackSync("onAddChaQuest", questData); err != nil {
-			h.logger.Error("Failed to send onAddChaQuest callback", zap.Error(err))
+		if err := ctx.Connection.SendCallback("onRedMsg", "Mở danh sách nhiệm vụ qua script này chưa được hỗ trợ. Hãy mở mục nhiệm vụ của NPC."); err != nil {
+			return nil, err
 		}
 	case "gwc_register":
 		hasGuild, err := h.hasGuildMembership(ctx.Context, characterID)

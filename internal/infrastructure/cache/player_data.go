@@ -6,6 +6,7 @@
 package cache
 
 import (
+	"slices"
 	"sync"
 
 	"mcgame-server/internal/domain/character"
@@ -34,7 +35,10 @@ type PlayerData struct {
 	deletedPets   []int64
 	deletedQuests []int64
 
-	mu sync.RWMutex
+	mu        sync.RWMutex
+	persistMu sync.Mutex
+	redisMu   sync.Mutex
+	revision  uint64
 }
 
 func NewPlayerData(charID int64) *PlayerData {
@@ -68,6 +72,30 @@ func (p *PlayerData) IsDirty() bool {
 func (p *PlayerData) ClearDirty() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.clearDirty()
+}
+
+func (p *PlayerData) acknowledgeSnapshot(snapshot *DirtySnapshot) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.revision == snapshot.revision {
+		p.clearDirty()
+		return
+	}
+	p.deletedItems = acknowledgeDeleted(p.deletedItems, snapshot.DeletedItems)
+	p.deletedSkills = acknowledgeDeleted(p.deletedSkills, snapshot.DeletedSkills)
+	p.deletedPets = acknowledgeDeleted(p.deletedPets, snapshot.DeletedPets)
+	p.deletedQuests = acknowledgeDeleted(p.deletedQuests, snapshot.DeletedQuests)
+}
+
+func acknowledgeDeleted(current, saved []int64) []int64 {
+	if len(current) >= len(saved) && slices.Equal(current[:len(saved)], saved) {
+		return current[len(saved):]
+	}
+	return current
+}
+
+func (p *PlayerData) clearDirty() {
 	p.dirtyChar = false
 	p.dirtyItems = make(map[int64]bool)
 	p.dirtySkills = make(map[int64]bool)
@@ -82,33 +110,36 @@ func (p *PlayerData) ClearDirty() {
 func (p *PlayerData) SetCharacter(char *character.Character) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Character = char
+	p.Character = cloneCharacter(char)
+	p.revision++
 	p.dirtyChar = true
 }
 
 func (p *PlayerData) GetCharacter() *character.Character {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.Character
+	return cloneCharacter(p.Character)
 }
 
 func (p *PlayerData) MarkCharacterDirty() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.dirtyChar = true
+	p.revision++
 }
 
 func (p *PlayerData) SetItem(it *item.Item) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Items[it.ID] = it
+	p.Items[it.ID] = cloneItem(it)
+	p.revision++
 	p.dirtyItems[it.ID] = true
 }
 
 func (p *PlayerData) GetItem(id int64) *item.Item {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.Items[id]
+	return cloneItem(p.Items[id])
 }
 
 func (p *PlayerData) GetItems() []*item.Item {
@@ -116,7 +147,7 @@ func (p *PlayerData) GetItems() []*item.Item {
 	defer p.mu.RUnlock()
 	items := make([]*item.Item, 0, len(p.Items))
 	for _, it := range p.Items {
-		items = append(items, it)
+		items = append(items, cloneItem(it))
 	}
 	return items
 }
@@ -125,6 +156,7 @@ func (p *PlayerData) DeleteItem(id int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.Items, id)
+	p.revision++
 	delete(p.dirtyItems, id)
 	p.deletedItems = append(p.deletedItems, id)
 }
@@ -132,20 +164,22 @@ func (p *PlayerData) DeleteItem(id int64) {
 func (p *PlayerData) AddItemWithoutDirty(it *item.Item) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Items[it.ID] = it
+	p.Items[it.ID] = cloneItem(it)
+	p.revision++
 }
 
 func (p *PlayerData) SetSkill(sk *skill.CharacterSkill) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Skills[sk.ID] = sk
+	p.Skills[sk.ID] = cloneSkill(sk)
+	p.revision++
 	p.dirtySkills[sk.ID] = true
 }
 
 func (p *PlayerData) GetSkill(id int64) *skill.CharacterSkill {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.Skills[id]
+	return cloneSkill(p.Skills[id])
 }
 
 func (p *PlayerData) GetSkills() []*skill.CharacterSkill {
@@ -153,7 +187,7 @@ func (p *PlayerData) GetSkills() []*skill.CharacterSkill {
 	defer p.mu.RUnlock()
 	skills := make([]*skill.CharacterSkill, 0, len(p.Skills))
 	for _, sk := range p.Skills {
-		skills = append(skills, sk)
+		skills = append(skills, cloneSkill(sk))
 	}
 	return skills
 }
@@ -162,6 +196,7 @@ func (p *PlayerData) DeleteSkill(id int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.Skills, id)
+	p.revision++
 	delete(p.dirtySkills, id)
 	p.deletedSkills = append(p.deletedSkills, id)
 }
@@ -169,20 +204,22 @@ func (p *PlayerData) DeleteSkill(id int64) {
 func (p *PlayerData) AddSkillWithoutDirty(sk *skill.CharacterSkill) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Skills[sk.ID] = sk
+	p.Skills[sk.ID] = cloneSkill(sk)
+	p.revision++
 }
 
 func (p *PlayerData) SetPet(pt *pet.Pet) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Pets[pt.ID] = pt
+	p.Pets[pt.ID] = pt.Clone()
+	p.revision++
 	p.dirtyPets[pt.ID] = true
 }
 
 func (p *PlayerData) GetPet(id int64) *pet.Pet {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.Pets[id]
+	return p.Pets[id].Clone()
 }
 
 func (p *PlayerData) GetPets() []*pet.Pet {
@@ -190,7 +227,7 @@ func (p *PlayerData) GetPets() []*pet.Pet {
 	defer p.mu.RUnlock()
 	pets := make([]*pet.Pet, 0, len(p.Pets))
 	for _, pt := range p.Pets {
-		pets = append(pets, pt)
+		pets = append(pets, pt.Clone())
 	}
 	return pets
 }
@@ -199,6 +236,7 @@ func (p *PlayerData) DeletePet(id int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.Pets, id)
+	p.revision++
 	delete(p.dirtyPets, id)
 	p.deletedPets = append(p.deletedPets, id)
 }
@@ -206,20 +244,36 @@ func (p *PlayerData) DeletePet(id int64) {
 func (p *PlayerData) AddPetWithoutDirty(pt *pet.Pet) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Pets[pt.ID] = pt
+	p.Pets[pt.ID] = pt.Clone()
+	p.revision++
+}
+
+func (p *PlayerData) ApplyPersistedPetFusion(mainPet *pet.Pet, consumedPetIDs []int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if mainPet != nil {
+		p.Pets[mainPet.ID] = mainPet.Clone()
+		delete(p.dirtyPets, mainPet.ID)
+	}
+	for _, petID := range consumedPetIDs {
+		delete(p.Pets, petID)
+		delete(p.dirtyPets, petID)
+	}
+	p.revision++
 }
 
 func (p *PlayerData) SetQuest(q *quest.QuestProgress) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Quests[q.ID] = q
+	p.Quests[q.ID] = cloneQuest(q)
+	p.revision++
 	p.dirtyQuests[q.ID] = true
 }
 
 func (p *PlayerData) GetQuest(id int64) *quest.QuestProgress {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.Quests[id]
+	return cloneQuest(p.Quests[id])
 }
 
 func (p *PlayerData) GetQuests() []*quest.QuestProgress {
@@ -227,7 +281,7 @@ func (p *PlayerData) GetQuests() []*quest.QuestProgress {
 	defer p.mu.RUnlock()
 	quests := make([]*quest.QuestProgress, 0, len(p.Quests))
 	for _, q := range p.Quests {
-		quests = append(quests, q)
+		quests = append(quests, cloneQuest(q))
 	}
 	return quests
 }
@@ -236,6 +290,7 @@ func (p *PlayerData) DeleteQuest(id int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.Quests, id)
+	p.revision++
 	delete(p.dirtyQuests, id)
 	p.deletedQuests = append(p.deletedQuests, id)
 }
@@ -243,10 +298,12 @@ func (p *PlayerData) DeleteQuest(id int64) {
 func (p *PlayerData) AddQuestWithoutDirty(q *quest.QuestProgress) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Quests[q.ID] = q
+	p.Quests[q.ID] = cloneQuest(q)
+	p.revision++
 }
 
 type DirtySnapshot struct {
+	revision      uint64
 	Character     *character.Character
 	DirtyChar     bool
 	DirtyItems    map[int64]*item.Item
@@ -264,7 +321,8 @@ func (p *PlayerData) GetDirtySnapshot() *DirtySnapshot {
 	defer p.mu.RUnlock()
 
 	snapshot := &DirtySnapshot{
-		Character:     p.Character,
+		revision:      p.revision,
+		Character:     cloneCharacter(p.Character),
 		DirtyChar:     p.dirtyChar,
 		DirtyItems:    make(map[int64]*item.Item),
 		DirtySkills:   make(map[int64]*skill.CharacterSkill),
@@ -278,22 +336,22 @@ func (p *PlayerData) GetDirtySnapshot() *DirtySnapshot {
 
 	for id := range p.dirtyItems {
 		if it, ok := p.Items[id]; ok {
-			snapshot.DirtyItems[id] = it
+			snapshot.DirtyItems[id] = cloneItem(it)
 		}
 	}
 	for id := range p.dirtySkills {
 		if sk, ok := p.Skills[id]; ok {
-			snapshot.DirtySkills[id] = sk
+			snapshot.DirtySkills[id] = cloneSkill(sk)
 		}
 	}
 	for id := range p.dirtyPets {
 		if pt, ok := p.Pets[id]; ok {
-			snapshot.DirtyPets[id] = pt
+			snapshot.DirtyPets[id] = pt.Clone()
 		}
 	}
 	for id := range p.dirtyQuests {
 		if q, ok := p.Quests[id]; ok {
-			snapshot.DirtyQuests[id] = q
+			snapshot.DirtyQuests[id] = cloneQuest(q)
 		}
 	}
 

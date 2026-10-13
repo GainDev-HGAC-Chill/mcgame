@@ -82,7 +82,7 @@ export async function GET(
     const { cid: cidStr } = await context.params
     const cid = parseCid(cidStr)
     if (cid === null) {
-        return NextResponse.json({ error: "invalid cid" }, { status: HTTP_STATUS.BAD_REQUEST })
+        return NextResponse.json({ error: "Mã sinh vật không hợp lệ" }, { status: HTTP_STATUS.BAD_REQUEST })
     }
 
     try {
@@ -198,7 +198,7 @@ export async function PUT(
     const cid = parseCid(cidStr)
     if (cid === null) {
         return NextResponse.json(
-            { ok: false, message: "invalid cid" },
+            { ok: false, message: "Mã sinh vật không hợp lệ" },
             { status: HTTP_STATUS.BAD_REQUEST }
         )
     }
@@ -208,7 +208,7 @@ export async function PUT(
         body = (await request.json()) as { drops?: unknown }
     } catch {
         return NextResponse.json(
-            { ok: false, message: "invalid JSON body" },
+            { ok: false, message: "Nội dung JSON không hợp lệ" },
             { status: HTTP_STATUS.BAD_REQUEST }
         )
     }

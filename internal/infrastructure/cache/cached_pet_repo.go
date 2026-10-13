@@ -120,6 +120,48 @@ func (r *CachedPetRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+func (r *CachedPetRepository) ApplyFusion(ctx context.Context, mainPet *pet.Pet, consumedPetIDs []int64) error {
+	var characterID int64
+	if mainPet != nil {
+		characterID = mainPet.CharacterID
+	} else if len(consumedPetIDs) > 0 {
+		if material, err := r.FindByID(ctx, consumedPetIDs[0]); err == nil {
+			characterID = material.CharacterID
+		}
+	}
+	fusionRepo, ok := r.delegate.(pet.FusionRepository)
+	if !ok {
+		return r.applyFusionFallback(ctx, mainPet, consumedPetIDs)
+	}
+	if err := fusionRepo.ApplyFusion(ctx, mainPet, consumedPetIDs); err != nil {
+		return err
+	}
+	if data := r.cache.GetPlayer(characterID); data != nil {
+		data.ApplyPersistedPetFusion(mainPet, consumedPetIDs)
+	}
+	if mainPet != nil {
+		r.upsertColdPet(ctx, mainPet)
+	}
+	for _, petID := range consumedPetIDs {
+		r.deleteColdPet(ctx, characterID, petID)
+	}
+	return nil
+}
+
+func (r *CachedPetRepository) applyFusionFallback(ctx context.Context, mainPet *pet.Pet, consumedPetIDs []int64) error {
+	if mainPet != nil {
+		if err := r.Save(ctx, mainPet); err != nil {
+			return err
+		}
+	}
+	for _, petID := range consumedPetIDs {
+		if err := r.Delete(ctx, petID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *CachedPetRepository) Count(ctx context.Context, characterID int64) (int, error) {
 	if data := r.cache.GetPlayer(characterID); data != nil {
 		return len(data.GetPets()), nil

@@ -18,16 +18,17 @@ const (
 )
 
 type QuestProgress struct {
-	ID              int64
-	CharacterID     int64
-	QuestID         int
-	Status          QuestStatus
-	Objectives      []Objective
-	StartedAt       time.Time
-	CompletedAt     *time.Time
-	ExpiresAt       *time.Time
-	CompletionCount int
-	LastReset       *time.Time
+	ID                int64
+	CharacterID       int64
+	QuestID           int
+	Status            QuestStatus
+	Objectives        []Objective
+	StartedAt         time.Time
+	CompletedAt       *time.Time
+	ExpiresAt         *time.Time
+	CompletionCount   int
+	LastReset         *time.Time
+	CompletionBlocked bool `json:"-"`
 }
 
 func NewQuestProgress(characterID int64, questID int, objectives []Objective) *QuestProgress {
@@ -54,6 +55,9 @@ func (qp *QuestProgress) UpdateObjective(objType ObjectiveType, target int, amou
 }
 
 func (qp *QuestProgress) IsComplete() bool {
+	if qp.CompletionBlocked {
+		return false
+	}
 	for _, obj := range qp.Objectives {
 		if !obj.IsComplete() {
 			return false
@@ -63,7 +67,7 @@ func (qp *QuestProgress) IsComplete() bool {
 }
 
 func (qp *QuestProgress) CanComplete() bool {
-	return qp.Status == QuestStatusActive && qp.IsComplete()
+	return qp.Status == QuestStatusActive && !qp.IsExpired() && qp.IsComplete()
 }
 
 func (qp *QuestProgress) Complete() {
@@ -81,6 +85,7 @@ func (qp *QuestProgress) Reset(objectives []Objective) {
 	now := time.Now()
 	qp.Status = QuestStatusActive
 	qp.Objectives = objectives
+	qp.CompletionBlocked = false
 	qp.CompletedAt = nil
 	qp.LastReset = &now
 }

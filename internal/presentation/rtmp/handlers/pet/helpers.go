@@ -5,6 +5,7 @@ package pet
 import (
 	"strconv"
 
+	apppet "mcgame-server/internal/application/pet"
 	domainpet "mcgame-server/internal/domain/pet"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
@@ -106,6 +107,17 @@ func sendPetPropRefresh(ctx *rtmp.RPCContext, p *domainpet.Pet) {
 			"s":  prop,
 		})
 	}
+}
+
+func sendPetItemUseRefresh(ctx *rtmp.RPCContext, result *apppet.PetItemUseResult) {
+	if ctx == nil || ctx.Connection == nil || result == nil {
+		return
+	}
+	if result.RemainingStack <= 0 {
+		_ = ctx.Connection.SendCallback("onDelCharactorSlot", float64(result.ItemID), float64(result.ItemSID))
+		return
+	}
+	_ = ctx.Connection.SendCallback("onUpChaSlotStackNum", float64(result.ItemID), float64(result.RemainingStack), float64(result.ItemSID))
 }
 
 func sendPetAttributeRefresh(ctx *rtmp.RPCContext, p *domainpet.Pet) {

@@ -1,5 +1,9 @@
 # Equipment Tooltip Subsystems (TIPEQUIP_S)
 
+## Live inventory redraw (2026-10-12)
+
+EquipOn/Off now use owner-only `equip_slot_refresh.go`: all original SID deletions precede final instance-cache updates and slot additions. Displaced old equipment SID comes from actual resolved equip destination, not requested auto sentinel-1. This avoids sourceSID0 and overlapping move cleanup; scene appearance/stats callbacks remain separate. IDs and equipment properties preserved; no actual Gain equip operation used for tests. Empty-slot/replacement/rings/unequip callback tests PASS; Flash retest pending. [Research](../research/2026-10-12_01_EQUIP_SHOP_GM_RESEARCH.md).
+
 Full research: `docs/research/2026-04-01_01_TIPEQUIP_S_TOOLTIP_SYSTEM_RESEARCH.md`
 
 The client tooltip (`TipEquip.as`) renders equipment info from raw server data using `Language.TIPEQUIP_S` (46-entry localization array) with placeholder substitution. The server sends raw fields only; all HTML formatting and text assembly is client-side.

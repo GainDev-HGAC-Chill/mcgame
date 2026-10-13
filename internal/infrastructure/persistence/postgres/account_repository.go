@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type AccountRepository struct {
@@ -131,10 +132,20 @@ func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) e
 		account.LastLogin,
 	).Scan(&created)
 
+	return accountCreateResult(created, err)
+}
+
+func accountCreateResult(created bool, err error) error {
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "accounts_username_key" {
+			return pkgerrors.ErrAlreadyExists
+		}
 		return pkgerrors.Wrap(err, "failed to create account")
 	}
-
+	if !created {
+		return pkgerrors.ErrSystemError
+	}
 	return nil
 }
 

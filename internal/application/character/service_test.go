@@ -461,20 +461,28 @@ func TestCreate_UsesClassDefaultStatsFromGameData(t *testing.T) {
 		t.Fatalf("expected repo.Create to be called")
 	}
 
-	if got := repo.created.Strength; got != 15 {
-		t.Fatalf("Strength = %d, want 15", got)
+	expected := domainchar.NewCharacter(uuid.New(), "expected", 1, 0)
+	expected.Strength = 15
+	expected.Agility = 10
+	expected.Stamina = 15
+	expected.Intelligence = 5
+	expected.Spirit = 5
+	expected.RaiseLevelTo(starterLevel)
+
+	if got := repo.created.Strength; got != expected.Strength {
+		t.Fatalf("Strength = %d, want %d", got, expected.Strength)
 	}
-	if got := repo.created.Agility; got != 10 {
-		t.Fatalf("Agility = %d, want 10", got)
+	if got := repo.created.Agility; got != expected.Agility {
+		t.Fatalf("Agility = %d, want %d", got, expected.Agility)
 	}
-	if got := repo.created.Stamina; got != 15 {
-		t.Fatalf("Stamina = %d, want 15", got)
+	if got := repo.created.Stamina; got != expected.Stamina {
+		t.Fatalf("Stamina = %d, want %d", got, expected.Stamina)
 	}
-	if got := repo.created.Intelligence; got != 5 {
-		t.Fatalf("Intelligence = %d, want 5", got)
+	if got := repo.created.Intelligence; got != expected.Intelligence {
+		t.Fatalf("Intelligence = %d, want %d", got, expected.Intelligence)
 	}
-	if got := repo.created.Spirit; got != 5 {
-		t.Fatalf("Spirit = %d, want 5", got)
+	if got := repo.created.Spirit; got != expected.Spirit {
+		t.Fatalf("Spirit = %d, want %d", got, expected.Spirit)
 	}
 	if got := repo.created.BagSlotNum; got != 1 {
 		t.Fatalf("BagSlotNum = %d, want 1", got)
@@ -489,64 +497,64 @@ func TestCreate_UsesClassDefaultStatsFromGameData(t *testing.T) {
 		t.Fatalf("MaxBankSlots() = %d, want 30", got)
 	}
 
-	if got := repo.created.MaxHP; got != 122 {
-		t.Fatalf("MaxHP = %d, want 122", got)
+	if got := repo.created.MaxHP; got != expected.MaxHP {
+		t.Fatalf("MaxHP = %d, want %d", got, expected.MaxHP)
 	}
-	if got := repo.created.MaxMP; got != 44 {
-		t.Fatalf("MaxMP = %d, want 44", got)
+	if got := repo.created.MaxMP; got != expected.MaxMP {
+		t.Fatalf("MaxMP = %d, want %d", got, expected.MaxMP)
 	}
 	if got := repo.created.MaxSP; got != 150 {
 		t.Fatalf("MaxSP = %d, want 150", got)
 	}
-	if got := repo.created.CurrentHP; got != 122 {
-		t.Fatalf("CurrentHP = %d, want 122", got)
+	if got := repo.created.CurrentHP; got != expected.MaxHP {
+		t.Fatalf("CurrentHP = %d, want %d", got, expected.MaxHP)
 	}
-	if got := repo.created.CurrentMP; got != 44 {
-		t.Fatalf("CurrentMP = %d, want 44", got)
+	if got := repo.created.CurrentMP; got != expected.MaxMP {
+		t.Fatalf("CurrentMP = %d, want %d", got, expected.MaxMP)
 	}
 	if got := repo.created.CurrentSP; got != 150 {
 		t.Fatalf("CurrentSP = %d, want 150", got)
 	}
-	if got := repo.created.Attack; got != 26 {
-		t.Fatalf("Attack = %d, want 26", got)
+	if got := repo.created.Attack; got != expected.Attack {
+		t.Fatalf("Attack = %d, want %d", got, expected.Attack)
 	}
-	if got := repo.created.MagicAttack; got != 10 {
-		t.Fatalf("MagicAttack = %d, want 10", got)
+	if got := repo.created.MagicAttack; got != expected.MagicAttack {
+		t.Fatalf("MagicAttack = %d, want %d", got, expected.MagicAttack)
 	}
-	if got := repo.created.Defense; got != 36 {
-		t.Fatalf("Defense = %d, want 36", got)
+	if got := repo.created.Defense; got != expected.Defense {
+		t.Fatalf("Defense = %d, want %d", got, expected.Defense)
 	}
-	if got := repo.created.MagicDefense; got != 28 {
-		t.Fatalf("MagicDefense = %d, want 28", got)
+	if got := repo.created.MagicDefense; got != expected.MagicDefense {
+		t.Fatalf("MagicDefense = %d, want %d", got, expected.MagicDefense)
 	}
-	if got := repo.created.Speed; got != 113 {
-		t.Fatalf("Speed = %d, want 113", got)
+	if got := repo.created.Speed; got != expected.Speed {
+		t.Fatalf("Speed = %d, want %d", got, expected.Speed)
 	}
-	if got := repo.created.Hit; got != 100 {
-		t.Fatalf("Hit = %d, want 100", got)
+	if got := repo.created.Hit; got != expected.Hit {
+		t.Fatalf("Hit = %d, want %d", got, expected.Hit)
 	}
-	if got := repo.created.Dodge; got != 0 {
-		t.Fatalf("Dodge = %d, want 0", got)
+	if got := repo.created.Dodge; got != expected.Dodge {
+		t.Fatalf("Dodge = %d, want %d", got, expected.Dodge)
 	}
-	if got := repo.created.Critical; got != 0 {
-		t.Fatalf("Critical = %d, want 0", got)
+	if got := repo.created.Critical; got != expected.Critical {
+		t.Fatalf("Critical = %d, want %d", got, expected.Critical)
 	}
 
 	props := svc.BuildViewPropertiesWithEquipment(repo.created, domainchar.EquipmentStatBonuses{})
-	if got := props["finalStrength"]; got != 15 {
-		t.Fatalf("finalStrength = %v, want 15 (fresh class-1 char with no equipment)", got)
+	if got := props["finalStrength"]; got != expected.Strength {
+		t.Fatalf("finalStrength = %v, want %d", got, expected.Strength)
 	}
-	if got := props["finalAgility"]; got != 10 {
-		t.Fatalf("finalAgility = %v, want 10", got)
+	if got := props["finalAgility"]; got != expected.Agility {
+		t.Fatalf("finalAgility = %v, want %d", got, expected.Agility)
 	}
-	if got := props["finalStamina"]; got != 15 {
-		t.Fatalf("finalStamina = %v, want 15", got)
+	if got := props["finalStamina"]; got != expected.Stamina {
+		t.Fatalf("finalStamina = %v, want %d", got, expected.Stamina)
 	}
-	if got := props["finalIntelligence"]; got != 5 {
-		t.Fatalf("finalIntelligence = %v, want 5", got)
+	if got := props["finalIntelligence"]; got != expected.Intelligence {
+		t.Fatalf("finalIntelligence = %v, want %d", got, expected.Intelligence)
 	}
-	if got := props["finalEnergy"]; got != 5 {
-		t.Fatalf("finalEnergy = %v, want 5", got)
+	if got := props["finalEnergy"]; got != expected.Spirit {
+		t.Fatalf("finalEnergy = %v, want %d", got, expected.Spirit)
 	}
 }
 
@@ -665,7 +673,7 @@ func TestCreate_SeedsConfiguredStarterSkillsThatExceedNewCharacterLevel(t *testi
 		},
 		"TBL_SKILL": {
 			`{"id":1010,"name":"Khai Son Chi Luc","level":1,"req_level":1,"req_class":"|1|","code_name":"SKILL111001","kind":1,"type":1}`,
-			`{"id":1086,"name":"Nang Thuan","level":1,"req_level":5,"req_class":"|1|","code_name":"SKILL111011","kind":2,"type":11}`,
+			`{"id":1086,"name":"Nang Thuan","level":1,"req_level":95,"req_class":"|1|","code_name":"SKILL111011","kind":2,"type":11}`,
 		},
 	})
 

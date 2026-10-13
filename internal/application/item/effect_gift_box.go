@@ -18,11 +18,15 @@ import (
 	"mcgame-server/internal/gamedata/models"
 )
 
-var descriptionQualityPattern = regexp.MustCompile(`phẩm chất\s+(\d+(?:[.,]\d+)?)`)
+var descriptionQualityPattern = regexp.MustCompile(`pham chat\s+(\d+(?:[.,]\d+)?)`)
+var descriptionGrowth15Pattern = regexp.MustCompile(`\b1[.,]5\b`)
 
 func parseDescriptionQuality(description string) int {
-	m := descriptionQualityPattern.FindStringSubmatch(description)
+	m := descriptionQualityPattern.FindStringSubmatch(vietnameseSummonReplacer.Replace(strings.ToLower(description)))
 	if len(m) < 2 {
+		if descriptionGrowth15Pattern.MatchString(description) {
+			return 15
+		}
 		return 0
 	}
 	s := strings.ReplaceAll(m[1], ",", ".")

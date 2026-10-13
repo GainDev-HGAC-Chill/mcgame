@@ -78,13 +78,13 @@ export function EditPositionDialog({
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
                             <div>
-                                Map ID:{" "}
+                                ID bản đồ:{" "}
                                 <span className="font-mono text-foreground">
                                     {item.mapId}
                                 </span>
                             </div>
                             <div>
-                                Template:{" "}
+                                Mẫu:{" "}
                                 <span className="font-mono text-foreground">
                                     {item.tid}
                                 </span>
@@ -93,7 +93,7 @@ export function EditPositionDialog({
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="pos-x">Pos X</Label>
+                                <Label htmlFor="pos-x">Tọa độ X</Label>
                                 <Input
                                     id="pos-x"
                                     type="number"
@@ -110,7 +110,7 @@ export function EditPositionDialog({
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="pos-y">Pos Y</Label>
+                                <Label htmlFor="pos-y">Tọa độ Y</Label>
                                 <Input
                                     id="pos-y"
                                     type="number"

@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
+import { NewCharacterDefaultsEditor } from "@/components/game-config/new-character-defaults"
+import { GAME_CONFIG_LABELS } from "@/lib/game-config-labels"
+import { NEW_CHARACTER_DEFAULTS_KEY } from "@/lib/new-character-defaults"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,15 +20,16 @@ import {
 } from "@/services/game-config.service"
 
 const GROUP_LABELS: Record<GameConfigGroup, string> = {
-    server: "Server controls",
-    tuning: "Game tuning",
-    gm: "GM & security",
+    server: "Điều khiển máy chủ",
+    tuning: "Điều chỉnh trò chơi",
+    gm: "GM và bảo mật",
 }
 
 const TUNING_CATEGORIES = ["rates", "events", "features"] as const
+const CATEGORY_LABELS: Record<string, string> = { rates: "Tỷ lệ", events: "Sự kiện", features: "Tính năng", other: "Khác" }
 type TuningCategory = (typeof TUNING_CATEGORIES)[number]
 
-const HIDDEN_SERVER_KEYS: ReadonlySet<string> = new Set(["maintenance_mode", "login_enabled"])
+const HIDDEN_SERVER_KEYS: ReadonlySet<string> = new Set(["maintenance_mode", "login_enabled", NEW_CHARACTER_DEFAULTS_KEY])
 
 function visibleEntries(group: GameConfigGroup, entries: GameConfigEntry[]): GameConfigEntry[] {
     if (group !== "server") return entries
@@ -50,7 +54,7 @@ function parseEditorValue(kind: "bool" | "number" | "string" | "json", raw: stri
             return raw === "true"
         case "number": {
             const parsed = Number(raw)
-            if (!Number.isFinite(parsed)) throw new Error("not a number")
+            if (!Number.isFinite(parsed)) throw new Error("Giá trị phải là số")
             return parsed
         }
         case "string":
@@ -84,9 +88,9 @@ function EntryRow({
                 category: entry.category ?? undefined,
             })
             onSaved(updated)
-            toast.success(`${entry.key} updated`)
+            toast.success(`Đã cập nhật ${entry.key}`)
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "save failed")
+            toast.error(error instanceof Error ? error.message : "Lưu thất bại")
         } finally {
             setBusy(false)
         }
@@ -95,13 +99,14 @@ function EntryRow({
     return (
         <div className="grid grid-cols-12 gap-3 rounded-md border p-3">
             <div className="col-span-3">
-                <div className="font-mono text-sm">{entry.key}</div>
+                <div className="text-sm font-medium">{GAME_CONFIG_LABELS[entry.key]?.name ?? entry.key}</div>
+                <div className="font-mono text-xs text-muted-foreground">{entry.key}</div>
                 {entry.description ? (
-                    <div className="text-xs text-muted-foreground">{entry.description}</div>
+                    <div className="text-xs text-muted-foreground">{GAME_CONFIG_LABELS[entry.key]?.description ?? entry.description}</div>
                 ) : null}
                 {entry.category ? (
                     <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">
-                        {entry.category}
+                        {CATEGORY_LABELS[entry.category] ?? entry.category}
                     </div>
                 ) : null}
             </div>
@@ -109,10 +114,11 @@ function EntryRow({
                 {kind === "bool" ? (
                     <div className="flex items-center gap-2">
                         <Switch
+                            aria-label={`Bật hoặc tắt ${entry.key}`}
                             checked={editor === "true"}
                             onCheckedChange={value => setEditor(value ? "true" : "false")}
                         />
-                        <span className="text-sm text-muted-foreground">{editor}</span>
+                        <span className="text-sm text-muted-foreground">{editor === "true" ? "Bật" : "Tắt"}</span>
                     </div>
                 ) : kind === "json" ? (
                     <Input
@@ -130,7 +136,7 @@ function EntryRow({
             </div>
             <div className="col-span-2 text-right">
                 <Button size="sm" onClick={save} disabled={busy}>
-                    {busy ? "Saving…" : "Save"}
+                    {busy ? "Đang lưu…" : "Lưu"}
                 </Button>
             </div>
         </div>
@@ -151,12 +157,16 @@ function NewEntryForm({
     const [busy, setBusy] = useState(false)
 
     async function submit() {
+        if (key.trim() === NEW_CHARACTER_DEFAULTS_KEY) {
+            toast.error("Hãy dùng biểu mẫu Quà khởi tạo nhân vật để chỉnh sửa cấu hình này")
+            return
+        }
         if (!key.trim()) {
-            toast.error("Key is required")
+            toast.error("Vui lòng nhập khóa cấu hình")
             return
         }
         if (value.trim() === "") {
-            toast.error("Value is required (use JSON: true / 1.5 / \"text\")")
+            toast.error("Vui lòng nhập giá trị JSON: true / 1.5 / \"văn bản\"")
             return
         }
         setBusy(true)
@@ -172,9 +182,9 @@ function NewEntryForm({
             setKey("")
             setValue("")
             setDescription("")
-            toast.success("Key added")
+            toast.success("Đã thêm khóa cấu hình")
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "create failed")
+            toast.error(error instanceof Error ? error.message : "Tạo thất bại")
         } finally {
             setBusy(false)
         }
@@ -184,7 +194,7 @@ function NewEntryForm({
         <div className="grid gap-3 rounded-md border bg-muted/30 p-4">
             <div className="grid grid-cols-12 gap-3">
                 <div className="col-span-3">
-                    <Label className="text-xs">Key</Label>
+                    <Label className="text-xs">Khóa cấu hình</Label>
                     <Input
                         value={key}
                         onChange={event => setKey(event.target.value)}
@@ -192,7 +202,7 @@ function NewEntryForm({
                     />
                 </div>
                 <div className="col-span-5">
-                    <Label className="text-xs">Value (JSON)</Label>
+                    <Label className="text-xs">Giá trị (JSON)</Label>
                     <Input
                         value={value}
                         onChange={event => setValue(event.target.value)}
@@ -201,19 +211,19 @@ function NewEntryForm({
                     />
                 </div>
                 <div className="col-span-3">
-                    <Label className="text-xs">Description</Label>
+                    <Label className="text-xs">Mô tả</Label>
                     <Input value={description} onChange={event => setDescription(event.target.value)} />
                 </div>
                 <div className="col-span-1 flex items-end">
                     <Button size="sm" onClick={submit} disabled={busy}>
-                        Add
+                        Thêm
                     </Button>
                 </div>
             </div>
             {group === "tuning" ? (
                 <div className="grid grid-cols-12 gap-3">
                     <div className="col-span-3">
-                        <Label className="text-xs">Category</Label>
+                        <Label className="text-xs">Nhóm</Label>
                         <Select value={category} onValueChange={value => setCategory(value as TuningCategory)}>
                             <SelectTrigger>
                                 <SelectValue />
@@ -221,7 +231,7 @@ function NewEntryForm({
                             <SelectContent>
                                 {TUNING_CATEGORIES.map(c => (
                                     <SelectItem key={c} value={c}>
-                                        {c}
+                                        {CATEGORY_LABELS[c]}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -243,7 +253,7 @@ function GroupTab({ group }: { group: GameConfigGroup }) {
             const fetched = await gameConfigService.list(group)
             setEntries(visibleEntries(group, fetched))
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to load")
+            toast.error(error instanceof Error ? error.message : "Không tải được dữ liệu")
         } finally {
             setLoading(false)
         }
@@ -277,16 +287,16 @@ function GroupTab({ group }: { group: GameConfigGroup }) {
             <NewEntryForm group={group} onCreated={handleSaved} />
 
             {loading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
+                <p className="text-sm text-muted-foreground">Đang tải…</p>
             ) : entries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No keys yet.</p>
+                <p className="text-sm text-muted-foreground">Chưa có khóa cấu hình.</p>
             ) : (
                 <div className="space-y-4">
                     {Object.entries(grouped).map(([bucket, items]) => (
                         <div key={bucket}>
                             {group === "tuning" ? (
                                 <h3 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-                                    {bucket}
+                                    {CATEGORY_LABELS[bucket] ?? bucket}
                                 </h3>
                             ) : null}
                             <div className="space-y-2">
@@ -311,16 +321,17 @@ export default function GameConfigPage() {
     return (
         <div className="space-y-6 p-6">
             <div>
-                <h1 className="text-2xl font-bold">Game Config</h1>
+                <h1 className="text-2xl font-bold">Cấu hình trò chơi</h1>
                 <p className="text-sm text-muted-foreground">
-                    Server controls, game tuning, and GM/security knobs. Every save broadcasts to the running
-                    Go server via Postgres NOTIFY.
+                    Điều khiển máy chủ, điều chỉnh trò chơi và cấu hình GM/bảo mật. Mỗi lần lưu sẽ thông báo
+                    đến máy chủ Go đang chạy qua Postgres NOTIFY.
                 </p>
             </div>
 
+            <NewCharacterDefaultsEditor />
             <Card>
                 <CardHeader>
-                    <CardTitle>Runtime config</CardTitle>
+                    <CardTitle>Cấu hình vận hành</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Tabs defaultValue="server" className="space-y-4">

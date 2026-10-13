@@ -2,6 +2,10 @@
 
 ## Overview
 
+### Login lifecycle correction (2026-10-11)
+
+Do not send `updateWSPPanel` during character selection/login. The served SWF's `getUI` lazily creates this panel, while its update method immediately accesses templates and Flex controls without a readiness guard; login push caused #2095/#1009. Normal `showPanel` waits for initialization then calls `getSpWarData`. Keep that response and post-upgrade pushes. Auth skips panel-state `warSprite` during merging to preserve the scalar currency fields and does not mutate provider state. Full evidence and callback audit: [Character selection callback audit](../research/2026-10-11_02_CHARACTER_SELECTION_CALLBACK_AUDIT_RESEARCH.md).
+
 Two-tab character progression panel (`PANEL_WAR_BATTLE = 958`, `GamePredef.WAR_SPRITE = 61`):
 
 - **Page 1 — Thăng Cấp** — `warSprite` chain (`kind=1`), spends Dũng Khí Thạch (`CurrencyWarSprite=229`).

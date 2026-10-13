@@ -29,68 +29,72 @@ export type PlayerNavItem = {
     icon: LucideIcon
     category: PlayerNavCategory
 }
+export const PLAYER_NAV_CATEGORY_LABELS: Record<PlayerNavCategory, string> = {
+    Core: "Thông tin cơ bản", Combat: "Chiến đấu", Economy: "Kinh tế",
+    Inventory: "Kho đồ", Customization: "Tùy chỉnh", Systems: "Hệ thống", Social: "Quan hệ",
+}
 
 export const PLAYER_NAV_ITEMS: PlayerNavItem[] = [
-    { value: "overview", label: "Overview", icon: User, category: "Core" },
+    { value: "overview", label: "Tổng quan", icon: User, category: "Core" },
     {
         value: "progression",
-        label: "Progression",
+        label: "Tiến trình",
         icon: Sparkles,
         category: "Core",
     },
     {
         value: "attributes",
-        label: "Attributes",
+        label: "Thuộc tính",
         icon: Target,
         category: "Core",
     },
     {
         value: "combat",
-        label: "Combat Stats",
+        label: "Chỉ số chiến đấu",
         icon: Swords,
         category: "Combat",
     },
-    { value: "wallet", label: "Wallet", icon: Coins, category: "Economy" },
+    { value: "wallet", label: "Tiền tệ", icon: Coins, category: "Economy" },
     {
         value: "resources",
-        label: "Resources",
+        label: "Sức chứa",
         icon: Backpack,
         category: "Economy",
     },
     {
         value: "items",
-        label: "Items",
+        label: "Vật phẩm",
         icon: Package,
         category: "Inventory",
     },
     {
         value: "pets",
-        label: "Pets",
+        label: "Thú cưng",
         icon: PawPrint,
         category: "Inventory",
     },
     {
         value: "dress-panel",
-        label: "Dress Panel",
+        label: "Thời trang",
         icon: Sparkles,
         category: "Customization",
     },
     {
         value: "life-skills",
-        label: "Life Skills",
+        label: "Kỹ năng sống",
         icon: Leaf,
         category: "Customization",
     },
     { value: "gm", label: "GM", icon: Shield, category: "Systems" },
     {
         value: "feature-state",
-        label: "Game Systems",
+        label: "Hệ thống trò chơi",
         icon: Boxes,
         category: "Systems",
     },
     {
         value: "relationships",
-        label: "Quan Hệ (Relationships)",
+        label: "Quan hệ",
         icon: UsersRound,
         category: "Social",
     },

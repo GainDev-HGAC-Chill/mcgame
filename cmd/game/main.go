@@ -7,9 +7,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
-const usage = "usage: game [-y] <setup|up|down|reset>..."
+const usage = "usage: game [-y] <setup|up|down|start|stop|restart|status|logs|check|local|lan|radmin|client|client30|reset>..."
 
 func main() {
 	assumeYes := os.Getenv("CONFIRM") == "1"
@@ -27,7 +28,7 @@ func main() {
 	}
 	for _, command := range commands {
 		switch command {
-		case "setup", "up", "down", "reset":
+		case "setup", "up", "down", "start", "stop", "restart", "status", "logs", "check", "local", "lan", "radmin", "client", "client30", "reset":
 		default:
 			fmt.Fprintln(os.Stderr, usage)
 			os.Exit(2)
@@ -36,6 +37,10 @@ func main() {
 
 	stack, err := newStack(assumeYes)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := os.Setenv("PATH", filepath.Join(stack.root, "bin")+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

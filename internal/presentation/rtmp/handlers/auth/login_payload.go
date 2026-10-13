@@ -436,11 +436,10 @@ func (h *Handler) buildOnChooseCharactorPayload(ctx context.Context, char *chara
 				zap.Int64("character_id", charID),
 				zap.Error(err))
 		} else {
-			if warSpriteState, ok := loginState["warSprite"].(map[string]interface{}); ok {
-				payload["warSpritePanel"] = warSpriteState
-				delete(loginState, "warSprite")
-			}
 			for key, value := range loginState {
+				if key == "warSprite" {
+					continue
+				}
 				payload[key] = value
 				cData[key] = value
 			}

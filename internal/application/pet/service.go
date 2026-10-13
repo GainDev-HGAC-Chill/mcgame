@@ -7,6 +7,7 @@ package pet
 
 import (
 	"context"
+	"math/rand"
 
 	"mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
@@ -25,6 +26,8 @@ type Service struct {
 	soulProvider         PetSoulProvider
 	gameDataManager      *gamedata.Manager
 	logger               *zap.Logger
+	fusionRoll           func(int) bool
+	fusionGrowth         func(int, int) int
 }
 
 const (
@@ -34,8 +37,10 @@ const (
 
 func NewService(petRepo domainpet.Repository, logger *zap.Logger) *Service {
 	return &Service{
-		petRepo: petRepo,
-		logger:  logger,
+		petRepo:      petRepo,
+		logger:       logger,
+		fusionRoll:   defaultPetFusionRoll,
+		fusionGrowth: defaultPetFusionGrowth,
 	}
 }
 
@@ -519,43 +524,103 @@ func (s *Service) EvolvePet(ctx context.Context, charID int64, petID int64) (*do
 	return p, nil
 }
 
-func (s *Service) FusePets(ctx context.Context, charID int64, mainPetID, materialPetID int64) (*domainpet.Pet, error) {
+type FusionResult struct {
+	Pet            *domainpet.Pet
+	Success        bool
+	ConsumedPetIDs []int64
+}
+
+func defaultPetFusionRoll(rate int) bool {
+	return rate >= 100 || rate > 0 && rand.Intn(100) < rate
+}
+
+func defaultPetFusionGrowth(minHundredths int, maxHundredths int) int {
+	if maxHundredths <= minHundredths {
+		return minHundredths
+	}
+	return minHundredths + rand.Intn(maxHundredths-minHundredths+1)
+}
+
+func petFusionSuccessRate(p *domainpet.Pet) int {
+	if p == nil {
+		return 0
+	}
+	rates := [...]int{100, 80, 50, 30}
+	tier := domainpet.ColorByGrowRate(p.GrowRate)
+	if tier < 0 || tier >= len(rates) {
+		return 0
+	}
+	return rates[tier]
+}
+
+func (s *Service) FusePets(ctx context.Context, charID int64, mainPetID int64, materialPetIDs []int64) (*FusionResult, error) {
 	mainPet, err := s.getPetAndValidate(ctx, charID, mainPetID)
 	if err != nil {
 		return nil, err
 	}
-
-	materialPet, err := s.petRepo.FindByID(ctx, materialPetID)
-	if err != nil {
-		return nil, err
-	}
-
-	if materialPet.CharacterID != charID {
-		return nil, pkgerrors.ErrNotFound
-	}
-
-	if mainPetID == materialPetID {
+	if len(materialPetIDs) != 4 || petFusionSuccessRate(mainPet) == 0 {
 		return nil, pkgerrors.ErrInvalidInput
 	}
-
-	mainPet.AbsorbPet(materialPet)
-
-	if err := s.petRepo.Save(ctx, mainPet); err != nil {
-		return nil, err
+	materials := make([]*domainpet.Pet, 0, len(materialPetIDs))
+	seen := map[int64]bool{mainPetID: true}
+	for _, materialPetID := range materialPetIDs {
+		if materialPetID <= 0 || seen[materialPetID] {
+			return nil, pkgerrors.ErrInvalidInput
+		}
+		materialPet, err := s.petRepo.FindByID(ctx, materialPetID)
+		if err != nil {
+			return nil, err
+		}
+		if materialPet.CharacterID != charID {
+			return nil, pkgerrors.ErrNotFound
+		}
+		if materialPet.TemplateID != mainPet.TemplateID || domainpet.ColorByGrowRate(materialPet.GrowRate) != domainpet.ColorByGrowRate(mainPet.GrowRate) {
+			return nil, pkgerrors.ErrInvalidInput
+		}
+		seen[materialPetID] = true
+		materials = append(materials, materialPet)
 	}
-
-	if err := s.petRepo.Delete(ctx, materialPetID); err != nil {
-		s.logger.Warn("Failed to delete material pet",
-			zap.Int64("pet_id", materialPetID),
-			zap.Error(err))
+	success := s.fusionRoll(petFusionSuccessRate(mainPet))
+	if success {
+		oldTier := domainpet.ColorByGrowRate(mainPet.GrowRate)
+		nextTier := oldTier + 1
+		if nextTier < len(domainpet.PetGrowRateBands) {
+			minHundredths := int(domainpet.PetGrowRateBands[oldTier]*100) + 1
+			maxHundredths := int(domainpet.PetGrowRateBands[nextTier] * 100)
+			mainPet.GrowRate = float64(s.fusionGrowth(minHundredths, maxHundredths)) / 100
+			mainPet.RecalculateStats()
+		}
 	}
-
+	consumed := make([]int64, 0, len(materials))
+	for _, materialPet := range materials {
+		consumed = append(consumed, materialPet.ID)
+	}
+	if fusionRepo, ok := s.petRepo.(domainpet.FusionRepository); ok {
+		var updatedMain *domainpet.Pet
+		if success {
+			updatedMain = mainPet
+		}
+		if err := fusionRepo.ApplyFusion(ctx, updatedMain, consumed); err != nil {
+			return nil, err
+		}
+	} else {
+		if success {
+			if err := s.petRepo.Save(ctx, mainPet); err != nil {
+				return nil, err
+			}
+		}
+		for _, materialPetID := range consumed {
+			if err := s.petRepo.Delete(ctx, materialPetID); err != nil {
+				return nil, err
+			}
+		}
+	}
 	s.logger.Info("Pets fused",
 		zap.Int64("character_id", charID),
 		zap.Int64("main_pet_id", mainPetID),
-		zap.Int64("material_pet_id", materialPetID))
-
-	return mainPet, nil
+		zap.Int64s("material_pet_ids", consumed),
+		zap.Bool("success", success))
+	return &FusionResult{Pet: mainPet, Success: success, ConsumedPetIDs: consumed}, nil
 }
 
 func (s *Service) SeniorFusePets(ctx context.Context, charID int64, mainPetID int64, materialPetIDs []int64) (*domainpet.Pet, error) {
@@ -563,41 +628,45 @@ func (s *Service) SeniorFusePets(ctx context.Context, charID int64, mainPetID in
 	if err != nil {
 		return nil, err
 	}
-
+	if len(materialPetIDs) == 0 {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+	seen := map[int64]bool{mainPetID: true}
+	consumed := make([]int64, 0, len(materialPetIDs))
 	for _, materialPetID := range materialPetIDs {
-		if materialPetID == mainPetID {
-			continue
+		if materialPetID <= 0 || seen[materialPetID] {
+			return nil, pkgerrors.ErrInvalidInput
 		}
-
 		materialPet, err := s.petRepo.FindByID(ctx, materialPetID)
 		if err != nil {
-			s.logger.Warn("Failed to find material pet",
-				zap.Int64("pet_id", materialPetID),
-				zap.Error(err))
-			continue
+			return nil, err
 		}
-
 		if materialPet.CharacterID != charID {
-			continue
+			return nil, pkgerrors.ErrNotFound
 		}
-
+		seen[materialPetID] = true
 		mainPet.AbsorbPet(materialPet)
-
-		if err := s.petRepo.Delete(ctx, materialPetID); err != nil {
-			s.logger.Warn("Failed to delete material pet",
-				zap.Int64("pet_id", materialPetID),
-				zap.Error(err))
-		}
+		consumed = append(consumed, materialPetID)
 	}
-
-	if err := s.petRepo.Save(ctx, mainPet); err != nil {
-		return nil, err
+	if fusionRepo, ok := s.petRepo.(domainpet.FusionRepository); ok {
+		if err := fusionRepo.ApplyFusion(ctx, mainPet, consumed); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := s.petRepo.Save(ctx, mainPet); err != nil {
+			return nil, err
+		}
+		for _, materialPetID := range consumed {
+			if err := s.petRepo.Delete(ctx, materialPetID); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	s.logger.Info("Senior pet fusion completed",
 		zap.Int64("character_id", charID),
 		zap.Int64("main_pet_id", mainPetID),
-		zap.Int("material_count", len(materialPetIDs)))
+		zap.Int("material_count", len(consumed)))
 
 	return mainPet, nil
 }
@@ -607,7 +676,22 @@ func (s *Service) Cultivate(ctx context.Context, charID int64, petID int64, cult
 	if err != nil {
 		return nil, err
 	}
+	newProgress := applyPetCultivation(p, cultivationType)
 
+	if err := s.petRepo.Save(ctx, p); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("Pet cultivation performed",
+		zap.Int64("character_id", charID),
+		zap.Int64("pet_id", petID),
+		zap.Int("cultivation_type", cultivationType),
+		zap.Int("progress", newProgress))
+
+	return p, nil
+}
+
+func applyPetCultivation(p *domainpet.Pet, cultivationType int) int {
 	cult := p.GetCultivation()
 	newProgress := cult["progress"] + 10
 
@@ -629,27 +713,21 @@ func (s *Service) Cultivate(ctx context.Context, charID int64, petID int64, cult
 	}
 
 	p.SetCultivation(cultivationType, newProgress)
-
-	if err := s.petRepo.Save(ctx, p); err != nil {
-		return nil, err
-	}
-
-	s.logger.Info("Pet cultivation performed",
-		zap.Int64("character_id", charID),
-		zap.Int64("pet_id", petID),
-		zap.Int("cultivation_type", cultivationType),
-		zap.Int("progress", newProgress))
-
-	return p, nil
+	return newProgress
 }
 
-func (s *Service) UseCultivationItem(ctx context.Context, charID int64, petID int64, itemID int) (*domainpet.Pet, error) {
+func (s *Service) UseCultivationItem(ctx context.Context, charID int64, petID int64, itemID int64) (*PetItemUseResult, error) {
+	it, err := s.loadPetFunctionItem(ctx, charID, itemID)
+	if err != nil {
+		return nil, err
+	}
 	p, err := s.getPetAndValidate(ctx, charID, petID)
 	if err != nil {
 		return nil, err
 	}
+	original := p.Clone()
 
-	bonusAmount := itemID % 10
+	bonusAmount := it.TemplateID % 10
 	if bonusAmount < 1 {
 		bonusAmount = 1
 	}
@@ -661,37 +739,48 @@ func (s *Service) UseCultivationItem(ctx context.Context, charID int64, petID in
 	p.AptEnergyEx += bonusAmount
 	p.RecalculateStats()
 
-	if err := s.petRepo.Save(ctx, p); err != nil {
-		return nil, err
-	}
-
 	s.logger.Info("Pet cultivation item used",
 		zap.Int64("character_id", charID),
 		zap.Int64("pet_id", petID),
-		zap.Int("item_id", itemID),
+		zap.Int64("item_id", itemID),
 		zap.Int("bonus", bonusAmount))
 
-	return p, nil
+	result, err := s.finishPetItemUse(ctx, original, p, it)
+	if err != nil {
+		return nil, err
+	}
+	result.Property = "aptStrength"
+	result.Before = float64(original.AptStrengthEx)
+	result.After = float64(p.AptStrengthEx)
+	return result, nil
 }
 
-func (s *Service) PetXsd(ctx context.Context, charID int64, petID int64) (*domainpet.Pet, error) {
+func (s *Service) PetXsd(ctx context.Context, charID int64, petID int64, itemID int64) (*PetItemUseResult, error) {
+	it, err := s.loadPetFunctionItem(ctx, charID, itemID)
+	if err != nil {
+		return nil, err
+	}
 	p, err := s.getPetAndValidate(ctx, charID, petID)
 	if err != nil {
 		return nil, err
 	}
+	original := p.Clone()
 
 	p.GrowRateAdd += 0.01
 	p.RecalculateStats()
-
-	if err := s.petRepo.Save(ctx, p); err != nil {
-		return nil, err
-	}
 
 	s.logger.Info("Pet XSD performed",
 		zap.Int64("character_id", charID),
 		zap.Int64("pet_id", petID))
 
-	return p, nil
+	result, err := s.finishPetItemUse(ctx, original, p, it)
+	if err != nil {
+		return nil, err
+	}
+	result.Property = "growRateAdd"
+	result.Before = original.GrowRateAdd
+	result.After = p.GrowRateAdd
+	return result, nil
 }
 
 func (s *Service) OpenPetSlot(ctx context.Context, charID int64) (int, int, string, int64, error) {

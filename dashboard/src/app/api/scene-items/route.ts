@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
                 totalPages: 0,
                 message: resolveErrorMessage(
                     error,
-                    "Failed to load scene items"
+                    "Không tải được vật thể bản đồ"
                 ),
             },
             { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
@@ -149,14 +149,14 @@ export async function PUT(request: NextRequest) {
         if (id <= 0) {
             return jsonError({
                 code: "invalid_id",
-                message: "ID is required",
+                message: "Vui lòng nhập ID",
                 status: HTTP_STATUS.BAD_REQUEST,
             })
         }
         if (posX < 0 || posY < 0) {
             return jsonError({
                 code: "invalid_position",
-                message: "pos_x and pos_y are required (>= 0)",
+                message: "Vui lòng nhập tọa độ X và Y từ 0 trở lên",
                 status: HTTP_STATUS.BAD_REQUEST,
             })
         }
@@ -188,7 +188,7 @@ export async function PUT(request: NextRequest) {
     } catch (error) {
         return jsonError({
             code: "update_failed",
-            message: resolveErrorMessage(error, "Failed to update scene item"),
+            message: resolveErrorMessage(error, "Không cập nhật được vật thể bản đồ"),
             status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
         })
     }

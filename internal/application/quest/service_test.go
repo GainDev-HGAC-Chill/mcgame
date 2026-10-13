@@ -714,7 +714,7 @@ func TestCompleteQuest_RejectsMissingCollectItemsAndResyncsObjectives(t *testing
 		t.Fatalf("expected invalid input when collect item is missing, got %v", err)
 	}
 
-	stored, err := questRepo.FindByCharacterAndQuest(context.Background(), 1, 7001)
+	stored, err := svc.GetQuestProgress(context.Background(), 1, 7001)
 	if err != nil {
 		t.Fatalf("reload quest progress: %v", err)
 	}
@@ -772,6 +772,7 @@ func TestCompleteQuest_ConsumesCollectItemsFromQuestBag(t *testing.T) {
 
 	manager := gamedata.NewManager(nil, logger)
 	questTpl := models.QuestTemplate{ID: 7002, AwardExpRe: 0}
+	loadTestQuestRequirement(t, manager, models.QuestRequireTemplate{Qid: 7002, ItemID: 30, Kind: 1, Type: 29, Num: 1})
 	if err := manager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, questTpl)}); err != nil {
 		t.Fatalf("load quest table: %v", err)
 	}
@@ -841,6 +842,7 @@ func TestCompleteQuest_GrantsRewardExpToActivePet(t *testing.T) {
 
 	manager := gamedata.NewManager(nil, logger)
 	questTpl := models.QuestTemplate{ID: 7004, AwardExpRe: 20}
+	completedObjectives := loadTestCompletedKill(t, manager, 7004)
 	if err := manager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, questTpl)}); err != nil {
 		t.Fatalf("load quest table: %v", err)
 	}
@@ -848,6 +850,7 @@ func TestCompleteQuest_GrantsRewardExpToActivePet(t *testing.T) {
 	progress := &domainquest.QuestProgress{
 		CharacterID: 1,
 		QuestID:     7004,
+		Objectives:  completedObjectives,
 		Status:      domainquest.QuestStatusActive,
 		StartedAt:   time.Now(),
 	}
@@ -1295,6 +1298,7 @@ func TestCompleteQuest_SubmitPetConsumesLowestQualifyingPet(t *testing.T) {
 
 	manager := gamedata.NewManager(nil, logger)
 	questTpl := models.QuestTemplate{ID: 8200}
+	loadTestQuestRequirement(t, manager, models.QuestRequireTemplate{Qid: 8200, ItemID: 700, Kind: 3, Type: 12, Num: 1, Q: 10})
 	creatureTpl := models.CreatureTemplate{ID: 700, Name: "Hắc Linh Lang"}
 	if err := manager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, questTpl)}); err != nil {
 		t.Fatalf("load quest: %v", err)
@@ -1494,6 +1498,7 @@ func TestCompleteQuest_EquipmentObjectiveRejectsWrongColor(t *testing.T) {
 		t.Fatalf("load equip: %v", err)
 	}
 	questTpl := models.QuestTemplate{ID: 8500}
+	loadTestQuestRequirement(t, manager, models.QuestRequireTemplate{Qid: 8500, ItemID: 850, Kind: 1, Type: 19, Num: 1, Q: 10})
 	if err := manager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, questTpl)}); err != nil {
 		t.Fatalf("load quest: %v", err)
 	}

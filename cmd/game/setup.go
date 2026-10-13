@@ -1,5 +1,4 @@
-// game setup: docker/.env from .env.example with fresh secrets, keeping the Google sign-in
-// values of an existing file. Secrets are written to the file and never printed.
+// game setup creates secrets only for a new deployment, never replacing existing state.
 package main
 
 import (
@@ -8,25 +7,14 @@ import (
 	"path/filepath"
 )
 
-var carriedKeys = []string{"GOOGLE_ENABLED", "GOOGLE_CLIENT_ID", "GOOGLE_SECRET"}
-
 func (s *stack) setup() error {
 	if s.hasDatabase() {
-		if err := s.confirm("A database made with the current secrets exists; new secrets need a new database. Wipe it?"); err != nil {
-			return err
-		}
-		if err := s.wipe(); err != nil {
-			return err
-		}
+		return fmt.Errorf("existing database: setup refuses to replace secrets or delete data; use game up")
 	}
-
-	carried := map[string]string{}
-	if old, err := loadEnv(s.envPath); err == nil {
-		for _, key := range carriedKeys {
-			if value := old.get(key); value != "" {
-				carried[key] = value
-			}
-		}
+	if _, err := os.Stat(s.envPath); err == nil {
+		return fmt.Errorf("docker/.env already exists: setup refuses to replace secrets; use game up")
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 
 	env, err := loadEnv(filepath.Join(s.dir, ".env.example"))
@@ -34,10 +22,6 @@ func (s *stack) setup() error {
 		return err
 	}
 	env.path = s.envPath
-	for key, value := range carried {
-		env.set(key, value)
-	}
-
 	secrets, err := legacySecrets()
 	if err != nil {
 		return err

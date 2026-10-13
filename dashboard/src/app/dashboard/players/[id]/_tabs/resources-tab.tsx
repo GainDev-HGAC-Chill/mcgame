@@ -6,13 +6,13 @@ import {
 } from "../_components/character-field-form"
 
 const FIELDS: CharacterField[] = [
-    { key: "bagSlotNum", label: "Bag Count", dtoKey: "bagSlotNum" },
-    { key: "bankSlotNum", label: "Bank Count", dtoKey: "bankSlotNum" },
-    { key: "petSlots", label: "Pet Slots", dtoKey: "petSlots" },
-    { key: "tempBagSlots", label: "Temp Bag Slots", dtoKey: "tempBagSlots" },
+    { key: "bagSlotNum", label: "Số trang túi", dtoKey: "bagSlotNum" },
+    { key: "bankSlotNum", label: "Số trang kho", dtoKey: "bankSlotNum" },
+    { key: "petSlots", label: "Ô thú cưng", dtoKey: "petSlots" },
+    { key: "tempBagSlots", label: "Ô túi tạm", dtoKey: "tempBagSlots" },
     {
         key: "mxTempBagSlots",
-        label: "Max Temp Bag Slots",
+        label: "Ô túi tạm tối đa",
         dtoKey: "mxTempBagSlots",
     },
 ]
@@ -29,14 +29,14 @@ export function ResourcesTab({
 
     return (
         <CharacterFieldForm
-            title="Resources"
+            title="Sức chứa"
             action="set_resources"
             char={char}
             playerId={playerId}
             fields={FIELDS}
             columns={5}
-            description="Bag Count covers regular bag pages 1-7. Bank Count covers bank pages 1-5. Empty fields are ignored."
-            note={`Each bag or bank count equals 30 slots. Bag pages 8 and 9 stay as the default quest and pet pages. Current totals: bag ${bagSlots}, bank ${bankSlots}.`}
+            description="Túi thường có 1–7 trang; kho có 1–5 trang. Trường để trống được giữ nguyên."
+            note={`Mỗi trang túi hoặc kho có 30 ô. Trang túi 8 và 9 vẫn là trang nhiệm vụ và thú cưng mặc định. Tổng hiện tại: túi ${bagSlots}, kho ${bankSlots}.`}
         />
     )
 }

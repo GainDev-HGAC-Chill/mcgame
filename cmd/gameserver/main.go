@@ -21,6 +21,7 @@ import (
 	appauth "mcgame-server/internal/application/auth"
 	appawaken "mcgame-server/internal/application/awaken"
 	appbattle "mcgame-server/internal/application/battle"
+	appbloodbag "mcgame-server/internal/application/bloodbag"
 	appbossloot "mcgame-server/internal/application/bossloot"
 	appbuff "mcgame-server/internal/application/buff"
 	appcenter "mcgame-server/internal/application/center"
@@ -254,6 +255,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	authService := appauth.NewService(accountRepo, sessionRepo, log)
 	charService := appchar.NewService(characterRepo, log)
 	charService.SetGameDataManager(gameDataManager)
+	charService.SetCreationDefaults(configStore, characterRepoBase)
 	premiumService := appactivity.NewPremiumService(characterRepo, accountRepo, log)
 	premiumService.SetGameDataManager(gameDataManager)
 	offlineDelegationService := appactivity.NewOfflineDelegationService(characterRepo, petRepo, log)
@@ -277,6 +279,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	itemService.SetTitleService(titleService)
 	statFeatureRepo := postgres.NewStatFeatureRepository(gameDb)
 	statFeatureService := appstatfeature.NewService(statFeatureRepo, log)
+	bloodBagService := appbloodbag.NewService(characterRepo, statFeatureRepo)
 	statFeatureService.SetGameDataManager(gameDataManager)
 	itemService.SetCharacterBonusProvider(statFeatureService)
 	buffRepo := postgres.NewBuffRepository(gameDb)
@@ -309,6 +312,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	questService.SetCharacterRepository(characterRepo)
 	questService.SetItemService(itemService)
 	questService.SetPetService(petService)
+	questService.SetFriendRepository(relationshipRepo)
 	questService.SetLoopRepository(questLoopRepo)
 	itemService.SetQuestService(questService)
 	combatService.SetItemService(itemService)
@@ -391,7 +395,11 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 		}
 	})
 
-	dbLineProvider := rtmp.NewDBLineProvider(configStore, rtmpServer)
+	publicHost := ""
+	if cfg.Gateway.Mode == config.ModeMonolith {
+		publicHost = cfg.Gateway.PublicHost
+	}
+	dbLineProvider := rtmp.NewDBLineProvider(configStore, rtmpServer, publicHost)
 	rtmpServer.SetLineListProvider(dbLineProvider)
 	log.Info("Configured DB-backed line provider",
 		zap.Int("line_count", len(configStore.GatewayLines())))
@@ -589,6 +597,8 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	shopService.SetLogger(log)
 	shopHandler := shophandler.NewHandler(log, shopService)
 	shopHandler.SetAccountRepository(accountRepo)
+	shopHandler.SetGameDataManager(gameDataManager)
+	shopHandler.SetBloodBagService(bloodBagService)
 	shopHandler.SetQuestService(questService)
 	shopHandler.SetQuestNotifyHelper(questNotify)
 	shopHandler.RegisterHandlers(dispatcher)
@@ -812,7 +822,8 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	socialService.SetOnlineChecker(rtmpServer)
 	marriageService.SetOnlineChecker(rtmpServer)
 
-	serverErr := make(chan error, 1)
+	serverErr := make(chan error, 2)
+	registrationServer := startRegistration(cfg, mode, authService, log, serverErr)
 	go func() {
 		if err := rtmpServer.Start(); err != nil {
 			serverErr <- err
@@ -820,6 +831,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	}()
 
 	adminServer := adminhttp.NewServer(cfg.AdminHTTP, cfg.Server.Environment, log, rtmpServer, playerCache, characterRepo, characterRepo, playerCache, sceneHandler, itemRepo, itemRepo, itemService, petRepo, playerCache, statFeatureRepo, relationshipRepo, startedActivityService)
+	adminServer.SetProgressionStatProvider(itemService)
 	adminErr := make(chan error, 1)
 	go func() {
 		if err := adminServer.Start(); err != nil {
@@ -853,6 +865,11 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	}
 
 	adminServer.Stop()
+	if registrationServer != nil {
+		if err := registrationServer.Stop(ctx); err != nil {
+			log.Error("Error stopping registration server", zap.Error(err))
+		}
+	}
 
 	if err := authDb.HealthCheck(ctx); err != nil {
 		log.Warn("Auth database health check failed on shutdown", zap.Error(err))

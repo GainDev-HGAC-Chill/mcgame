@@ -66,7 +66,7 @@ export default function ServerPage() {
         adminBroadcastMessageMaxLength - broadcastMessage.length
     const previewMessage =
         broadcastMessage.trim() ||
-        "Notification content will be displayed here."
+        "Nội dung thông báo sẽ hiển thị tại đây."
 
     const getStatusColor = (status: keyof typeof SERVER_STATUS_CONFIG) =>
         SERVER_STATUS_CONFIG[status].color
@@ -134,7 +134,7 @@ export default function ServerPage() {
     const handleBroadcast = async () => {
         const message = broadcastMessage.trim()
         if (!message) {
-            setBroadcastError("Notification content cannot be empty.")
+            setBroadcastError("Nội dung thông báo không được để trống.")
             return
         }
 
@@ -147,7 +147,7 @@ export default function ServerPage() {
                 senderColor: broadcastSenderColor,
                 messageColor: broadcastMessageColor,
             })
-            sonnerToast.success("Server-wide notification sent", {
+            sonnerToast.success("Đã gửi thông báo toàn máy chủ", {
                 description: message,
             })
             setBroadcastMessage("")
@@ -155,7 +155,7 @@ export default function ServerPage() {
         } catch (error) {
             const message = getErrorMessage(error)
             setBroadcastError(message)
-            sonnerToast.error("Failed to send notification", {
+            sonnerToast.error("Không gửi được thông báo", {
                 description: message,
             })
         } finally {
@@ -180,28 +180,27 @@ export default function ServerPage() {
                     <DialogTrigger asChild>
                         <Button variant="outline">
                             <Megaphone className="mr-2 h-4 w-4" />
-                            Server-wide broadcast
+                            Thông báo toàn máy chủ
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>
-                                Send server-wide broadcast
+                                Gửi thông báo toàn máy chủ
                             </DialogTitle>
                             <DialogDescription>
-                                This message will be sent via admin chat
-                                endpoint to all online players.
+                                Thông báo được gửi qua kênh trò chuyện quản trị đến tất cả người chơi trực tuyến.
                             </DialogDescription>
                         </DialogHeader>
 
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label htmlFor="admin-broadcast-message">
-                                    Notification content
+                                    Nội dung thông báo
                                 </Label>
                                 <Textarea
                                     id="admin-broadcast-message"
-                                    placeholder="Enter notification content..."
+                                    placeholder="Nhập nội dung thông báo..."
                                     value={broadcastMessage}
                                     onChange={event => {
                                         setBroadcastMessage(event.target.value)
@@ -214,11 +213,10 @@ export default function ServerPage() {
                                 />
                                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                                     <span>
-                                        Server will fanout as admin world chat.
+                                        Máy chủ gửi dưới dạng trò chuyện thế giới của quản trị viên.
                                     </span>
                                     <span>
-                                        {remainingBroadcastChars} characters
-                                        remaining
+                                        {remainingBroadcastChars} ký tự còn lại
                                     </span>
                                 </div>
                             </div>
@@ -226,7 +224,7 @@ export default function ServerPage() {
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label htmlFor="admin-sender-color">
-                                        [Admin] text color
+                                        Màu chữ [Admin]
                                     </Label>
                                     <div className="flex items-center gap-3">
                                         <Input
@@ -248,7 +246,7 @@ export default function ServerPage() {
 
                                 <div className="space-y-2">
                                     <Label htmlFor="admin-message-color">
-                                        Message text color
+                                        Màu nội dung
                                     </Label>
                                     <div className="flex items-center gap-3">
                                         <Input
@@ -272,7 +270,7 @@ export default function ServerPage() {
                             <div className="rounded-lg border bg-muted/40 px-4 py-3">
                                 <div className="flex items-center justify-between gap-3">
                                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        Preview
+                                        Xem trước
                                     </p>
                                     <Button
                                         type="button"
@@ -280,7 +278,7 @@ export default function ServerPage() {
                                         className="h-8 px-2 text-xs"
                                         onClick={resetBroadcastColors}
                                     >
-                                        Use default colors
+                                        Dùng màu mặc định
                                     </Button>
                                 </div>
                                 <p className="mt-3 break-words text-sm leading-6">
@@ -314,7 +312,7 @@ export default function ServerPage() {
                             >
                                 {isBroadcasting
                                     ? "Sending..."
-                                    : "Send notification"}
+                                    : "Gửi thông báo"}
                             </Button>
                         </div>
                     </DialogContent>
@@ -325,7 +323,7 @@ export default function ServerPage() {
                 <Card>
                     <CardContent className="py-8">
                         <p className="text-sm text-muted-foreground text-center">
-                            No servers configured.
+                            Chưa cấu hình máy chủ.
                         </p>
                     </CardContent>
                 </Card>
@@ -358,7 +356,7 @@ export default function ServerPage() {
                                 <div>
                                     <div className="mb-2 flex items-center justify-between">
                                         <span className="text-sm text-muted-foreground">
-                                            Players
+                                            Người chơi
                                         </span>
                                         <span className="text-sm font-medium">
                                             {server.players} /{" "}
@@ -378,7 +376,7 @@ export default function ServerPage() {
                                     <div className="mb-2 flex items-center justify-between">
                                         <span className="flex items-center gap-1 text-sm text-muted-foreground">
                                             <Cpu className="h-3 w-3" />
-                                            CPU Usage
+                                            Mức sử dụng CPU
                                         </span>
                                         <span className="text-sm font-medium">
                                             {server.cpu}%
@@ -398,7 +396,7 @@ export default function ServerPage() {
                                     <div className="mb-2 flex items-center justify-between">
                                         <span className="flex items-center gap-1 text-sm text-muted-foreground">
                                             <HardDrive className="h-3 w-3" />
-                                            Memory Usage
+                                            Mức sử dụng bộ nhớ
                                         </span>
                                         <span className="text-sm font-medium">
                                             {server.memory}%
@@ -418,7 +416,7 @@ export default function ServerPage() {
                                     <div>
                                         <p className="flex items-center gap-1 text-xs text-muted-foreground">
                                             <Clock className="h-3 w-3" />
-                                            Uptime
+                                            Thời gian hoạt động
                                         </p>
                                         <p className="text-sm font-medium">
                                             {server.uptime}
@@ -426,7 +424,7 @@ export default function ServerPage() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-muted-foreground">
-                                            Last Restart
+                                            Khởi động lại gần nhất
                                         </p>
                                         <p className="text-sm font-medium">
                                             {server.lastRestart}
@@ -437,7 +435,7 @@ export default function ServerPage() {
                                 <div className="flex flex-col gap-2 border-t pt-4">
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm">
-                                            Maintenance Mode
+                                            Chế độ bảo trì
                                         </span>
                                         <Switch
                                             checked={
@@ -464,13 +462,13 @@ export default function ServerPage() {
                                                 }
                                             >
                                                 <RefreshCw className="mr-2 h-4 w-4" />
-                                                Restart Server
+                                                Khởi động lại máy chủ
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>
-                                                    Confirm server restart?
+                                                    Xác nhận khởi động lại máy chủ?
                                                 </AlertDialogTitle>
                                                 <AlertDialogDescription>
                                                     This action will disconnect
@@ -482,14 +480,14 @@ export default function ServerPage() {
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>
-                                                    Cancel
+                                                    Hủy
                                                 </AlertDialogCancel>
                                                 <AlertDialogAction
                                                     onClick={() =>
                                                         handleRestart(server.id)
                                                     }
                                                 >
-                                                    Confirm restart
+                                                    Xác nhận khởi động lại
                                                 </AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>

@@ -1,5 +1,7 @@
 # Daily Sign-In
 
+Wallet-total callback correction deployed17:34:09 (2026-10-12): separate Gold/GoldBind, no combined value mislabeled as gold. Cumulative expenditure correctly increases when paying; no inversion or historical repair. Tests/vet/build PASS; Flash validation NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
+
 Two coexisting Flash panels share one server-side ledger:
 
 - **DailySignInPanel** (`PANEL_DAILYSIGNINACT = 967`, `GamePredef.DAILYSIGNINACT = 65`) — modern monthly calendar, six RPCs.
@@ -15,8 +17,8 @@ Both panels read from the same `player.character_daily_signins` row, so streaks/
 | `initDailySignInActConsumeLimit` | server push `oninitDailySignInActConsumeLimit` | reply nil; pushes cumulative spend |
 | `dailySignInActDoSignin` | inline Responder + push `setBtnsDailySignInAct` | dual-channel matches AS3 expectation |
 | `dailySignInActGetAward` | inline Responder (`Number`, 1=success) | reward delivered via standard `onAddCharactorSlot` |
-| `dailySignInActRetroactive` | server push `setBtnsDailySignInAct` + `onDailySignInActDoSignin` | no inline reply; `onUPP` for Gold debit |
-| `dailySignInUpActCrit` | server push `updateDailySignInActCrit` (Number) | `onUPP` for Gold debit |
+| `dailySignInActRetroactive` | server push `setBtnsDailySignInAct` + `onDailySignInActDoSignin` | no inline reply; `onUPP{gold,goldBind}` for Gold debit |
+| `dailySignInUpActCrit` | server push `updateDailySignInActCrit` (Number) | `onUPP{gold,goldBind}` for Gold debit |
 | `getSignInData` | inline Responder | legacy 3-field shape |
 | `signinNow` | inline Responder | redirects to modern DoSignin then projects legacy state |
 
@@ -48,7 +50,7 @@ Server-local `time.Now()` throughout — matches every other lazy-reset feature 
 
 ## Money flow
 
-`Retroactive` and `UpCrit` charge Gold (Vcoin equivalent). `debitGold` spends `GoldBind` first, then `Gold` — same precedence as `internal/application/activity/offline_delegation.go`. After a successful debit the handler pushes `onUPP{gold, goldDiff}` so the client header updates.
+`Retroactive` and `UpCrit` charge the primary Gold wallet (Vcoin equivalent), not `Money` or `GenericPoint` (`point`). `spendGold` spends `GoldBind` first, then `Gold`. After a successful debit the handler pushes `onUPP{gold, goldBind}` with **separate absolute post-balances** so the client header updates. `Outcome.GoldSpent` is positive for a debit and negative for a lucky credit; `GoldLeft` is unbound Gold only, and `GoldBindLeft` is bound Gold only. Never send their sum as `gold`.
 
 Default prices come from `Config.DefaultConfig()`:
 - `RetroactivePrice = 50`
@@ -113,9 +115,17 @@ All eight RPCs start as `false` in `internal/infrastructure/rtmp/dispatcher.go` 
 
 - `DailySignInPanel.as:3750` makes `closeOnKey == 0` **hide the +5% crit button entirely**. The first build shipped `closeOnKey: 0` because the AS3 reads like a "is this disabled?" flag — it isn't. It's a "is this feature enabled?" flag, opposite polarity. Default is now `1`.
 - `conf.luckyPoint` and `conf.luckyGold` are **1-based arrays of length 6** with index 0 unused. Sending zero-fillers `[0,0,0,0,0,0]` made the panel render every weekly tier as "0 points → 0 gold". The fix builds these arrays from `data.daily_signin_lucky_tiers` rows.
-- The lucky-day reward is **gold (the recharge-refund amount)**, not an item from the surprise pool. The previous build called `grantFromBundle(IncSurpriseDay, true)` in `GetAward` — wrong reward kind delivered through the wrong code path. Fix: credit `tier.GoldAmount` to `char.Gold` and push `onUPP{gold, goldDiff:+amount}`. `Outcome.GoldSpent < 0` flags a credit; `pushGoldCredit` mirrors `pushGoldDebit`.
+- The lucky-day reward is **gold (the recharge-refund amount)**, not an item from the surprise pool. The previous build called `grantFromBundle(IncSurpriseDay, true)` in `GetAward` — wrong reward kind delivered through the wrong code path. Fix: credit `tier.GoldAmount` to `char.Gold`. `Outcome.GoldSpent < 0` flags a credit; `pushGoldCredit` mirrors `pushGoldDebit`. Since the 2026-10-12 wallet fix both callbacks send separate absolute `gold` and `goldBind` totals, not `goldDiff`.
 - The Vietnamese rule sheet says "Mỗi ngày điểm danh **hoặc bổ sung điểm danh**" auto-bumps crit by 5% — both signin AND retroactive. The previous build bumped neither (only paid `UpCrit` did). Fix: `Apply` calls in `DoSignin` and `Retroactive` now carry `CritDelta: cfg.CritStep`. The roll then uses the *post-bump* value, so a player at 95% who signs in is guaranteed to crit at 100%.
 - On a successful crit, the meter must reset to 0. The repository's original `Apply` had no way to set `crit_percent = 0` absolutely. Added `ApplyInput.ResetCrit bool` and a corresponding `p_reset_crit boolean` arg on `player.upsert_character_daily_signin`. Reset is a separate Apply call that runs only on roll-success, so the bump-then-roll-then-reset is two transactions (acceptable race window per the plan's risk register).
 - `getAwardTime.day` should NOT be set unless the player is actually eligible. The previous build returned the next luckyDay every time, leading to the panel enabling the claim button whenever `dateNow.date == that day` even if the streak/spend gates would reject server-side. Fix: `computeAwardDay` now checks streak + threshold and returns `0` when the player isn't eligible. The button only enables when the server says so.
 - Surprise-day reward (`inc=2`) requires the full streak-through-today, not just "it is the surpriseDay". The Vietnamese rule sheet specifies "nếu bạn đã điểm danh đủ tất cả các ngày trước đó". Added the `IsStreakComplete` guard inside `DoSignin`.
 - Level gate at 50 must apply to every action (DoSignin, Retroactive, UpCrit, GetAward) but NOT to `GetState` — the panel must still render for level <50 players (showing the rules and the empty calendar) so they know what they're working toward. The yellow message "Cần đạt cấp 50 trở lên để tham gia." fires only when an action is attempted.
+
+## 2026-10-12 wallet callback regression
+
+- Independently inspected the recovered `.local/research/mcgame-callback-as-research/scripts/com/qeedoo/game/system/CallBack.as:5559–5589`: `onUPP` assigns known player properties **absolutely** and computes any displayed delta from the old property. It has no `goldDiff` handling. `docs/client/object/Player.as` defines separate bindable `gold` and `goldBind`; the checked-in `docs/client/system/CallBack.as` is only an aborted-decompilation stub.
+- Actual service debit was already subtraction, bound first. The defect was `GoldLeft = Gold + GoldBind`, then sending that sum as `gold` without updating `goldBind`. Example: 20 Gold + 300 bound, spending 100 bound, previously published `gold:220` while the client retained `goldBind:300`; now publishes `gold:20,goldBind:200`. Lucky credits had the same balance-conflation defect and are fixed too. No historical wallet correction or replay.
+- `DailySignInPanel.as:3099–3105` directly displays the number from `oninitDailySignInActConsumeLimit` as **cumulative Gold/point expenditure** (“tiêu phí tích lũy”), not a spendable currency. Its increase by the successful purchase price is intentional. `Language.as:9256` describes the 499 cumulative-spend gate. `supabase/seeds/data_daily_signin_lucky_tiers.sql` independently supplies threshold/reward pairs (499/500, etc.); the persisted function in `supabase/snippets/daily_signin_upsert_crit_reset.sql:60` adds positive consume deltas. Seeds do not define a different debit currency or purchase price; current service defaults remain 50/100. No live DB/original-server action was used to infer a different wallet policy.
+- Regression tests: `internal/application/dailysignin/wallet_test.go` covers both paid actions with bound-only, mixed, and unbound-only debits, separate returned/persisted totals, non-Gold wallet preservation, insufficient-funds non-mutation, and lucky credits with a nonzero bound balance. `internal/presentation/rtmp/handlers/dailysignin/wallet_callbacks_test.go` captures actual RTMP callbacks and applies Flash's absolute-property semantics to verify net wallet delta `-GoldSpent`, cumulative spend callback, and no wallet callback for zero spend.
+- Validation: focused `go test` and `go vet` pass. `go test -race` is blocked in this Windows environment (`-race requires cgo`). No AS edits, DB writes, live sign-ins/purchases, deployment, or commit.

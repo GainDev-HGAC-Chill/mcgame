@@ -15,6 +15,7 @@ import (
 	combatdomain "mcgame-server/internal/domain/combat"
 	domainquest "mcgame-server/internal/domain/quest"
 	"mcgame-server/internal/infrastructure/rtmp"
+	questhandler "mcgame-server/internal/presentation/rtmp/handlers/quest"
 	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -272,6 +273,10 @@ func emptyBattleInfoResponse() map[string]interface{} {
 }
 
 func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	characterID, parseErr := strconv.ParseInt(ctx.CharacterID, 10, 64)
+	if parseErr != nil || characterID <= 0 {
+		return nil, pkgerrors.ErrUnauthorized
+	}
 	var battleID string
 	if len(args) >= 1 && args[0] != nil {
 		switch v := args[0].(type) {
@@ -293,8 +298,11 @@ func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface
 		}, nil
 	}
 
-	battle, err := h.combatService.GetBattleForCleanup(battleID)
+	battle, err := h.combatService.GetCharacterBattleForCleanup(battleID, characterID)
 	if err != nil {
+		if errors.Is(err, pkgerrors.ErrUnauthorized) {
+			return rtmp.ErrorToResponse(err), nil
+		}
 		if h.battleService != nil {
 			h.battleService.ClearBattleDeadlines(battleID)
 		}
@@ -326,12 +334,24 @@ func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface
 		h.combatService.EndBattle(ctx.Context, battle, winner)
 	}
 
-	characterID, parseErr := strconv.ParseInt(ctx.CharacterID, 10, 64)
 	if parseErr == nil {
-		updatedQuests, questKill := h.collectQuestKillUpdates(ctx.Context, characterID, battle)
+		updatedQuests, questKill, creditErr := h.collectQuestKillUpdates(ctx.Context, characterID, battle)
+		if creditErr != nil {
+			return nil, creditErr
+		}
+		activeCount := 0
+		if len(updatedQuests) > 0 {
+			activeQuests, activeErr := h.questService.GetActiveQuests(ctx.Context, characterID)
+			if activeErr != nil {
+				h.logger.Warn("Failed to load active quest count after battle", zap.Error(activeErr))
+			} else {
+				activeCount = len(activeQuests)
+			}
+		}
 		for _, questProgress := range updatedQuests {
 			dto := h.questService.EnrichQuestDTO(ctx.Context, questProgress)
-			if err := ctx.Connection.SendCallback("onAddChaQuest", dto); err != nil {
+			payload := questhandler.BuildAddQuestPayload(questProgress, dto, activeCount)
+			if err := ctx.Connection.SendCallback("onAddChaQuest", payload); err != nil {
 				h.logger.Warn("Failed to send onAddChaQuest callback",
 					zap.Int64("char_id", characterID),
 					zap.Int("quest_id", questProgress.QuestID),
@@ -508,49 +528,48 @@ func incrementQuestKillCount(current interface{}) int {
 	}
 }
 
-func (h *Handler) collectQuestKillUpdates(ctx context.Context, characterID int64, battle *combatdomain.Battle) ([]*domainquest.QuestProgress, map[string]interface{}) {
-	if h.questService == nil || battle == nil {
-		return nil, nil
+func (h *Handler) collectQuestKillUpdates(ctx context.Context, characterID int64, battle *combatdomain.Battle) ([]*domainquest.QuestProgress, map[string]interface{}, error) {
+	if h.questService == nil || h.combatService == nil || battle == nil {
+		return nil, nil, nil
 	}
-
-	winner := combatdomain.SideEnemy
-	switch {
-	case battle.Result != nil:
-		winner = battle.Result.WinnerSide
-	case battle.IsActive():
-		ended, resolvedWinner := battle.CheckVictory()
-		if !ended {
-			return nil, nil
-		}
-		winner = resolvedWinner
-	default:
-		return nil, nil
+	claimedBattle, claimed, err := h.combatService.ClaimQuestKillCredit(battle.ID, characterID)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	if winner != combatdomain.SidePlayer {
-		return nil, nil
+	if !claimed {
+		return nil, nil, nil
 	}
+	defer h.combatService.ReleaseQuestKillCredit(battle.ID, characterID)
+	updated, kills, err := h.applyQuestKillProgress(ctx, characterID, claimedBattle)
+	if err != nil {
+		return nil, nil, err
+	}
+	h.combatService.CompleteQuestKillCredit(battle.ID, characterID)
+	return updated, kills, nil
+}
 
+func (h *Handler) applyQuestKillProgress(ctx context.Context, characterID int64, battle *combatdomain.Battle) ([]*domainquest.QuestProgress, map[string]interface{}, error) {
 	enemies := battle.GetParticipantsBySide(combatdomain.SideEnemy)
 	questKill := map[string]interface{}{}
 	updatedQuests := make([]*domainquest.QuestProgress, 0)
 	for _, enemy := range enemies {
-		if enemy.EntityType != combatdomain.ParticipantTypeCreature {
+		if enemy == nil || enemy.EntityType != combatdomain.ParticipantTypeCreature || enemy.IsAlive || enemy.CurrentHP > 0 {
 			continue
 		}
 
 		entityID := strconv.FormatInt(enemy.EntityID, 10)
 		questKill[entityID] = incrementQuestKillCount(questKill[entityID])
 
-		quests, err := h.questService.OnMonsterKilled(ctx, characterID, int(enemy.EntityID))
+		eventID := battle.ID + ":" + enemy.ID
+		quests, err := h.questService.OnMonsterKilledWithCredit(ctx, characterID, int(enemy.EntityID), eventID)
 		if err != nil {
 			h.logger.Warn("Failed to update quest progress", zap.Error(err))
-			continue
+			return nil, nil, fmt.Errorf("battle %s quest kill %s: %w", battle.ID, enemy.ID, err)
 		}
 		updatedQuests = append(updatedQuests, quests...)
 	}
 
-	return updatedQuests, questKill
+	return updatedQuests, questKill, nil
 }
 
 func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {

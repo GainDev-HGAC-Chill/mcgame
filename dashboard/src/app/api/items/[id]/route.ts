@@ -21,7 +21,7 @@ export async function GET(
 
     if (!Number.isFinite(itemId) || itemId <= 0) {
         return NextResponse.json(
-            { error: "Invalid item ID" },
+            { error: "Mã vật phẩm không hợp lệ" },
             { status: HTTP_STATUS.BAD_REQUEST }
         )
     }

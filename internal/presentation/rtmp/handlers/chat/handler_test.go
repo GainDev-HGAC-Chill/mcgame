@@ -437,8 +437,8 @@ func TestSay_StatExp_AppliesExperienceAndPersists(t *testing.T) {
 		t.Fatalf("expected level=2, got %#v", lvlMap["level"])
 	}
 
-	if _, ok := findCallback(*calls, "lvUp"); !ok {
-		t.Fatalf("expected lvUp callback")
+	if _, ok := findCallback(*calls, "lvUp"); ok {
+		t.Fatalf("lvUp is a client request, not a server callback")
 	}
 	if _, ok := findCallback(*calls, "onSystemMidMsgOrNote"); !ok {
 		t.Fatalf("expected onSystemMidMsgOrNote callback")
@@ -546,8 +546,8 @@ func TestSay_StatLevel_RaisesTargetLevelAndPersists(t *testing.T) {
 		t.Fatalf("expected onPlayerLevelUp lp=20, got %#v", lvlMap["lp"])
 	}
 
-	if _, ok := findCallback(*calls, "lvUp"); !ok {
-		t.Fatalf("expected lvUp callback")
+	if _, ok := findCallback(*calls, "lvUp"); ok {
+		t.Fatalf("lvUp is a client request, not a server callback")
 	}
 	if _, ok := findCallback(*calls, "onSystemMidMsgOrNote"); !ok {
 		t.Fatalf("expected onSystemMidMsgOrNote callback")

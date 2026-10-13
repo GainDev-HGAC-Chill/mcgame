@@ -47,7 +47,7 @@ func (h *Handler) TakeCBQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 
 	h.logger.Info("Resolved CallBoard quest", zap.Int("s_index", sIndex), zap.Int("resolved_id", questID))
 
-	qp, err := h.questService.AcceptQuest(ctx.Context, characterID, questID, h.getDefaultObjectives(questID))
+	qp, err := h.questService.AcceptQuest(ctx.Context, characterID, questID, h.questService.GetInitialObjectives(questID))
 	if err != nil {
 		h.logger.Error("Failed to accept CB quest", zap.Error(err))
 		return map[string]interface{}{"f": false}, nil

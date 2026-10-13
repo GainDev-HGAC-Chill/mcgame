@@ -32,7 +32,7 @@ export function ThemeToggle() {
         >
             <Sun className="h-4 w-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all dark:opacity-0 dark:rotate-90" />
             <Moon className="h-4 w-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all opacity-0 -rotate-90 dark:opacity-100 dark:rotate-0" />
-            <span className="sr-only">Toggle theme</span>
+            <span className="sr-only">Đổi giao diện sáng/tối</span>
         </button>
     )
 }

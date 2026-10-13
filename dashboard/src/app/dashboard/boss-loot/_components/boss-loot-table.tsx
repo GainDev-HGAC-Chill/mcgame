@@ -60,10 +60,10 @@ export function BossLootTable({
                 <span>NID</span>
                 <span>Tên</span>
                 <span>Loại</span>
-                <span>Tier</span>
+                <span>Cấp chất lượng</span>
                 <span>Cấp độ</span>
-                <span>Map / Daily</span>
-                <span>Drops</span>
+                <span>Bản đồ / Hằng ngày</span>
+                <span>Phần thưởng rơi</span>
             </div>
             <div className="flex-1 overflow-auto">
                 {loading && rows.length === 0 ? (

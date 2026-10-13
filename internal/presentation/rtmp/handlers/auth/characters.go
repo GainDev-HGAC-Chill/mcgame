@@ -15,10 +15,6 @@ import (
 )
 
 func (h *Handler) GetLineInfo(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if h.charService != nil {
-		h.sendCharacterListCallback(ctx)
-	}
-
 	if h.lineListProvider == nil {
 		h.logger.Error("Line list provider not configured", zap.Uint32("conn_id", ctx.ConnID))
 		return []map[string]interface{}{}, nil
@@ -197,6 +193,11 @@ func (h *Handler) sendCharacterListCallback(ctx *rtmp.RPCContext) {
 }
 
 func (h *Handler) sendOnIclCallback(ctx *rtmp.RPCContext, charList []map[string]interface{}) {
+	if ctx.Connection.IsGlobalConnection() {
+		h.logger.Warn("Refusing scene character-list callback on global connection",
+			zap.Uint32("conn_id", ctx.ConnID))
+		return
+	}
 	if err := ctx.Connection.SendCallback("onIcl", charList); err != nil {
 		h.logger.Error("sendOnIclCallback: failed to send",
 			zap.Uint32("conn_id", ctx.ConnID),
@@ -306,4 +307,3 @@ func (h *Handler) buildShowCharacterInfoPayload(ctx *rtmp.RPCContext, char *char
 		"totalAchPoint":   0,
 	}
 }
-

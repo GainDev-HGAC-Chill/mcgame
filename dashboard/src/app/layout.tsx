@@ -9,8 +9,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-    title: "GM Dashboard - Game Server Admin",
-    description: "Admin dashboard for game server management",
+    title: "Bảng quản trị GM - Quản lý máy chủ trò chơi",
+    description: "Bảng quản trị máy chủ trò chơi",
 }
 
 export default function RootLayout({
@@ -19,7 +19,7 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en" suppressHydrationWarning>
+        <html lang="vi" suppressHydrationWarning>
             <body className={inter.className}>
                 <QueryProvider>
                     <ThemeProvider

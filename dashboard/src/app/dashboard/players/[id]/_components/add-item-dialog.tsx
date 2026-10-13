@@ -74,12 +74,12 @@ export function AddItemDialog({
 
     const handleSubmit = async () => {
         if (!selected) {
-            setStatus("Pick an item first")
+            setStatus("Vui lòng chọn vật phẩm trước")
             return
         }
         const n = Number(count)
         if (!Number.isFinite(n) || n <= 0) {
-            setStatus("Count must be > 0")
+            setStatus("Số lượng phải lớn hơn 0")
             return
         }
         if (n > selected.maxStack * 30) {
@@ -111,7 +111,7 @@ export function AddItemDialog({
                 },
             })
             if (!res.ok) {
-                setStatus(res.statusMessage || "Failed to send item")
+                setStatus(res.statusMessage || "Không gửi được vật phẩm")
                 return
             }
             setStatus(res.statusMessage || "Item added")
@@ -131,7 +131,7 @@ export function AddItemDialog({
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <Package className="h-5 w-5" /> Add Item
+                        <Package className="h-5 w-5" /> Thêm vật phẩm
                     </DialogTitle>
                 </DialogHeader>
 
@@ -140,7 +140,7 @@ export function AddItemDialog({
                         <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             className="pl-8"
-                            placeholder="Search by name or ID..."
+                            placeholder="Tìm theo tên hoặc ID..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             autoFocus
@@ -150,11 +150,11 @@ export function AddItemDialog({
                     <div className="h-64 overflow-y-auto rounded-md border border-border/60 bg-muted/20 p-2">
                         {isLoading ? (
                             <p className="py-6 text-center text-sm text-muted-foreground">
-                                Searching…
+                                Đang tìm…
                             </p>
                         ) : items.length === 0 ? (
                             <p className="py-6 text-center text-sm text-muted-foreground">
-                                No results.
+                                Không có kết quả.
                             </p>
                         ) : (
                             <ul className="grid grid-cols-1 gap-1">
@@ -210,7 +210,7 @@ export function AddItemDialog({
                                                 >
                                                     {item.templateTableId === 19
                                                         ? "Equip"
-                                                        : "Item"}
+                                                        : "Vật phẩm"}
                                                 </Badge>
                                             </button>
                                         </li>
@@ -224,10 +224,10 @@ export function AddItemDialog({
                         <div className="rounded-md border border-border/60 bg-muted/10 p-3 text-sm">
                             <p className="font-medium">{selected.name}</p>
                             <p className="text-xs text-muted-foreground">
-                                Max stack: {selected.maxStack} ·{" "}
+                                Cộng dồn tối đa: {selected.maxStack} ·{" "}
                                 {selected.templateTableId === 19
                                     ? "Equipment"
-                                    : "Item"}{" "}
+                                    : "Vật phẩm"}{" "}
                                 · Template #{selected.itemId}
                             </p>
                         </div>
@@ -235,7 +235,7 @@ export function AddItemDialog({
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                            <Label className="text-xs">Count</Label>
+                            <Label className="text-xs">Số lượng</Label>
                             <Input
                                 type="number"
                                 min={1}
@@ -250,32 +250,32 @@ export function AddItemDialog({
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">
-                                Color Code (optional)
+                                Mã màu (tùy chọn)
                             </Label>
                             <Input
                                 type="number"
                                 min={0}
                                 max={5}
-                                placeholder="template default"
+                                placeholder="Mặc định theo mẫu"
                                 value={colorOverride}
                                 onChange={e => setColorOverride(e.target.value)}
                             />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">
-                                PreName Type (0-5)
+                                Loại tiền tố (0–5)
                             </Label>
                             <Input
                                 type="number"
                                 min={0}
                                 max={5}
-                                placeholder="template default"
+                                placeholder="Mặc định theo mẫu"
                                 value={preNameType}
                                 onChange={e => setPreNameType(e.target.value)}
                             />
                         </div>
                         <div className="flex items-end justify-between rounded-md border border-border/40 px-3 py-2">
-                            <Label className="text-xs">Bound</Label>
+                            <Label className="text-xs">Khóa</Label>
                             <Switch
                                 checked={binded}
                                 onCheckedChange={setBinded}
@@ -293,14 +293,14 @@ export function AddItemDialog({
                         onClick={() => onOpenChange(false)}
                         disabled={sending}
                     >
-                        Cancel
+                        Hủy
                     </Button>
                     <Button
                         size="sm"
                         onClick={() => void handleSubmit()}
                         disabled={sending || !selected}
                     >
-                        {sending ? "Sending…" : "Add to Bag"}
+                        {sending ? "Đang gửi…" : "Thêm vào túi"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

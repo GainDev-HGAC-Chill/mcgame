@@ -1,0 +1,16 @@
+export const GAME_CONFIG_LABELS: Record<string, { name: string; description: string }> = {
+    maintenance_mode: { name: "Chế độ bảo trì", description: "Khi bật sẽ chặn mọi lượt đăng nhập." },
+    login_enabled: { name: "Cho phép đăng nhập", description: "Cổng đăng nhập chung của máy chủ." },
+    announcement_banner: { name: "Thông báo đăng nhập", description: "Nội dung hiển thị khi đăng nhập; để trống để tắt." },
+    global_max_players: { name: "Giới hạn người chơi", description: "Đặt 0 để không giới hạn tổng số người chơi." },
+    exp_multiplier: { name: "Hệ số kinh nghiệm", description: "Hệ số nhân lượng kinh nghiệm nhận được." },
+    drop_multiplier: { name: "Hệ số vật phẩm rơi", description: "Hệ số nhân tỷ lệ rơi vật phẩm." },
+    gold_multiplier: { name: "Hệ số vàng rơi", description: "Hệ số nhân lượng vàng rơi." },
+    schedule_boss_enabled: { name: "Thủ lĩnh theo lịch", description: "Bật xuất hiện thủ lĩnh thế giới theo lịch." },
+    schedule_boss_tick_seconds: { name: "Chu kỳ kiểm tra thủ lĩnh", description: "Khoảng cách giữa các lượt kiểm tra, tính bằng giây." },
+    feature_pk_enabled: { name: "Chiến đấu PK", description: "Cho phép chiến đấu PK tự do." },
+    feature_marriage_enabled: { name: "Hệ thống kết hôn", description: "Bật hệ thống kết hôn." },
+    audit_retention_days: { name: "Thời gian lưu nhật ký GM", description: "Số ngày giữ các bản ghi thao tác quản trị." },
+    login_lockout_attempts: { name: "Ngưỡng đăng nhập sai", description: "Số lần đăng nhập thất bại trước khi khóa tạm thời." },
+    login_lockout_minutes: { name: "Thời gian khóa đăng nhập", description: "Thời gian khóa tạm thời, tính bằng phút." },
+}

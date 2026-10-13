@@ -52,7 +52,7 @@ export function AdminLoginForm() {
             setError(
                 err instanceof Error
                     ? err.message
-                    : "Unable to connect to the auth server"
+                    : "Không kết nối được máy chủ xác thực"
             )
         } finally {
             setIsSubmitting(false)
@@ -66,10 +66,9 @@ export function AdminLoginForm() {
                     <Shield className="h-6 w-6" />
                 </div>
                 <div className="space-y-1">
-                    <CardTitle className="text-2xl">Admin Login</CardTitle>
+                    <CardTitle className="text-2xl">Đăng nhập quản trị</CardTitle>
                     <CardDescription>
-                        Sign in with your Supabase account to access the
-                        dashboard.
+                        Đăng nhập bằng tài khoản Supabase để truy cập bảng quản trị.
                     </CardDescription>
                 </div>
             </CardHeader>
@@ -93,7 +92,7 @@ export function AdminLoginForm() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="admin-password">Password</Label>
+                        <Label htmlFor="admin-password">Mật khẩu</Label>
                         <div className="relative">
                             <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
@@ -103,7 +102,7 @@ export function AdminLoginForm() {
                                 onChange={event =>
                                     setPassword(event.target.value)
                                 }
-                                placeholder="Enter password"
+                                placeholder="Nhập mật khẩu"
                                 className="pl-10"
                                 autoComplete="current-password"
                                 required
@@ -124,7 +123,7 @@ export function AdminLoginForm() {
                     >
                         {isSubmitting
                             ? "Authenticating..."
-                            : "Sign in to dashboard"}
+                            : "Đăng nhập bảng quản trị"}
                     </Button>
                 </form>
             </CardContent>

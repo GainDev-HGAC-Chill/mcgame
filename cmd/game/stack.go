@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -64,6 +65,28 @@ func (s *stack) run(command string) error {
 		return s.down()
 	case "reset":
 		return s.reset()
+	case "start":
+		return s.start()
+	case "stop":
+		return s.compose("--profile", "*", "stop", "--timeout", "60")
+	case "restart":
+		return s.compose("restart", "--timeout", "60")
+	case "status":
+		s.printURLs()
+		if err := dockerReady(); err != nil {
+			return err
+		}
+		return s.compose("ps", "--all")
+	case "logs":
+		return s.compose("logs", "--tail", "100", "mcgame-server", "rtmp-edge", "db", "redis", "dashboard")
+	case "check":
+		return s.check()
+	case "local", "lan", "radmin":
+		return s.configureClient(command)
+	case "client":
+		return s.openClient()
+	case "client30":
+		return s.openClient30()
 	}
 	return fmt.Errorf(usage)
 }
@@ -153,12 +176,13 @@ func (s *stack) up() error {
 	if err := s.compose("up", "-d", "--build", "--remove-orphans"); err != nil {
 		return err
 	}
-	prune := exec.Command("docker", "image", "prune", "-f", "--filter", "label=com.docker.compose.project=mcgame")
-	if err := attach(prune).Run(); err != nil {
+	imagePrune := exec.Command("docker", "image", "prune", "-f", "--filter", "label=com.docker.compose.project=mcgame")
+	if err := attach(imagePrune).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "warning: docker image prune failed:", err)
 	}
-	if err := exec.Command("docker", "builder", "prune", "-f").Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "warning: docker builder prune failed:", err)
+	buildPrune := exec.Command("docker", "builder", "prune", "-af", "--max-used-space", "10GB")
+	if err := attach(buildPrune).Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "warning: docker build cache prune failed:", err)
 	}
 	return nil
 }
@@ -205,23 +229,31 @@ func (s *stack) migrate() error {
 		return err
 	}
 
-	history, _ := s.psql(db, "select to_regclass('supabase_migrations.schema_migrations') is not null")
+	history, err := s.psql(db, "select (to_regclass('supabase_migrations.schema_migrations') is not null)::text")
+	if err != nil {
+		return fmt.Errorf("inspect migration history: %w", err)
+	}
 	applied := "0"
 	if history == "true" {
 		if applied, err = s.psql(db, "select count(*) from supabase_migrations.schema_migrations"); err != nil {
 			return err
 		}
-		if applied == "0" {
-			tables, _ := s.psql(db, "select to_regclass('data.data_tbl_achievement') is not null")
-			if tables == "true" {
-				return fmt.Errorf("the migration history is empty but the game tables exist: a half-applied database; run 'game reset'")
-			}
+	}
+	tables := "false"
+	if applied == "0" {
+		tables, err = s.psql(db, "select (to_regclass('data.data_tbl_achievement') is not null)::text")
+		if err != nil {
+			return fmt.Errorf("inspect existing game tables: %w", err)
 		}
+	}
+	seed, err := seedFreshDatabase(history, applied, tables)
+	if err != nil {
+		return err
 	}
 
 	fmt.Println("===> Applying migrations...")
 	args := []string{"db", "push", "--workdir", s.root, "--db-url", dbURL}
-	if history != "true" || applied == "0" {
+	if seed {
 		args = append(args, "--include-seed")
 	}
 	args = append(args, "--yes")
@@ -231,4 +263,24 @@ func (s *stack) migrate() error {
 		return fmt.Errorf("supabase db push failed (is the Supabase CLI installed and on PATH?): %w", err)
 	}
 	return nil
+}
+
+func seedFreshDatabase(history, applied, tables string) (bool, error) {
+	if history != "true" && history != "false" {
+		return false, fmt.Errorf("unexpected migration history result %q", history)
+	}
+	count, err := strconv.Atoi(applied)
+	if err != nil || count < 0 {
+		return false, fmt.Errorf("invalid applied migration count %q", applied)
+	}
+	if count > 0 {
+		return false, nil
+	}
+	if tables == "true" {
+		return false, fmt.Errorf("migration history is empty but game tables exist: refusing to seed or overwrite existing data; back up and reconcile migration history before retrying")
+	}
+	if tables != "false" {
+		return false, fmt.Errorf("unexpected game tables result %q", tables)
+	}
+	return true, nil
 }

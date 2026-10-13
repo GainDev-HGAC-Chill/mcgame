@@ -695,6 +695,8 @@ function mapDatabaseError(error: unknown): {
 
 function isInvalidRequestMessage(message: string): boolean {
     return (
+        ["Vui lòng", "không hợp lệ", "chưa được hỗ trợ", "bị trùng", "Cần ít nhất", "phải", "Không thể sửa", "không được", "Chọn nhập mã", "quá dài"]
+            .some(fragment => message.includes(fragment)) ||
         message.includes("required") ||
         message.includes("invalid") ||
         message.includes("unsupported") ||
@@ -712,7 +714,7 @@ export async function GET(request: NextRequest) {
             {
                 ok: false,
                 error_code: "admin_auth_required",
-                message: "Admin login required",
+                message: "Cần đăng nhập quản trị",
             },
             { status: HTTP_STATUS.UNAUTHORIZED }
         )
@@ -842,7 +844,7 @@ export async function PUT(request: NextRequest) {
             {
                 ok: false,
                 error_code: "admin_auth_required",
-                message: "Admin login required",
+                message: "Cần đăng nhập quản trị",
             },
             { status: HTTP_STATUS.UNAUTHORIZED }
         )
@@ -1111,7 +1113,7 @@ export async function DELETE(request: NextRequest) {
             {
                 ok: false,
                 error_code: "admin_auth_required",
-                message: "Admin login required",
+                message: "Cần đăng nhập quản trị",
             },
             { status: HTTP_STATUS.UNAUTHORIZED }
         )
@@ -1238,7 +1240,7 @@ export async function POST(request: NextRequest) {
             {
                 ok: false,
                 error_code: "admin_auth_required",
-                message: "Admin login required",
+                message: "Cần đăng nhập quản trị",
             },
             { status: HTTP_STATUS.UNAUTHORIZED }
         )

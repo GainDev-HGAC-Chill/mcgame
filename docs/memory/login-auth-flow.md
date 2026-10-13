@@ -1,5 +1,25 @@
 # Login & Auth Flow
 
+## Web registration shipped — 2026-10-12
+
+The existing Flash Đăng ký browser button now opens a working standalone Vietnamese `/register.html` page. Edge builds `frontend/registration` with TypeScript/pnpm and serves only the page plus `/registration/form.js` and `/registration/style.css`; exact POST `/api/register` forwards to a separate internal registration listener8081, never admin8080/dashboard/Data API. Compose publishes no new host port. Administrative/database/cache/Studio/metrics ports remain loopback.
+
+`auth.Service.RegisterWeb` accepts nonempty credentials, including ID1/password1, preserving case/whitespace without complexity/minimum-length/ASCII restrictions. Technical ceilings are username50/password20 UTF-16 units to match Flash. Username NUL/invalid UTF-8 and malformed JSON Unicode/surrogates are rejected. Confirmation must match. Plaintext is converted once to lowercase UTF-8 MD5 hex before existing Register bcrypts it, so storage is bcrypt(MD5_hex) and Flash login receives the expected digest. No session/character/account-gold grant is performed; approved level90/gold999999/goldBind999999 remains solely at character creation.
+
+Backend uses4KiB JSON limits, unknown/duplicate/trailing-field rejection, same-origin/Fetch Metadata checks, timeouts and4 concurrency permits held through actual service completion despite cancelled requests. Missing Origin is accepted for nonbrowser clients when no cross-site Fetch Metadata is present; provided Origin must match direct request scheme/Host. Forwarded headers are overwritten by edge and never trusted by backend authorization. Proxy deployment is currently HTTP-only; do not claim HTTPS offload support or Internet readiness. Nginx limits registration only to5requests/minute/IP plusburst3. Duplicate precheck and accounts_username_key23505 races both become409; other errors become safe503.
+
+Parent independent focused tests, go vet ./..., Windows server build, frozen pnpm/frontend Docker build and independent source review PASS. Separate game/edge deploy and nginx validation PASS; startup08:34:35 confirms listener8081. Page/JS/CSS HTTP200; browser DOM loaded; invalid input/origin/oversize400, wrong method405, path/admin/Data API isolation404/400 and edge429 verified without creating accounts. Port inspect confirms only existing metrics2112 is host-published for game server. Real account creation/Flash login/Unicode/Radmin second-machine persistence remains NOT TESTED; race detector not run because host CGO is disabled. Weak passwords are user-approved for trusted Local/Radmin only; avoid password reuse and require HTTPS before wider exposure.
+
+This section supersedes the earlier statement that registration is not wired. [Approved plan](../plans/2026-10-12_01_WEB_ACCOUNT_REGISTRATION.md) · [Research](../research/2026-10-12_05_WEB_ACCOUNT_REGISTRATION_RESEARCH.md).
+
+## Local starter package and registration button — 2026-10-12
+
+Creation defaults are now editable through the complete `server_settings.new_character_defaults` JSON contract described in [runtime config memory](gateway-config-runtime.md#new-character-creation-defaults-2026-10-12). Absent config still preserves level90/gold999999/goldBind999999. `Service.Create` reads one immutable configuration, validates item/pet catalogs and all capacities, then persists character, item/pet rewards and a creation snapshot marker atomically via `CharacterRepository.CreateWithPackage`. Selection/loading/login never reads or grants this package. A failed transaction leaves no durable character/gift prefix; a retry after an already committed create is rejected by the existing unique character name rather than replaying gifts. The runtime uses the raw PostgreSQL writer, not cache write-behind. Focused mocked tests/vet/build PASS; no real character create/grant or Flash smoke performed. This supersedes the fixed-only/no-marker persistence description immediately below, while unchanged class skills/war-sprite best-effort initialization stays outside the package transaction.
+
+Every newly created character now starts at level90 with gold999999 and goldBind999999 (kim phiếu). `internal/application/character/starter_rewards.go` is invoked only from Service.Create after class defaults and before repository.Create; RaiseLevelTo applies normal +89 base-stat growth and445 unallocated/max attribute points, then full HP/MP. Existing character loads/selections and reconnects never regrant/reset the package; sibling characters on the same account each receive it. Persistence uses existing player.create_character_full arguments, no migration/backfill or account-wallet edits. Starter skills, class rank, quests, bag/bank capacities and GM privilege rules remain unchanged.
+
+The Flash login does have a registration button: LoginCanvas.btnReg opens GamePredef.SERVER_ADD_REG, sourced from profile `<reg>`. Current profiles point to `/register.html`, but that page and a registration HTTP endpoint are absent. Auth.Service.Register is not wired to that button. Do not claim that the button is absent or that registration is functional. [Evidence and validation](../research/2026-10-12_04_NEW_CHARACTER_STARTER_PACKAGE_RESEARCH.md).
+
 ## Server Deployment Modes
 
 Three deployment modes configured via `MCGAME_GATEWAY_MODE`: **monolith** (single server with all features, default for local dev), **main** (registry + auth gateway with gRPC), **line** (game server for a single channel, connects to main via gRPC heartbeat). Monolith mode handles login+gameplay on `tcn/` app (also supports `master/test/`). Flow: RTMP Connect -> auto-send onLineList -> getLineInfo RPC -> onCharList callback -> chooseCharactor RPC -> onEnterGame/onInitSlot/onInitSkill/onInitPet/onInitQuest callbacks -> sceneLogin/createNpcs/createChars RPCs -> game session active.
@@ -21,6 +41,12 @@ Game Server Connection Args (6 fields): authType ("L"), user, pass (MD5), time, 
 Line status constants: ON=10, OFF=20, FULL=30, UNNONE=40.
 
 ## Character List & Selection
+
+### Local callback routing fix (2026-10-11)
+
+`getLineInfo` is a Global line-registry RPC and must not push scene `onIcl`. Global Flash uses `CallBackGlobal extends Proxy`, which has no `onIcl`; sending it there produces #2095/#2088 (Proxy.getProperty). Removed the character-list side effect from GetLineInfo and added a Global guard at the outbound onIcl boundary. Scene post-auth, `icl`, creation and back-to-selection keep the one-argument flat character list.
+
+The matching served SWF's `CallBack.onIcl` was recovered read-only in a temporary directory because the checked-in `.as` is an incomplete stub. Contract/routing evidence: [Local login callback research](../research/2026-10-11_01_LOCAL_LOGIN_CALLBACK_ROUTING_RESEARCH.md). No client source/SWF or player data was modified.
 
 Client callback name: `onIcl` (not `onCharList`). Discovered by decompressing SWF (`CWS -> FWS` via Python zlib). `CallBack.as` (scene server callbacks) expects `onIcl`. `runCharListRetryLoop()` retries `onIcl` every 500ms up to 20 times.
 
@@ -107,6 +133,12 @@ References: `docs/research/2026-04-18_02_DUAL_LOGIN_FORCE_LOGIN_RESEARCH.md`, `d
 Implemented in `internal/presentation/rtmp/utils/secondary_password.go`. Provides password verification and caching utilities for operations requiring additional security confirmation. Defines `secondaryPasswordSender` interface for sending verification prompts to the client.
 
 Auth handler exposes `setDeletePass` RPC for setting/managing the secondary password. Used for character deletion confirmation and sensitive operations.
+
+### Character deletion blocker — 2026-10-12
+
+`setDeletePass` configures the secondary password but does not implement deletion. Flash sends `startDeleteChar(cid, MD5(secondaryPassword))` and cancel/recover sends `restoreChar(clientGuid, cid)` without a Responder or password argument. Both RPCs are unregistered. Repository persistence only offers immediate hard `player.delete_character(id)`; no deletion deadline/schedule/cancel support is wired, and character lists always emit `delTime: 0`. **BLOCKED**: do not connect hard Delete, hide pending characters, invent a grace period, or report success.
+
+Complete served callback research confirms `onDeleteFaild()` (typo, zero arguments) specifically alerts the guild-leader restriction, not generic failure. `onIcl(list)` hides the wait and repopulates selection; positive `delTime` is a final deadline in Unix seconds and leaves restore available. Successful original-server callback order/grace-period policy remains unproven. Future start must use fresh server-side secondary-password verification and authenticated ownership; restore must not trust client guid. [Read-only evidence and required follow-up](../research/2026-10-12_07_CHARACTER_DELETION_RESEARCH.md). No Go/client/database/migration/deployment changes or deletion were made for this investigation.
 
 ## onChooseCharactor cData M6 scalars (2026-05-29)
 

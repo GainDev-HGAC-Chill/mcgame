@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { HTTP_STATUS } from "@/constants/http-status"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { NEW_CHARACTER_DEFAULTS_KEY } from "@/lib/new-character-defaults"
+import { validateStarterCatalog } from "@/lib/server/new-character-defaults"
 
 type GroupName = "server" | "tuning" | "gm"
 
@@ -63,14 +65,14 @@ function rejectControlBytes(value: string): boolean {
 
 function assertGroup(value: string): GroupName {
     if (value === "server" || value === "tuning" || value === "gm") return value
-    throw new Error("invalid group")
+    throw new Error("Nhóm cấu hình không hợp lệ")
 }
 
 function validateKey(raw: unknown): string {
     const key = String(raw || "").trim()
-    if (!key) throw new Error("key is required")
-    if (key.length > KEY_MAX) throw new Error("key too long")
-    if (!/^[a-z0-9_]+$/i.test(key)) throw new Error("key must match [a-z0-9_]+")
+    if (!key) throw new Error("Vui lòng nhập khóa cấu hình")
+    if (key.length > KEY_MAX) throw new Error("Khóa cấu hình quá dài")
+    if (!/^[a-z0-9_]+$/i.test(key)) throw new Error("Khóa chỉ được chứa chữ cái, chữ số và dấu gạch dưới")
     return key
 }
 
@@ -83,7 +85,7 @@ export async function GET(
     try {
         group = assertGroup(groupParam)
     } catch {
-        return badRequest("invalid group")
+        return badRequest("Nhóm cấu hình không hợp lệ")
     }
 
     try {
@@ -92,7 +94,7 @@ export async function GET(
         if (error) throw new Error(error.message)
         return NextResponse.json({ ok: true, group, items: (data as KVRow[]) || [] })
     } catch (error) {
-        return internalError(error instanceof Error ? error.message : "list failed")
+        return internalError(error instanceof Error ? error.message : "Không tải được cấu hình")
     }
 }
 
@@ -105,32 +107,43 @@ export async function PATCH(
     try {
         group = assertGroup(groupParam)
     } catch {
-        return badRequest("invalid group")
+        return badRequest("Nhóm cấu hình không hợp lệ")
     }
 
     let payload: PatchPayload
     try {
         payload = (await request.json()) as PatchPayload
     } catch {
-        return badRequest("invalid JSON body")
+        return badRequest("Nội dung JSON không hợp lệ")
     }
 
     let key: string
     try {
         key = validateKey(payload.key)
     } catch (error) {
-        return badRequest(error instanceof Error ? error.message : "invalid key")
+        return badRequest(error instanceof Error ? error.message : "Khóa cấu hình không hợp lệ")
     }
 
     if (payload.value === undefined) {
-        return badRequest("value is required")
+        return badRequest("Vui lòng nhập giá trị cấu hình")
+    }
+
+    if (key === NEW_CHARACTER_DEFAULTS_KEY) {
+        if (group !== "server") {
+            return badRequest("Quà khởi tạo nhân vật chỉ thuộc nhóm cấu hình máy chủ")
+        }
+        try {
+            payload.value = await validateStarterCatalog(payload.value)
+        } catch (error) {
+            return badRequest(error instanceof Error ? error.message : "Quà khởi tạo nhân vật không hợp lệ")
+        }
     }
 
     let description: string | null = null
     if (payload.description !== undefined) {
         const trimmed = String(payload.description).trim()
         if (trimmed.length > DESC_MAX || rejectControlBytes(trimmed)) {
-            return badRequest("invalid description")
+            return badRequest("Mô tả không hợp lệ")
         }
         description = trimmed || null
     }
@@ -140,10 +153,10 @@ export async function PATCH(
         const raw = payload.category !== undefined ? String(payload.category).trim() : ""
         if (raw) {
             if (raw.length > CATEGORY_MAX || rejectControlBytes(raw)) {
-                return badRequest("invalid category")
+                return badRequest("Nhóm điều chỉnh không hợp lệ")
             }
             if (!["rates", "events", "features"].includes(raw)) {
-                return badRequest("category must be one of rates|events|features")
+                return badRequest("Nhóm điều chỉnh phải là tỷ lệ (rates), sự kiện (events) hoặc tính năng (features)")
             }
             category = raw
         }
@@ -169,7 +182,7 @@ export async function PATCH(
 
         return NextResponse.json({ ok: true, group, item: row as KVRow | null })
     } catch (error) {
-        return internalError(error instanceof Error ? error.message : "patch failed")
+        return internalError(error instanceof Error ? error.message : "Không lưu được cấu hình")
     }
 }
 
@@ -182,21 +195,25 @@ export async function DELETE(
     try {
         group = assertGroup(groupParam)
     } catch {
-        return badRequest("invalid group")
+        return badRequest("Nhóm cấu hình không hợp lệ")
     }
 
     let payload: { key?: string }
     try {
         payload = (await request.json()) as { key?: string }
     } catch {
-        return badRequest("invalid JSON body")
+        return badRequest("Nội dung JSON không hợp lệ")
     }
 
     let key: string
     try {
         key = validateKey(payload.key)
     } catch (error) {
-        return badRequest(error instanceof Error ? error.message : "invalid key")
+        return badRequest(error instanceof Error ? error.message : "Khóa cấu hình không hợp lệ")
+    }
+
+    if (key === NEW_CHARACTER_DEFAULTS_KEY) {
+        return badRequest("Không thể xóa cấu hình quà khởi tạo. Hãy dùng biểu mẫu Quà khởi tạo nhân vật để điều chỉnh hoặc tắt quà.")
     }
 
     try {
@@ -209,12 +226,12 @@ export async function DELETE(
         const removed = data === true
         if (!removed) {
             return NextResponse.json(
-                { ok: false, error_code: "not_found", message: "key not found" },
+                { ok: false, error_code: "not_found", message: "Không tìm thấy khóa cấu hình" },
                 { status: HTTP_STATUS.NOT_FOUND }
             )
         }
         return NextResponse.json({ ok: true, group, key })
     } catch (error) {
-        return internalError(error instanceof Error ? error.message : "delete failed")
+        return internalError(error instanceof Error ? error.message : "Không xóa được cấu hình")
     }
 }

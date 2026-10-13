@@ -303,6 +303,7 @@ func buildItemTestHandlerWithRepo(t *testing.T, char *domainchar.Character, item
 	handler.SetAccountRepository(accountRepo)
 
 	conn := infrartmp.NewConnection(1, &itemStubNetConn{}, nil, logger)
+	conn.SetTransport(&equipCallbackTransport{})
 	ctx := &infrartmp.RPCContext{
 		Context:     context.Background(),
 		AccountID:   accountID.String(),

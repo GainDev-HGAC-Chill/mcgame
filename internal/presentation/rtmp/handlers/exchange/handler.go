@@ -26,6 +26,7 @@ func NewHandler(accountRepo auth.AccountRepository, logger *zap.Logger) *Handler
 
 func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("gp", h.GetAwardPoint)
+	dispatcher.Register("exchangeAwardToGoldBind", h.ExchangeAwardToGoldBind)
 }
 
 func (h *Handler) GetAwardPoint(ctx *rtmp.RPCContext, _ []interface{}) (interface{}, error) {

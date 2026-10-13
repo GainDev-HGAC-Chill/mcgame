@@ -57,6 +57,7 @@ type Service struct {
 type endedBattleCacheEntry struct {
 	battle          *combat.Battle
 	pendingCleanups map[string]struct{}
+	questKillClaims map[int64]questKillClaimState
 }
 
 type BattlePetStateChange struct {
@@ -204,6 +205,9 @@ func (s *Service) AckBattleCleanup(battleID string, characterID int64) {
 
 	entry, ok := s.endedBattles[battleID]
 	if !ok || entry == nil {
+		return
+	}
+	if entry.questKillClaims[characterID] == questKillClaimInflight {
 		return
 	}
 
@@ -534,9 +538,13 @@ func (s *Service) cacheEndedBattle(battle *combat.Battle) {
 
 	s.endedBattleMu.Lock()
 	defer s.endedBattleMu.Unlock()
+	if _, exists := s.endedBattles[battle.ID]; exists {
+		return
+	}
 	s.endedBattles[battle.ID] = &endedBattleCacheEntry{
 		battle:          battle,
 		pendingCleanups: pendingCleanups,
+		questKillClaims: make(map[int64]questKillClaimState),
 	}
 }
 

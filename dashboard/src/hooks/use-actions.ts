@@ -20,12 +20,12 @@ export function useEventActions() {
             const newStatus = !event?.active
 
             if (newStatus) {
-                sonnerToast.success(`${event?.name} activated`, {
-                    description: "Event is now active",
+                sonnerToast.success(`Đã bật ${event?.name}`, {
+                    description: "Sự kiện đã được kích hoạt",
                 })
             } else {
-                sonnerToast.warning(`${event?.name} deactivated`, {
-                    description: "Event has been deactivated",
+                sonnerToast.warning(`Đã tắt ${event?.name}`, {
+                    description: "Sự kiện đã được tắt",
                 })
             }
         },
@@ -33,20 +33,20 @@ export function useEventActions() {
     )
 
     const createEvent = useCallback(() => {
-        sonnerToast.success("Event created!", {
-            description: "New event has been created and activated.",
+        sonnerToast.success("Đã tạo sự kiện!", {
+            description: "Sự kiện mới đã được tạo và kích hoạt.",
         })
     }, [])
 
     const saveEvent = useCallback((eventName?: string) => {
-        sonnerToast.success("Changes saved", {
-            description: `Configuration for ${eventName} has been updated.`,
+        sonnerToast.success("Đã lưu thay đổi", {
+            description: `Đã cập nhật cấu hình ${eventName}.`,
         })
     }, [])
 
     const deleteEvent = useCallback((eventName: string) => {
-        sonnerToast.error("Event deleted", {
-            description: `${eventName} has been removed from the system.`,
+        sonnerToast.error("Đã xóa sự kiện", {
+            description: `Đã xóa ${eventName} khỏi hệ thống.`,
         })
     }, [])
 
@@ -60,20 +60,20 @@ export function useEventActions() {
 
 export function useServerActions() {
     const restartServer = useCallback((serverName: string) => {
-        sonnerToast.success("Server restarted", {
-            description: `${serverName} will be restarted in a few minutes.`,
+        sonnerToast.success("Đã yêu cầu khởi động lại máy chủ", {
+            description: `${serverName} sẽ khởi động lại trong vài phút.`,
         })
     }, [])
 
     const toggleMaintenance = useCallback(
         (serverName: string, enabled: boolean) => {
             if (enabled) {
-                sonnerToast.info("Maintenance mode", {
-                    description: `${serverName} has entered maintenance mode.`,
+                sonnerToast.info("Chế độ bảo trì", {
+                    description: `${serverName} đã chuyển sang bảo trì.`,
                 })
             } else {
-                sonnerToast.success("Server online", {
-                    description: `${serverName} is back online.`,
+                sonnerToast.success("Máy chủ trực tuyến", {
+                    description: `${serverName} đã hoạt động trở lại.`,
                 })
             }
         },
@@ -81,8 +81,8 @@ export function useServerActions() {
     )
 
     const broadcastMessage = useCallback((message: string) => {
-        sonnerToast.success("Notification sent", {
-            description: `Broadcast sent to all servers: "${message}"`,
+        sonnerToast.success("Đã gửi thông báo", {
+            description: `Đã gửi đến tất cả máy chủ: "${message}"`,
         })
     }, [])
 
@@ -95,33 +95,33 @@ export function useServerActions() {
 
 export function usePlayerActions() {
     const banPlayer = useCallback((playerName: string, reason: string) => {
-        sonnerToast.error(`Account banned`, {
-            description: `${playerName} has been banned. Reason: ${reason}`,
+        sonnerToast.error(`Đã khóa tài khoản`, {
+            description: `${playerName} đã bị khóa. Lý do: ${reason}`,
         })
     }, [])
 
     const unbanPlayer = useCallback((playerName: string) => {
-        sonnerToast.success(`Account unbanned`, {
-            description: `${playerName} has been unbanned.`,
+        sonnerToast.success(`Đã mở khóa tài khoản`, {
+            description: `${playerName} đã được mở khóa.`,
         })
     }, [])
 
     const mutePlayer = useCallback((playerName: string, duration: number) => {
-        sonnerToast.warning(`Chat muted`, {
-            description: `${playerName} cannot chat for ${duration} minutes.`,
+        sonnerToast.warning(`Đã cấm trò chuyện`, {
+            description: `${playerName} bị cấm trò chuyện trong ${duration} phút.`,
         })
     }, [])
 
     const kickPlayer = useCallback((playerName: string) => {
-        sonnerToast.warning(`Player kicked`, {
-            description: `${playerName} has been kicked from the game.`,
+        sonnerToast.warning(`Đã ngắt kết nối người chơi`, {
+            description: `${playerName} đã bị ngắt kết nối khỏi trò chơi.`,
         })
     }, [])
 
     const compensatePlayer = useCallback(
         (playerName: string, reward: string) => {
-            sonnerToast.success(`Compensated`, {
-                description: `${playerName} received: ${reward}`,
+            sonnerToast.success(`Đã đền bù`, {
+                description: `${playerName} đã nhận: ${reward}`,
             })
         },
         []
@@ -138,20 +138,20 @@ export function usePlayerActions() {
 
 export function useEconomyActions() {
     const updateShopItem = useCallback((itemName: string) => {
-        sonnerToast.success(`Updated`, {
-            description: `Price and stock for "${itemName}" have been updated.`,
+        sonnerToast.success(`Đã cập nhật`, {
+            description: `Đã cập nhật giá và tồn kho của "${itemName}".`,
         })
     }, [])
 
     const createShopItem = useCallback(() => {
-        sonnerToast.success(`Item added`, {
-            description: "New item has been added to the shop.",
+        sonnerToast.success(`Đã thêm vật phẩm`, {
+            description: "Đã thêm vật phẩm mới vào cửa hàng.",
         })
     }, [])
 
     const deleteShopItem = useCallback((itemName: string) => {
-        sonnerToast.error(`Item deleted`, {
-            description: `"${itemName}" has been removed from the shop.`,
+        sonnerToast.error(`Đã xóa vật phẩm`, {
+            description: `Đã xóa "${itemName}" khỏi cửa hàng.`,
         })
     }, [])
 

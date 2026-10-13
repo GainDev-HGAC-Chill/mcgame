@@ -68,10 +68,10 @@ export function PlayerHero({ char, online, playerId }: PlayerHeroProps) {
         if (num !== undefined) chips.push({ label, value: num, tone })
     }
 
-    pushChip("STR", char.attStrength)
-    pushChip("AGI", char.attAgility)
-    pushChip("STA", char.attStamina)
-    pushChip("INT", char.attIntelligence)
+    pushChip("Sức mạnh", char.attStrength)
+    pushChip("Nhanh nhẹn", char.attAgility)
+    pushChip("Thể lực", char.attStamina)
+    pushChip("Trí lực", char.attIntelligence)
     pushChip("ATK", char.baseAttack)
     pushChip("Bạc", char.money, "money")
     pushChip("Vàng", char.gold, "gold")
@@ -83,7 +83,7 @@ export function PlayerHero({ char, online, playerId }: PlayerHeroProps) {
                     <Link href="/dashboard/players">
                         <Button variant="outline" size="sm">
                             <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back
+                            Quay lại
                         </Button>
                     </Link>
                     <div className="space-y-1">
@@ -92,7 +92,7 @@ export function PlayerHero({ char, online, playerId }: PlayerHeroProps) {
                                 {name}
                             </h1>
                             <Badge variant={online ? "success" : "secondary"}>
-                                {online ? "Online" : "Offline"}
+                                {online ? "Trực tuyến" : "Ngoại tuyến"}
                             </Badge>
                             {gmLevel !== undefined && gmLevel > 0 ? (
                                 <Badge variant="warning" className="gap-1">
@@ -103,7 +103,7 @@ export function PlayerHero({ char, online, playerId }: PlayerHeroProps) {
                         </div>
                         <p className="text-sm text-muted-foreground">
                             ID: {playerId}
-                            {level !== undefined ? ` | Level ${level}` : ""}
+                            {level !== undefined ? ` | Cấp ${level}` : ""}
                         </p>
                     </div>
                 </div>

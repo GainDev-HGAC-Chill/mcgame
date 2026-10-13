@@ -7,7 +7,9 @@ const (
 	BoxCount  = 5
 	HoleCount = 7
 
-	EmptySlot = -1
+	EmptySlot   = -1
+	MinBoxLevel = 1
+	MaxBoxLevel = 6
 )
 
 var validBagCategories = map[string]struct{}{
@@ -76,7 +78,7 @@ func NewState() *State {
 
 	heartBoxLev := make(map[int]int, BoxCount)
 	for box := 1; box <= BoxCount; box++ {
-		heartBoxLev[box] = 0
+		heartBoxLev[box] = MinBoxLevel
 	}
 
 	return &State{
@@ -203,7 +205,11 @@ func DecodeState(raw map[string]interface{}) *State {
 		if _, ok := validBoxes[box]; !ok {
 			continue
 		}
-		s.HeartBoxLev[box] = anyInt(levVal)
+		level := anyInt(levVal)
+		if level < MinBoxLevel || level > MaxBoxLevel {
+			continue
+		}
+		s.HeartBoxLev[box] = level
 	}
 
 	return s

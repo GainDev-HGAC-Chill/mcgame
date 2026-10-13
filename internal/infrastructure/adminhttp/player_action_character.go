@@ -14,31 +14,29 @@ import (
 )
 
 type setAttributesPayload struct {
-	Strength                 *int `json:"strength,omitempty"`
-	Agility                  *int `json:"agility,omitempty"`
-	Stamina                  *int `json:"stamina,omitempty"`
-	Intelligence             *int `json:"intelligence,omitempty"`
-	Spirit                   *int `json:"spirit,omitempty"`
-	AttrPoints               *int `json:"attrPoints,omitempty"`
-	MaxAttrPoints            *int `json:"maxAttrPoints,omitempty"`
-	DistributedAttrPoints    *int `json:"distributedAttrPoints,omitempty"`
-	HP                       *int `json:"hp,omitempty"`
-	MP                       *int `json:"mp,omitempty"`
-	SP                       *int `json:"sp,omitempty"`
-	AptStrength              *int `json:"aptStrength,omitempty"`
-	AptStrengthEvolution     *int `json:"aptStrengthEvolution,omitempty"`
-	AptAgility               *int `json:"aptAgility,omitempty"`
-	AptAgilityEvolution      *int `json:"aptAgilityEvolution,omitempty"`
-	AptStamina               *int `json:"aptStamina,omitempty"`
-	AptStaminaEvolution      *int `json:"aptStaminaEvolution,omitempty"`
-	AptIntelligence          *int `json:"aptIntelligence,omitempty"`
-	AptIntelligenceEvolution *int `json:"aptIntelligenceEvolution,omitempty"`
-	AptEnergy                *int `json:"aptEnergy,omitempty"`
-	AptEnergyEvolution       *int `json:"aptEnergyEvolution,omitempty"`
-	// Backward-compat: clients that still send level/experience here are
-	// redirected into the character_progression path.
-	Level      *int   `json:"level,omitempty"`
-	Experience *int64 `json:"experience,omitempty"`
+	Strength                 *int   `json:"strength,omitempty"`
+	Agility                  *int   `json:"agility,omitempty"`
+	Stamina                  *int   `json:"stamina,omitempty"`
+	Intelligence             *int   `json:"intelligence,omitempty"`
+	Spirit                   *int   `json:"spirit,omitempty"`
+	AttrPoints               *int   `json:"attrPoints,omitempty"`
+	MaxAttrPoints            *int   `json:"maxAttrPoints,omitempty"`
+	DistributedAttrPoints    *int   `json:"distributedAttrPoints,omitempty"`
+	HP                       *int   `json:"hp,omitempty"`
+	MP                       *int   `json:"mp,omitempty"`
+	SP                       *int   `json:"sp,omitempty"`
+	AptStrength              *int   `json:"aptStrength,omitempty"`
+	AptStrengthEvolution     *int   `json:"aptStrengthEvolution,omitempty"`
+	AptAgility               *int   `json:"aptAgility,omitempty"`
+	AptAgilityEvolution      *int   `json:"aptAgilityEvolution,omitempty"`
+	AptStamina               *int   `json:"aptStamina,omitempty"`
+	AptStaminaEvolution      *int   `json:"aptStaminaEvolution,omitempty"`
+	AptIntelligence          *int   `json:"aptIntelligence,omitempty"`
+	AptIntelligenceEvolution *int   `json:"aptIntelligenceEvolution,omitempty"`
+	AptEnergy                *int   `json:"aptEnergy,omitempty"`
+	AptEnergyEvolution       *int   `json:"aptEnergyEvolution,omitempty"`
+	Level                    *int   `json:"level,omitempty"`
+	Experience               *int64 `json:"experience,omitempty"`
 }
 
 type setProgressionPayload struct {
@@ -77,6 +75,10 @@ func (s *Server) executeSetAttributes(w http.ResponseWriter, _ context.Context, 
 		s.writeJSON(w, http.StatusBadRequest, adminErrorResponse{OK: false, Message: "invalid set_attributes payload"})
 		return
 	}
+	if payload.Level != nil {
+		s.writeJSON(w, http.StatusBadRequest, adminErrorResponse{OK: false, Message: "Dùng set_target_level để thay đổi cấp an toàn."})
+		return
+	}
 
 	changes := map[string]interface{}{}
 	addIntChange(changes, "strength", payload.Strength)
@@ -100,7 +102,6 @@ func (s *Server) executeSetAttributes(w http.ResponseWriter, _ context.Context, 
 	addIntChange(changes, "aptIntelligenceEvolution", payload.AptIntelligenceEvolution)
 	addIntChange(changes, "aptEnergy", payload.AptEnergy)
 	addIntChange(changes, "aptEnergyEvolution", payload.AptEnergyEvolution)
-	addIntChange(changes, "level", payload.Level)
 	addInt64Change(changes, "experience", payload.Experience)
 
 	if len(changes) == 0 {
@@ -130,7 +131,6 @@ func (s *Server) executeSetAttributes(w http.ResponseWriter, _ context.Context, 
 		assignInt(&c.AptIntelligenceEvolution, payload.AptIntelligenceEvolution)
 		assignInt(&c.AptEnergy, payload.AptEnergy)
 		assignInt(&c.AptEnergyEvolution, payload.AptEnergyEvolution)
-		assignInt(&c.Level, payload.Level)
 		assignInt64(&c.Experience, payload.Experience)
 		c.RecalculateStats()
 	}
@@ -144,9 +144,12 @@ func (s *Server) executeSetProgression(w http.ResponseWriter, _ context.Context,
 		s.writeJSON(w, http.StatusBadRequest, adminErrorResponse{OK: false, Message: "invalid set_progression payload"})
 		return
 	}
+	if payload.Level != nil {
+		s.writeJSON(w, http.StatusBadRequest, adminErrorResponse{OK: false, Message: "Dùng set_target_level để thay đổi cấp an toàn."})
+		return
+	}
 
 	changes := map[string]interface{}{}
-	addIntChange(changes, "level", payload.Level)
 	addInt64Change(changes, "experience", payload.Experience)
 	addIntChange(changes, "rebirthLevel", payload.RebirthLevel)
 	addInt64Change(changes, "rebirthExp", payload.RebirthExp)
@@ -163,9 +166,6 @@ func (s *Server) executeSetProgression(w http.ResponseWriter, _ context.Context,
 	}
 
 	applyFn := func(c *character.Character) {
-		if payload.Level != nil {
-			applyLevelProgression(c, *payload.Level, changes)
-		}
 		assignInt64(&c.Experience, payload.Experience)
 		assignInt(&c.RebirthLvl, payload.RebirthLevel)
 		assignInt64(&c.RebirthExp, payload.RebirthExp)
@@ -175,9 +175,6 @@ func (s *Server) executeSetProgression(w http.ResponseWriter, _ context.Context,
 		assignInt(&c.SoulLevel, payload.SoulLevel)
 		assignInt64(&c.SoulExp, payload.SoulExp)
 		assignInt64(&c.SoulPoints, payload.SoulPoints)
-		if payload.Level != nil {
-			c.RecalculateStats()
-		}
 	}
 
 	s.applyCharacterChange(w, "set_progression", char, applyFn, true, changes)
@@ -222,44 +219,6 @@ func (s *Server) executeAdvanceProgression(w http.ResponseWriter, _ context.Cont
 	}
 
 	s.applyCharacterChange(w, "advance_progression", char, applyFn, true, changes)
-}
-
-func applyLevelProgression(c *character.Character, targetLevel int, changes map[string]interface{}) {
-	if targetLevel > character.MaxLevel {
-		targetLevel = character.MaxLevel
-	}
-	if targetLevel < 1 {
-		targetLevel = 1
-	}
-	if targetLevel <= c.Level {
-		c.Level = targetLevel
-		c.Experience = 0
-		changes["level"] = targetLevel
-		return
-	}
-
-	delta := targetLevel - c.Level
-	autoDistribute := character.AutoLevelCap - c.Level
-	if autoDistribute > delta {
-		autoDistribute = delta
-	}
-	if autoDistribute < 0 {
-		autoDistribute = 0
-	}
-
-	c.Level = targetLevel
-	c.Experience = 0
-	c.AttrPoints += delta * character.AttributePointsPerLevel
-	c.MaxAttrPoints += delta * character.AttributePointsPerLevel
-	c.Strength += autoDistribute
-	c.Agility += autoDistribute
-	c.Stamina += autoDistribute
-	c.Intelligence += autoDistribute
-	c.Spirit += autoDistribute
-
-	changes["level"] = targetLevel
-	changes["attrPointsGained"] = delta * character.AttributePointsPerLevel
-	changes["statsAutoDistributed"] = autoDistribute
 }
 
 func applyLevelIncrease(c *character.Character, levelDelta int, changes map[string]interface{}) {

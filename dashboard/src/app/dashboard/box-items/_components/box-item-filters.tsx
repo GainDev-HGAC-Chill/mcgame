@@ -80,7 +80,7 @@ export function BoxItemFilters({
                         disabled={loading}
                     >
                         <SelectTrigger>
-                            <SelectValue placeholder="Type" />
+                            <SelectValue placeholder="Loại" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Tất cả Type</SelectItem>

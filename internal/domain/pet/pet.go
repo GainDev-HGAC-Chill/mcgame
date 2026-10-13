@@ -459,6 +459,7 @@ func (p *Pet) ToDTO() map[string]interface{} {
 		"element":      domainelement.NormalizeClientElementID(p.Element),
 		"evolutionLv":  p.EvolutionLv,
 		"growRate":     p.GrowRate,
+		"growRateAdd":  p.GrowRateAdd,
 		"currentHp":    p.CurrentHP,
 		"currentMp":    p.CurrentMP,
 		"hpMax":        p.MaxHP,
@@ -538,6 +539,7 @@ func (p *Pet) ToDTO() map[string]interface{} {
 		"bt2":  piValue(p.Property, "bt2", 0),
 		"bt4":  piValue(p.Property, "bt4", 0),
 		"bt6":  piValue(p.Property, "bt6", 0),
+		"bt8":  piValue(p.Property, "bt8", 0),
 	}
 
 	// Soul Info — populated by the soul service via the pet service provider;
@@ -553,7 +555,9 @@ func (p *Pet) ToDTO() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"data": dto,
+		"data":     dto,
+		"pi":       dto["pi"],
+		"soulInfo": dto["soulInfo"],
 	}
 }
 

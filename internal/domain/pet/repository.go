@@ -19,3 +19,7 @@ type Repository interface {
 	UpdateFollowState(ctx context.Context, petID int64, isFollowing bool) error
 	ClearFollowing(ctx context.Context, characterID int64) error
 }
+
+type FusionRepository interface {
+	ApplyFusion(ctx context.Context, mainPet *Pet, consumedPetIDs []int64) error
+}

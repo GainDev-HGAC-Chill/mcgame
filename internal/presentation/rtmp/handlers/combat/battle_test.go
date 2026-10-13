@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	appcombat "mcgame-server/internal/application/combat"
-	appquest "mcgame-server/internal/application/quest"
 	domaincharacter "mcgame-server/internal/domain/character"
 	combatdomain "mcgame-server/internal/domain/combat"
 	domainpet "mcgame-server/internal/domain/pet"
@@ -298,26 +297,29 @@ func TestCollectQuestKillUpdates_UsesEndedBattleParticipants(t *testing.T) {
 			},
 		},
 	}
-	questService := appquest.NewService(questRepo, zap.NewNop())
+	questService := newQuestCreditQuestService(t, questRepo, 1)
 	handler := &Handler{
 		questService: questService,
 		logger:       zap.NewNop(),
 	}
 
 	battle := combatdomain.NewBattle(combatdomain.BattleTypePVE, 3)
+	player := combatdomain.NewParticipant("1", "player", combatdomain.SidePlayer, false)
+	player.EntityType = combatdomain.ParticipantTypeCharacter
+	player.EntityID = 1
+	player.IsAlive = false
+	battle.AddParticipant(player)
 	enemy := combatdomain.NewParticipant("npc_5", "Kê Vương", combatdomain.SideEnemy, true)
 	enemy.EntityType = combatdomain.ParticipantTypeCreature
 	enemy.EntityID = 157
 	enemy.IsAlive = false
 	battle.AddParticipant(enemy)
-	battle.End(&combatdomain.BattleResult{
-		WinnerSide:       combatdomain.SidePlayer,
-		ItemRewards:      []combatdomain.ItemDrop{},
-		PetRewards:       []combatdomain.PetReward{},
-		CharacterRewards: map[int64]*combatdomain.CharacterReward{},
-	})
+	handler.combatService = newQuestCreditCombatService(battle)
 
-	updatedQuests, questKill := handler.collectQuestKillUpdates(context.Background(), 1, battle)
+	updatedQuests, questKill, creditErr := handler.collectQuestKillUpdates(context.Background(), 1, battle)
+	if creditErr != nil {
+		t.Fatal(creditErr)
+	}
 
 	if len(updatedQuests) != 1 {
 		t.Fatalf("updated quest count = %d, want 1", len(updatedQuests))
@@ -336,6 +338,12 @@ func TestCollectQuestKillUpdates_UsesEndedBattleParticipants(t *testing.T) {
 	if !progress.IsComplete() {
 		t.Fatalf("progress should be complete after ended-battle kill credit")
 	}
+	if updated, kills, err := handler.collectQuestKillUpdates(context.Background(), 1, battle); len(updated) != 0 || len(kills) != 0 || err != nil {
+		t.Fatal("duplicate playback granted quest credit")
+	}
+	if updated, kills, err := handler.collectQuestKillUpdates(context.Background(), 99, battle); len(updated) != 0 || len(kills) != 0 || err != nil {
+		t.Fatal("foreign character granted quest credit")
+	}
 }
 
 func TestSendBattleCharacterProgressCallbacks_RefreshesSkillsAfterLevelUp(t *testing.T) {
@@ -352,14 +360,19 @@ func TestSendBattleCharacterProgressCallbacks_RefreshesSkillsAfterLevelUp(t *tes
 
 	sendBattleCharacterProgressCallbacks(recorder, char, 54, true, nil, skills)
 
-	if len(recorder.calls) != 5 {
-		t.Fatalf("SendCallback call count = %d, want 5", len(recorder.calls))
+	if len(recorder.calls) != 4 {
+		t.Fatalf("SendCallback call count = %d, want 4", len(recorder.calls))
 	}
-	if recorder.calls[3].method != "onSkillUpdate" {
-		t.Fatalf("fourth callback = %q, want onSkillUpdate", recorder.calls[3].method)
+	for _, call := range recorder.calls {
+		if call.method == "lvUp" {
+			t.Fatal("lvUp is an outbound RPC, not a Flash callback")
+		}
 	}
-	if recorder.calls[4].method != "onMWeaponSkillUpdate" {
-		t.Fatalf("fifth callback = %q, want onMWeaponSkillUpdate", recorder.calls[4].method)
+	if recorder.calls[2].method != "onSkillUpdate" {
+		t.Fatalf("third callback = %q, want onSkillUpdate", recorder.calls[2].method)
+	}
+	if recorder.calls[3].method != "onMWeaponSkillUpdate" {
+		t.Fatalf("fourth callback = %q, want onMWeaponSkillUpdate", recorder.calls[3].method)
 	}
 }
 
@@ -644,6 +657,17 @@ func TestExtractBattleUpdateCmdArray_UnexpectedArgTypeFails(t *testing.T) {
 	_, _, err := extractBattleUpdateCmdArray([]interface{}{"bad"})
 	if err != pkgerrors.ErrInvalidArgs {
 		t.Fatalf("extractBattleUpdateCmdArray() error = %v, want %v", err, pkgerrors.ErrInvalidArgs)
+	}
+}
+
+func TestCaughtPetRewardCountForCharacter(t *testing.T) {
+	rewards := []combatdomain.PetReward{
+		{CharacterID: 6, PetID: 78},
+		{CharacterID: 6},
+		{CharacterID: 7, PetID: 79},
+	}
+	if got := caughtPetRewardCountForCharacter(rewards, 6); got != 1 {
+		t.Fatalf("caughtPetRewardCountForCharacter() = %d, want 1", got)
 	}
 }
 

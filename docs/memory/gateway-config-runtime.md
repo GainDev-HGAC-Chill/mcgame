@@ -4,6 +4,24 @@ Runtime-tunable server config now lives in four `public` schema tables and is ho
 
 ## Tables
 
+### New-character creation defaults (2026-10-12)
+
+`public.server_settings` key `new_character_defaults` is a complete JSON object:
+
+```json
+{"version":1,"level":90,"gold":999999,"goldBind":999999,"items":[{"templateTableId":29,"templateId":123,"quantity":1,"bound":true,"color":0}],"pets":[{"templateId":91,"quantity":1,"bound":true,"growth":1.9}]}
+```
+
+Example IDs are illustrative, not automatically configured or granted. The absent-key fallback is exactly format1/level90/gold999999/goldBind999999 with empty gift arrays. Present malformed/missing/null/unknown fields, unsupported format, and database read errors fail creation closed. `Store.NewCharacterDefaults(ctx)` intentionally reads the canonical indexed row fresh once per creation instead of a possibly stale LISTEN/NOTIFY snapshot. Config edits affect future creations only.
+
+Backend rules: level1..160; wallet integers0..9007199254740991; at most90 item entries and6 pet entries; IDs positive int32; item quantity1..1000000; pet quantity1..6 and finite growth>0..10 (technical safety ceiling, not a recovered gameplay-quality maximum). Table19 equipment color0..5 with0 resolving catalog default; table29 material kind6 color0..4; other table29 items color0 only. Required binding cannot be cleared (`bind_type>0`, creature `is_bind>0`). Pets must reference `data_tbl_creature.class_id=2`; catchability is not required for reward-only pets such as91.
+
+Capacity calculation merges equal template/type/bag/binding/resolved-color stacks, respects catalog `stack_max`/`single_flag`, and never stacks equipment. New characters retain30 regular slots,30 quest slots and30 pet-item slots plus6 carried pets. Routing: table19 kind9 goes to pet-item bag; table29 types508/509/550 go to quest bag, types507/512/513 to pet-item bag, others to regular bag. All catalog/capacity validation happens before persistence. The parent-owned Next API must mirror these validations before `public.set_kv_setting`; backend validates independently even if KV is edited directly.
+
+Atomic delivery reuses existing `player.create_character_full`, `create_character_item`, `create_character_pet` and `upsert_character_feature_state` functions inside one pgx transaction, so no new schema or migration is required. `player.character_stat_features.feature_key='creation_package'` stores a cloned format-versioned configuration, its SHA-256 canonical configuration hash, and prepared item/pet snapshots. Its committed existence is the delivery marker. Only new characters (ID0) can enter this writer; generic Go feature-state upserts reject this reserved key, and admin feature allowlists do not expose it. No login/select/load replay path exists. Database administrators still retain their normal direct database privileges; this is not a tamper-proof ledger.
+
+Mocked rollback/retry/no-replay/config/catalog/capacity tests, focused packages, vet and Windows server build PASS. Compose read-only inspection confirms all reused functions are invoker/search_path-empty and player reward/state tables have RLS enabled. No live creates/grants, config writes, schema changes, deployment or Flash reward-delivery smoke were executed. Existing best-effort class starter-skill and war-sprite initialization remains post-commit and outside the configurable item/pet package transaction.
+
 | Table | Purpose | Key |
 |---|---|---|
 | `public.gateway_config` | Lines / channels advertised through `getLineInfo`. Operator intent. | `id smallint` |

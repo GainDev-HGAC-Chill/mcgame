@@ -1,5 +1,7 @@
 # Stat Feature Foundation
 
+PRS routing follow-up deployed17:34:09 (2026-10-12): activity backlog no longer overwrites initPRSPanel or pushes malformed updatePRSPanel. Combined registration/Responder regression PASS with persisted PRS service DTO and no writes. Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
+
 Stat-affecting progression systems beyond equipment now use a shared foundation:
 
 - `data.data_tbl_stat_feature` catalogs the researched systems, ownership, and readiness
@@ -92,6 +94,14 @@ PRS write-path (2026-06-14 — "Chân Hồn Thần Thú" / Pet Real Soul, 2nd no
 - DEFERRED (need loot/gacha tables or main-bag item consume): freePRSCollect, goldPRSCollect, goldPRSCollectThree, swapPRSChip, swapPRSChipTimes, activePRSShowSpe.
 - ASSUMPTIONS to calibrate vs live-log: (a) soul-tree is SEQUENTIAL (tid=level, nextTid=tid+1, cost on the target node) — if TBL_PRS_TREE uses a NextID chain switch to GetPrsTree(currentTid).NextID; (b) actLimitObj expiry = now-ms + TBL_PRS_SHOW.limit_time (treated as ms); (c) onReplacePRSShow is sent to SELF only (cross-player scene broadcast for the pet visual is a follow-up). NOT in quietMethods — leave logs on until user confirms.
 - Tests: `internal/application/prs/prs_test.go` — JSON round-trip (incl. int64 ms in actLimitObj + chip bags), toPersist login-keys, tree progress+cap+insufficient, exchange deduct+stack+unknown+insufficient, chip move both directions, activeShow consume/activate/already/unknown/insufficient/time-limited, replace requires-activated + cancel clears, updateActiveShow drops+clears.
+
+### 2026-10-12 PRS null-panel investigation
+
+- Read-only Flash trace: `PRSPanel.as:2371–2384` calls `initPRSPanel(new Responder(updatePRSPanel), cid)`. Its result must be the complete raw PRS object, not a `{data:...}` envelope or JSON string. `updatePRSPanel` at 2930 accesses `chipBag`, `excBag`, `tid` then forwards the same object to both show canvases. `PRSShowCvs.as:634–636,683,713` requires non-null `actArr`, `actLimitObj`, and `chipBag` maps plus `useSid`.
+- Existing `State.Wire()` and normal `GetPanel` already satisfy that shape. Handler fallback now reuses `State.Wire()` instead of duplicating the DTO and handles an unconfigured service without panicking. A missing request context uses `context.Background()` for panel reads. Tests assert authenticated-character selection, saved state preservation, complete non-null fallback DTOs on invalid/missing/error paths, no named init push and no panel writes.
+- **Confirmed routing root cause (parent's existing live evidence, 13:26:46):** `initPRSPanel [3]` executed `activity/backlog_panels.go`'s legacy starter, returning `{bag:[],data:{}}` and also pushing `updatePRSPanel` with that incompatible object. `cmd/gameserver` registers PRS before activity; `RPCDispatcher.Register` replaces handlers by name, so the later activity registration silently shadowed the real persisted PRS service. This explains absent `actArr`/`actLimitObj` at `PRSShowCvs.updatePage`; the normal PRS DTO was not the executed path.
+- Removed only the obsolete activity `initPRSPanel` registration and its malformed `updatePRSPanel` push. No separate RPC registration for `updatePRSPanel` exists; remaining pushes are the real PRS mutators and carry `State.Wire()`. Combined-registration regression test registers PRS then the full activity handler, sends an awaited `initPRSPanel [3]` through the connection/dispatcher, and asserts the persisted full DTO, original transaction ID, zero named init pushes and zero writes. It failed before removal with `actArr == nil` and passes after removal. No bootstrap/auth edits are needed.
+- This establishes the protocol/routing repair, not post-deployment client confirmation. `CallBack.as` is decompile-aborted, so mutator push wrapper signatures remain based on previous memory, not newly invented contracts. No AS/login edits, grants, database writes, new live actions or deployment.
 
 Medal write-path (2026-06-14 — "Ấn Chương", 3rd no-writer panel; built via a parallel Workflow agent):
 

@@ -4,50 +4,50 @@
 
 export const ACTION_TYPES = {
     ban: {
-        label: "Ban Account",
+        label: "Khóa tài khoản",
         color: "destructive",
-        description: "Permanent or temporary",
+        description: "Vĩnh viễn hoặc có thời hạn",
     },
     unban: {
-        label: "Unban",
+        label: "Mở khóa",
         color: "default",
-        description: "Remove account ban",
+        description: "Gỡ khóa tài khoản",
     },
     mute: {
-        label: "Mute Chat",
+        label: "Cấm trò chuyện",
         color: "secondary",
-        description: "Disable chat",
+        description: "Tắt trò chuyện",
     },
     kick: {
-        label: "Kick",
+        label: "Ngắt kết nối",
         color: "outline",
-        description: "Force logout from game",
+        description: "Buộc đăng xuất khỏi trò chơi",
     },
     compensate: {
-        label: "Compensate",
+        label: "Đền bù",
         color: "warning",
-        description: "Send rewards or currency as compensation",
+        description: "Gửi phần thưởng hoặc tiền tệ đền bù",
     },
 } as const
 
 export const ACTION_STATUS = {
-    active: { label: "Active", variant: "destructive" },
-    expired: { label: "Expired", variant: "secondary" },
-    completed: { label: "Completed", variant: "success" },
+    active: { label: "Đang hoạt động", variant: "destructive" },
+    expired: { label: "Hết hạn", variant: "secondary" },
+    completed: { label: "Hoàn tất", variant: "success" },
 } as const
 
 export const BAN_DURATIONS = [
-    { value: "30", label: "30 minutes" },
-    { value: "60", label: "1 hour" },
-    { value: "240", label: "4 hours" },
-    { value: "1440", label: "1 day" },
-    { value: "10080", label: "7 days" },
-    { value: "43200", label: "30 days" },
-    { value: "-1", label: "Permanent" },
+    { value: "30", label: "30 phút" },
+    { value: "60", label: "1 giờ" },
+    { value: "240", label: "4 giờ" },
+    { value: "1440", label: "1 ngày" },
+    { value: "10080", label: "7 ngày" },
+    { value: "43200", label: "30 ngày" },
+    { value: "-1", label: "Vĩnh viễn" },
 ]
 
 export const COMPENSATION_TYPES = {
-    currency: { label: "Currency", description: "Gold, Gems, Coins" },
-    item: { label: "Item", description: "Specific items" },
-    both: { label: "Both", description: "Currency and Items" },
+    currency: { label: "Tiền tệ", description: "Vàng, đá quý, xu" },
+    item: { label: "Vật phẩm", description: "Vật phẩm cụ thể" },
+    both: { label: "Cả hai", description: "Tiền tệ và vật phẩm" },
 }

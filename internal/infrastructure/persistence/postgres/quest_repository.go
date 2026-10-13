@@ -3,12 +3,14 @@
 // PostgreSQL implementation of quest repository.
 // Handles quest progress CRUD with JSON objectives storage.
 // Supports history tracking and completion queries.
+// Objective decoding preserves [] as empty and null as nil, but rejects invalid or missing JSON.
 package postgres
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"mcgame-server/internal/domain/quest"
@@ -97,12 +99,8 @@ func (r *QuestRepository) FindByID(ctx context.Context, id int64) (*quest.QuestP
 	}
 
 	qp.Status = quest.QuestStatus(status)
-	if len(objectivesJSON) > 0 {
-		if err := json.Unmarshal(objectivesJSON, &qp.Objectives); err != nil {
-			qp.Objectives = []quest.Objective{}
-		}
-	} else {
-		qp.Objectives = []quest.Objective{}
+	if err := decodeQuestObjectives(qp, objectivesJSON); err != nil {
+		return nil, err
 	}
 
 	return qp, nil
@@ -127,12 +125,8 @@ func (r *QuestRepository) FindByCharacterAndQuest(ctx context.Context, character
 	}
 
 	qp.Status = quest.QuestStatus(status)
-	if len(objectivesJSON) > 0 {
-		if err := json.Unmarshal(objectivesJSON, &qp.Objectives); err != nil {
-			qp.Objectives = []quest.Objective{}
-		}
-	} else {
-		qp.Objectives = []quest.Objective{}
+	if err := decodeQuestObjectives(qp, objectivesJSON); err != nil {
+		return nil, err
 	}
 
 	return qp, nil
@@ -258,16 +252,21 @@ func (r *QuestRepository) scanQuestRows(rows pgx.Rows) ([]*quest.QuestProgress, 
 		}
 
 		qp.Status = quest.QuestStatus(status)
-		if len(objectivesJSON) > 0 {
-			if err := json.Unmarshal(objectivesJSON, &qp.Objectives); err != nil {
-				qp.Objectives = []quest.Objective{}
-			}
-		} else {
-			qp.Objectives = []quest.Objective{}
+		if err := decodeQuestObjectives(qp, objectivesJSON); err != nil {
+			return nil, err
 		}
 
 		quests = append(quests, qp)
 	}
 
 	return quests, nil
+}
+
+func decodeQuestObjectives(qp *quest.QuestProgress, objectivesJSON []byte) error {
+	var objectives []quest.Objective
+	if err := json.Unmarshal(objectivesJSON, &objectives); err != nil {
+		return fmt.Errorf("failed to decode quest objectives (progress ID %d, character ID %d, quest ID %d): %w", qp.ID, qp.CharacterID, qp.QuestID, err)
+	}
+	qp.Objectives = objectives
+	return nil
 }

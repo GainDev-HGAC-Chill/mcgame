@@ -21,7 +21,7 @@ export interface DatePickerProps {
 export function DatePicker({
     value,
     onChange,
-    placeholder = "Select date",
+    placeholder = "Chọn ngày",
 }: DatePickerProps) {
     const [open, setOpen] = React.useState(false)
 
@@ -67,7 +67,7 @@ export interface DateRangePickerProps {
 export function DateRangePicker({
     value,
     onChange,
-    placeholder = "Select date range",
+    placeholder = "Chọn khoảng ngày",
 }: DateRangePickerProps) {
     const [open, setOpen] = React.useState(false)
 

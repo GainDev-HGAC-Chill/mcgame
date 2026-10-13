@@ -93,7 +93,7 @@ function activityError(error: unknown, fallback: string): NextResponse {
 
 function missingIDError(): NextResponse {
     return NextResponse.json(
-        { ok: false, message: "id is required" },
+        { ok: false, message: "Vui lòng nhập ID" },
         { status: HTTP_STATUS.BAD_REQUEST }
     )
 }
@@ -158,7 +158,7 @@ export async function GET() {
             activities: data as ActivityRow[],
         })
     } catch (error) {
-        return activityError(error, "Failed to load activities")
+        return activityError(error, "Không tải được hoạt động")
     }
 }
 
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
             { status: HTTP_STATUS.CREATED }
         )
     } catch (error) {
-        return activityError(error, "Failed to create activity")
+        return activityError(error, "Không tạo được hoạt động")
     }
 }
 
@@ -234,7 +234,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ ok: true, activity: updated })
     } catch (error) {
-        return activityError(error, "Failed to update activity")
+        return activityError(error, "Không cập nhật được hoạt động")
     }
 }
 
@@ -262,6 +262,6 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ ok: true, deletedId: body.id })
     } catch (error) {
-        return activityError(error, "Failed to delete activity")
+        return activityError(error, "Không xóa được hoạt động")
     }
 }

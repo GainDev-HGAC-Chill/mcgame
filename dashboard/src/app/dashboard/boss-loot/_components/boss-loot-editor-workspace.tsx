@@ -79,7 +79,7 @@ function gameCurrencyLabel(awardId: number) {
     const match = BOX_ITEM_GAME_CURRENCY_OPTIONS.find(
         o => Number(o.value) === awardId
     )
-    return match ? match.label : `Game currency ${awardId}`
+    return match ? match.label : `Tiền tệ trò chơi ${awardId}`
 }
 
 function awardDisplayName(row: { rewardType: number; awardId: number; itemName?: string }) {
@@ -487,7 +487,7 @@ export function BossLootEditorWorkspace({ nid }: { nid: number }) {
                                             />
                                         ) : (
                                             <div className="flex h-12 w-12 items-center justify-center rounded-md border text-[11px] text-muted-foreground">
-                                                No icon
+                                                Không có biểu tượng
                                             </div>
                                         )}
                                         <div className="min-w-0 flex-1">
@@ -574,7 +574,7 @@ function BossLootRowCard({ row, onUpdate, onRemove, disabled }: RowCardProps) {
                             {awardDisplayName(row)}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            <Badge variant="secondary">type {row.rewardType}</Badge>
+                            <Badge variant="secondary">Loại {row.rewardType}</Badge>
                             <Badge variant="outline" className="font-mono">
                                 {isExp ? "EXP" : `id ${row.awardId}`}
                             </Badge>
@@ -662,7 +662,7 @@ function BossLootRowCard({ row, onUpdate, onRemove, disabled }: RowCardProps) {
                     </div>
                 ) : (
                     <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground">Quest gate (qid)</p>
+                        <p className="text-xs font-medium text-muted-foreground">Điều kiện nhiệm vụ (qid)</p>
                         <Input
                             type="number"
                             min={-1}
@@ -677,7 +677,7 @@ function BossLootRowCard({ row, onUpdate, onRemove, disabled }: RowCardProps) {
 
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 <div className="space-y-1">
-                    <Label className="text-xs">Filter tier</Label>
+                    <Label className="text-xs">Lọc cấp chất lượng</Label>
                     <Select
                         value={row.tierFilter ?? "any"}
                         onValueChange={v =>
@@ -689,14 +689,14 @@ function BossLootRowCard({ row, onUpdate, onRemove, disabled }: RowCardProps) {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="any">Tất cả tier</SelectItem>
-                            <SelectItem value="normal">normal</SelectItem>
-                            <SelectItem value="mythic">mythic</SelectItem>
-                            <SelectItem value="special">special</SelectItem>
+                            <SelectItem value="normal">Thường</SelectItem>
+                            <SelectItem value="mythic">Thần thoại</SelectItem>
+                            <SelectItem value="special">Đặc biệt</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
                 <div className="space-y-1">
-                    <Label className="text-xs">Filter source</Label>
+                    <Label className="text-xs">Lọc nguồn</Label>
                     <Select
                         value={row.sourceFilter ?? "any"}
                         onValueChange={v =>
@@ -708,14 +708,14 @@ function BossLootRowCard({ row, onUpdate, onRemove, disabled }: RowCardProps) {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="any">Tất cả</SelectItem>
-                            <SelectItem value="schedule">schedule</SelectItem>
-                            <SelectItem value="daily">daily</SelectItem>
+                            <SelectItem value="schedule">Theo lịch</SelectItem>
+                            <SelectItem value="daily">Hằng ngày</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
                 {!isCurrency ? (
                     <div className="space-y-1">
-                        <Label className="text-xs">Quest gate (qid)</Label>
+                        <Label className="text-xs">Điều kiện nhiệm vụ (qid)</Label>
                         <Input
                             type="number"
                             min={-1}

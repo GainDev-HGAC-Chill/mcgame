@@ -21,7 +21,7 @@ async function fetchInventory(playerId: number): Promise<InventoryData> {
         { method: "POST", body: JSON.stringify(body) }
     )
     if (!res.ok || !res.data) {
-        throw new Error(res.statusMessage || "Failed to load inventory")
+        throw new Error(res.statusMessage || "Không tải được túi đồ")
     }
     return res.data as InventoryData
 }
@@ -33,7 +33,7 @@ async function fetchPets(playerId: number): Promise<PetsData> {
         { method: "POST", body: JSON.stringify(body) }
     )
     if (!res.ok || !res.data) {
-        throw new Error(res.statusMessage || "Failed to load pets")
+        throw new Error(res.statusMessage || "Không tải được thú cưng")
     }
     return res.data as PetsData
 }

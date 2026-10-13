@@ -47,7 +47,6 @@ func SendExpAndLevelUpCallbacksWithEquipment(sender ExpCallbackSender, char *dom
 			"maxVigor":   110,
 			"level":      char.Level,
 		})
-		_ = sender.SendCallback("lvUp", map[string]interface{}{}, 1, nil)
 	}
 }
 

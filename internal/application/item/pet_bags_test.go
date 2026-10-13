@@ -23,6 +23,7 @@ type petBagTestPetService struct {
 	err                error
 	hasCapacity        bool
 	capacityConfigured bool
+	quality            int
 }
 
 func (s *petBagTestPetService) ContractPets(ctx context.Context, charID int64, templateIDs []int) ([]*domainpet.Pet, error) {
@@ -48,6 +49,7 @@ func (s *petBagTestPetService) ContractPets(ctx context.Context, charID int64, t
 }
 
 func (s *petBagTestPetService) ContractPetsWithQuality(ctx context.Context, charID int64, templateIDs []int, quality int) ([]*domainpet.Pet, error) {
+	s.quality = quality
 	return s.ContractPets(ctx, charID, templateIDs)
 }
 
@@ -108,6 +110,9 @@ func TestUseItem_PetBagContractsSinglePetFromDescription(t *testing.T) {
 	}
 	if len(petService.templateIDs) != 1 || petService.templateIDs[0] != 701 {
 		t.Fatalf("ContractPets() templateIDs = %v, want [701]", petService.templateIDs)
+	}
+	if petService.quality != 15 {
+		t.Fatalf("pet growth quality=%d want15 (growth1.5)", petService.quality)
 	}
 
 	pets, ok := result["pets"].([]map[string]interface{})

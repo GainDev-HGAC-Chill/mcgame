@@ -46,6 +46,7 @@ type shopService struct {
 	vipShopRepo VIPShopRepository
 	logger      *zap.Logger
 	vipMu       sync.Mutex
+	purchaseMu  sync.Map
 	vipDynamic  []vipShopDynamicEntry
 }
 
@@ -71,9 +72,19 @@ func (s *shopService) SetItemService(svc *item.Service) {
 	s.itemService = svc
 }
 
+func (s *shopService) lockCharacterPurchase(characterID int64) func() {
+	value, _ := s.purchaseMu.LoadOrStore(characterID, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 // BuyItem is the main entry point for buying items from NPC shops.
 // It supports basic currencies (Money, Gold) AND special currencies via PType1/PType2.
 func (s *shopService) BuyItem(ctx context.Context, characterID int64, shopSlotID int, amount int) (*BuyResult, error) {
+	unlock := s.lockCharacterPurchase(characterID)
+	defer unlock()
+
 	if s.charRepo == nil {
 		return nil, errors.New("character repository not initialized")
 	}
@@ -273,6 +284,9 @@ func (s *shopService) BuyItem(ctx context.Context, characterID int64, shopSlotID
 }
 
 func (s *shopService) BuySystemItem(ctx context.Context, characterID int64, shopSlotID int, amount int) (*BuyResult, error) {
+	unlock := s.lockCharacterPurchase(characterID)
+	defer unlock()
+
 	// BuySystemItem handles purchases from system shops (e.g., SystemShopPanel, ConsumPanel)
 	// Only supports: Gold (Vàng/Kim phiếu) and Points (Điểm thưởng)
 
@@ -339,11 +353,11 @@ func (s *shopService) BuySystemItem(ctx context.Context, characterID int64, shop
 		currencyType = 0 // Special: Points (not a standard currency type)
 		cost = int64(shopSlot.Point) * int64(amount)
 
-		if char.Honor < int(cost) {
+		if char.ExPoint < int(cost) {
 			return nil, errors.New("not enough points")
 		}
-		char.Honor -= int(cost)
-		newMoney = int64(char.Honor)
+		char.ExPoint -= int(cost)
+		newMoney = int64(char.ExPoint)
 	} else {
 		// Using Gold (Kim phiếu/Vàng)
 		// System shop ONLY accepts Gold, not Silver
@@ -533,6 +547,9 @@ func (s *shopService) SetCharacterRepository(repo character.Repository) {
 }
 
 func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64, purchases []PurchaseRequest) (*BuySystemItemMultiResult, error) {
+	unlock := s.lockCharacterPurchase(characterID)
+	defer unlock()
+
 	// 1. Load Character
 	char, err := s.charRepo.FindByID(ctx, characterID)
 	if err != nil {
@@ -628,7 +645,7 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 	}
 
 	// 4. Check Balances
-	if int64(char.Honor) < totalPoint {
+	if int64(char.ExPoint) < totalPoint {
 		return nil, errors.New("not enough points")
 	}
 	if char.GoldBind < totalGoldBind {
@@ -640,7 +657,7 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 
 	// 5. Execution: Deduct & Add Items
 	// Deduct
-	char.Honor -= int(totalPoint)
+	char.ExPoint -= int(totalPoint)
 	char.GoldBind -= totalGoldBind
 	char.Gold -= totalGold
 
@@ -709,7 +726,7 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 		newMoney = char.GoldBind
 		currencyType = 3
 	} else {
-		newMoney = int64(char.Honor)
+		newMoney = int64(char.ExPoint)
 		currencyType = 0
 	}
 

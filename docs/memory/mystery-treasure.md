@@ -1,5 +1,11 @@
 # Mystery Treasure (Mật Bảo) System
 
+Furnace fail-closed registration deployed17:34:09 (2026-10-12); no exchange is granted/consumed. Awaited dispatch/rate-limit errors also reply false, releasing the Flash waiting flag. Full furnace conversion remains NOT IMPLEMENTED; tests/vet/build PASS, Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
+
+## Mystery Furnace safety gate (2026-10-12)
+
+Supersedes the live exchange claims below: registered MysteryExchangeItem/Score now return false and alert unavailable without accessing inventory/scores/wallet. Flash onExchangeItem/onExchangeScore clear their waiting flag and return on a falsy responder, preserving selection and currency. Previous registered paths used placeholder1 crystal per item record/score unit despite client TBL_RECYCLING-based template/color/stack/value calculations; consumption followed by separate credit could lose inputs. Legacy methods remain unregistered for source archaeology/tests, not player use. Full correct conversion/atomic exchange needs an approved implementation plan; no old exchanges were replayed or refunded. Regression verifies both actual registered RPCs fail closed before dependencies.
+
 ## Feature Overview
 
 Mystery Treasure is a crafting/collection panel that opens off the decorate/forge UI cluster (DecoratePanel.as page 4). It manages:

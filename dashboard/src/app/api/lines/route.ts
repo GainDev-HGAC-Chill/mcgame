@@ -83,44 +83,44 @@ function internalError(message: string): NextResponse {
 function validateLinePayload(payload: LineCreatePayload, requireID: boolean) {
     const name = String(payload.name || "").trim()
     if (!name) {
-        throw new Error("name is required")
+        throw new Error("Vui lòng nhập tên kênh")
     }
     if (name.length > NAME_MAX || rejectControlBytes(name)) {
-        throw new Error("invalid name")
+        throw new Error("Tên kênh không hợp lệ")
     }
 
     const url = String(payload.url || "").trim()
     if (!url) {
-        throw new Error("url is required")
+        throw new Error("Vui lòng nhập URL")
     }
     if (url.length > URL_MAX || rejectControlBytes(url)) {
-        throw new Error("invalid url")
+        throw new Error("URL không hợp lệ")
     }
     if (!/^rtmpe?:\/\//i.test(url)) {
-        throw new Error("url must start with rtmp:// or rtmpe://")
+        throw new Error("URL phải bắt đầu bằng rtmp:// hoặc rtmpe://")
     }
 
     const maxClients = asInt(payload.maxClients, 1000)
     if (maxClients < 0 || maxClients > MAX_CLIENTS_MAX) {
-        throw new Error("invalid max_clients")
+        throw new Error("Số người chơi tối đa không hợp lệ")
     }
 
     const status = String(payload.status || "online").trim() as LineStatus
     if (!ALLOWED_STATUS.includes(status)) {
-        throw new Error("invalid status")
+        throw new Error("Trạng thái không hợp lệ")
     }
 
     let id: number | null = null
     if (requireID) {
         id = asInt(payload.id, -1)
         if (id < 0 || id > 32767) {
-            throw new Error("invalid id (smallint range)")
+            throw new Error("ID không hợp lệ (ngoài phạm vi smallint)")
         }
     }
 
     const sortOrder = asInt(payload.sortOrder, 0)
     if (sortOrder < 0 || sortOrder > 32767) {
-        throw new Error("invalid sort_order")
+        throw new Error("Thứ tự sắp xếp không hợp lệ")
     }
 
     return {
@@ -151,17 +151,17 @@ export async function POST(request: NextRequest) {
     try {
         payload = (await request.json()) as LineCreatePayload
     } catch {
-        return badRequest("invalid JSON body")
+        return badRequest("Nội dung JSON không hợp lệ")
     }
 
     let normalized
     try {
         normalized = validateLinePayload(payload, true)
     } catch (error) {
-        return badRequest(error instanceof Error ? error.message : "invalid request")
+        return badRequest(error instanceof Error ? error.message : "Yêu cầu không hợp lệ")
     }
     if (normalized.id === null) {
-        return badRequest("id is required")
+        return badRequest("Vui lòng nhập ID")
     }
 
     try {

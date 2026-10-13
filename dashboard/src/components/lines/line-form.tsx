@@ -75,7 +75,7 @@ export function LineForm({
                 setForm(f => ({ ...f, id: nextId, url: buildLineURL(rtmpBase, nextId) }))
             } catch (error) {
                 if (cancelled) return
-                toast.error(error instanceof Error ? error.message : "Failed to load existing lines")
+                toast.error(error instanceof Error ? error.message : "Không tải được danh sách kênh")
                 setForm(f => ({ ...f, id: 0, url: buildLineURL(rtmpBase, 0) }))
             } finally {
                 if (!cancelled) setIdLoading(false)
@@ -96,17 +96,17 @@ export function LineForm({
         setSubmitting(true)
         try {
             if (mode === "create") {
-                if (form.id === undefined) throw new Error("ID required")
+                if (form.id === undefined) throw new Error("Vui lòng nhập ID")
                 const created = await gatewayConfigService.create(form)
-                toast.success(`Line ${created.id} created`)
+                toast.success(`Đã tạo kênh ${created.id}`)
             } else if (initial) {
                 await gatewayConfigService.update(initial.id, form)
-                toast.success(`Line ${initial.id} updated`)
+                toast.success(`Đã cập nhật kênh ${initial.id}`)
             }
             router.push("/dashboard")
             router.refresh()
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Save failed")
+            toast.error(error instanceof Error ? error.message : "Lưu thất bại")
         } finally {
             setSubmitting(false)
         }
@@ -116,28 +116,28 @@ export function LineForm({
         <form onSubmit={handleSubmit} className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>{mode === "create" ? "Create line" : `Edit line ${initial?.id}`}</CardTitle>
+                    <CardTitle>{mode === "create" ? "Tạo kênh" : `Chỉnh sửa kênh ${initial?.id}`}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                     {mode === "create" ? (
                         <div className="grid gap-2">
-                            <Label htmlFor="id">ID (auto-incremented)</Label>
+                            <Label htmlFor="id">ID (tự tăng)</Label>
                             <Input
                                 id="id"
                                 type="number"
                                 value={idLoading ? "" : form.id ?? ""}
                                 readOnly
                                 disabled
-                                placeholder={idLoading ? "Loading…" : ""}
+                                placeholder={idLoading ? "Đang tải…" : ""}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Next available smallint ID (max existing + 1).
+                                ID smallint tiếp theo (ID lớn nhất hiện có + 1).
                             </p>
                         </div>
                     ) : null}
 
                     <div className="grid gap-2">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name">Tên</Label>
                         <Input
                             id="name"
                             value={form.name}
@@ -149,7 +149,7 @@ export function LineForm({
 
                     {mode === "create" ? (
                         <div className="grid gap-2">
-                            <Label htmlFor="rtmpBase">RTMP base</Label>
+                            <Label htmlFor="rtmpBase">Địa chỉ RTMP gốc</Label>
                             <div className="flex items-center gap-2">
                                 <Input
                                     id="rtmpBase"
@@ -164,12 +164,12 @@ export function LineForm({
                                 </span>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Final URL: <code>{form.url}</code>
+                                URL đầy đủ: <code>{form.url}</code>
                             </p>
                         </div>
                     ) : (
                         <div className="grid gap-2">
-                            <Label htmlFor="url">RTMP URL</Label>
+                            <Label htmlFor="url">URL RTMP</Label>
                             <Input
                                 id="url"
                                 value={form.url}
@@ -183,7 +183,7 @@ export function LineForm({
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
-                            <Label htmlFor="maxClients">Max clients</Label>
+                            <Label htmlFor="maxClients">Số người chơi tối đa</Label>
                             <Input
                                 id="maxClients"
                                 type="number"
@@ -196,7 +196,7 @@ export function LineForm({
                             />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="sortOrder">Sort order</Label>
+                            <Label htmlFor="sortOrder">Thứ tự sắp xếp</Label>
                             <Input
                                 id="sortOrder"
                                 type="number"
@@ -213,7 +213,7 @@ export function LineForm({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="flex items-center justify-between rounded-md border p-3">
                             <Label htmlFor="auction" className="cursor-pointer">
-                                Auction
+                                Đấu giá
                             </Label>
                             <Switch
                                 id="auction"
@@ -223,7 +223,7 @@ export function LineForm({
                         </div>
                         <div className="flex items-center justify-between rounded-md border p-3">
                             <Label htmlFor="guild" className="cursor-pointer">
-                                Guild
+                                Bang hội
                             </Label>
                             <Switch
                                 id="guild"
@@ -234,7 +234,7 @@ export function LineForm({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="status">Status</Label>
+                        <Label htmlFor="status">Trạng thái</Label>
                         <Select
                             value={form.status}
                             onValueChange={value =>
@@ -245,9 +245,9 @@ export function LineForm({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="online">online</SelectItem>
-                                <SelectItem value="maintenance">maintenance</SelectItem>
-                                <SelectItem value="offline">offline</SelectItem>
+                                <SelectItem value="online">Trực tuyến</SelectItem>
+                                <SelectItem value="maintenance">Bảo trì</SelectItem>
+                                <SelectItem value="offline">Ngoại tuyến</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -256,10 +256,10 @@ export function LineForm({
 
             <div className="flex gap-2">
                 <Button type="submit" disabled={submitting || (mode === "create" && idLoading)}>
-                    {submitting ? "Saving…" : mode === "create" ? "Create" : "Save changes"}
+                    {submitting ? "Đang lưu…" : mode === "create" ? "Tạo" : "Lưu thay đổi"}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => router.push("/dashboard")}>
-                    Cancel
+                    Hủy
                 </Button>
             </div>
         </form>

@@ -332,7 +332,7 @@ func TestCompleteQuest_LoopChild_ContinuesCycleWithoutHistory(t *testing.T) {
 	itemService.SetGameDataManager(manager)
 	questRepo := newQuestTestQuestRepo()
 
-	progress := domainquest.NewQuestProgress(1, 701, nil)
+	progress := domainquest.NewQuestProgress(1, 701, loadTestCompletedKill(t, manager, 701))
 	if err := questRepo.Save(context.Background(), progress); err != nil {
 		t.Fatalf("save progress: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestCompleteQuest_LoopChild_DeactivatesOnFinalRound(t *testing.T) {
 	itemService.SetGameDataManager(manager)
 	questRepo := newQuestTestQuestRepo()
 
-	progress := domainquest.NewQuestProgress(1, 801, nil)
+	progress := domainquest.NewQuestProgress(1, 801, loadTestCompletedKill(t, manager, 801))
 	if err := questRepo.Save(context.Background(), progress); err != nil {
 		t.Fatalf("save progress: %v", err)
 	}
@@ -458,7 +458,7 @@ func TestCompleteQuest_DailyQuestAllowsRetakeOnlyAfterToday(t *testing.T) {
 	itemService.SetGameDataManager(manager)
 	questRepo := newFakeDatedQuestRepo()
 
-	progress := domainquest.NewQuestProgress(1, 950, nil)
+	progress := domainquest.NewQuestProgress(1, 950, loadTestCompletedKill(t, manager, 950))
 	if err := questRepo.Save(context.Background(), progress); err != nil {
 		t.Fatalf("save progress: %v", err)
 	}

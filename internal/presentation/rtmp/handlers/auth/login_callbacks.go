@@ -128,11 +128,4 @@ func (h *Handler) sendLoginStateCallbacks(ctx *rtmp.RPCContext, payload map[stri
 			zap.Error(err))
 	}
 
-	if warSpriteState, ok := payload["warSpritePanel"].(map[string]interface{}); ok {
-		if err := ctx.Connection.SendCallback("updateWSPPanel", warSpriteState); err != nil {
-			h.logger.Warn("Failed to send updateWSPPanel",
-				zap.Uint32("conn_id", ctx.ConnID),
-				zap.Error(err))
-		}
-	}
 }

@@ -76,7 +76,7 @@ func (h *Handler) EnsurePetEat(ctx *rtmp.RPCContext, args []interface{}) (interf
 }
 
 func (h *Handler) PetStar(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if err := requireArgs(args, 1); err != nil {
+	if err := requireArgs(args, 2); err != nil {
 		return nil, err
 	}
 
@@ -89,10 +89,16 @@ func (h *Handler) PetStar(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		return nil, err
 	}
 
-	p, err := h.petService.UpgradeStar(ctx.Context, characterID, petID)
+	itemID, err := parseInt64Arg(args[1])
+	if err != nil {
+		return nil, err
+	}
+	result, err := h.petService.UpgradeStarWithItem(ctx.Context, characterID, petID, itemID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
+	sendPetItemUseRefresh(ctx, result)
+	p := result.Pet
 
 	h.logger.Info("Pet star upgraded",
 		zap.Int64("character_id", characterID),
@@ -100,8 +106,12 @@ func (h *Handler) PetStar(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		zap.Int("stars", p.UpgradeNum))
 
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDTO(),
+		"flag":        true,
+		"petId":       p.ID,
+		"starNum":     p.UpgradeNum,
+		"growRateAdd": p.GrowRateAdd,
+		"starSlotId":  result.ItemID,
+		"num":         result.RemainingStack,
 	}, nil
 }
 
@@ -136,7 +146,7 @@ func (h *Handler) ContractPet(ctx *rtmp.RPCContext, args []interface{}) (interfa
 }
 
 func (h *Handler) PetStarClear(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if err := requireArgs(args, 1); err != nil {
+	if err := requireArgs(args, 2); err != nil {
 		return nil, err
 	}
 
@@ -149,18 +159,28 @@ func (h *Handler) PetStarClear(ctx *rtmp.RPCContext, args []interface{}) (interf
 		return nil, err
 	}
 
-	p, err := h.petService.ClearStars(ctx.Context, characterID, petID)
+	itemID, err := parseInt64Arg(args[1])
+	if err != nil {
+		return nil, err
+	}
+	result, err := h.petService.ClearStarsWithItem(ctx.Context, characterID, petID, itemID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
+	sendPetItemUseRefresh(ctx, result)
+	p := result.Pet
 
 	h.logger.Info("Pet stars cleared",
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID))
 
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDTO(),
+		"flag":        true,
+		"petId":       p.ID,
+		"starNum":     p.UpgradeNum,
+		"growRateAdd": p.GrowRateAdd,
+		"starSlotId":  result.ItemID,
+		"num":         result.RemainingStack,
 	}, nil
 }
 

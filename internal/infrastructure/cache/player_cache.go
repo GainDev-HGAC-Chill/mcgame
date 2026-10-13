@@ -100,6 +100,8 @@ func (c *PlayerCache) debugLoggerLoop() {
 		lines = append(lines, "")
 
 		for charID, data := range c.activeSessions {
+			isDirty := data.IsDirty()
+			data := data.Snapshot()
 			if data.Character != nil {
 				// Marshal full player data to JSON
 				playerJSON := map[string]interface{}{
@@ -137,7 +139,7 @@ func (c *PlayerCache) debugLoggerLoop() {
 					"skills_count": len(data.Skills),
 					"pets_count":   len(data.Pets),
 					"quests_count": len(data.Quests),
-					"is_dirty":     data.IsDirty(),
+					"is_dirty":     isDirty,
 				}
 
 				// Add items details
@@ -224,19 +226,19 @@ func (c *PlayerCache) LoadPlayer(ctx context.Context, charID int64) (*PlayerData
 	}
 
 	data := NewPlayerData(charID)
-	data.Character = char
+	data.Character = cloneCharacter(char)
 
 	for _, it := range items {
-		data.Items[it.ID] = it
+		data.AddItemWithoutDirty(it)
 	}
 	for _, sk := range skills {
-		data.Skills[sk.ID] = sk
+		data.AddSkillWithoutDirty(sk)
 	}
 	for _, pt := range pets {
-		data.Pets[pt.ID] = pt
+		data.AddPetWithoutDirty(pt)
 	}
 	for _, q := range quests {
-		data.Quests[q.ID] = q
+		data.AddQuestWithoutDirty(q)
 	}
 
 	c.mu.Lock()
@@ -367,6 +369,8 @@ func (c *PlayerCache) SaveAllDirty(ctx context.Context) (*center.SaveStats, erro
 }
 
 func (c *PlayerCache) persistPlayerData(ctx context.Context, data *PlayerData) error {
+	data.persistMu.Lock()
+	defer data.persistMu.Unlock()
 	snapshot := data.GetDirtySnapshot()
 	hadFailure := false
 
@@ -451,7 +455,7 @@ func (c *PlayerCache) persistPlayerData(ctx context.Context, data *PlayerData) e
 		return fmt.Errorf("failed to persist one or more cached entities")
 	}
 
-	data.ClearDirty()
+	data.acknowledgeSnapshot(snapshot)
 	return nil
 }
 
@@ -584,25 +588,10 @@ func (c *PlayerCache) saveToRedis(ctx context.Context, data *PlayerData) error {
 	if c.redisClient == nil {
 		return nil
 	}
+	data.redisMu.Lock()
+	defer data.redisMu.Unlock()
 
-	data.mu.RLock()
-	defer data.mu.RUnlock()
-
-	dto := struct {
-		CharacterID int64
-		Character   *character.Character
-		Items       map[int64]*item.Item
-		Skills      map[int64]*skill.CharacterSkill
-		Pets        map[int64]*pet.Pet
-		Quests      map[int64]*quest.QuestProgress
-	}{
-		CharacterID: data.CharacterID,
-		Character:   data.Character,
-		Items:       data.Items,
-		Skills:      data.Skills,
-		Pets:        data.Pets,
-		Quests:      data.Quests,
-	}
+	dto := data.Snapshot()
 
 	bytes, err := json.Marshal(dto)
 	if err != nil {
@@ -680,10 +669,12 @@ func (c *PlayerCache) Stats() map[string]int {
 	dirtyPlayers := 0
 
 	for _, data := range c.activeSessions {
+		data.mu.RLock()
 		totalItems += len(data.Items)
 		totalSkills += len(data.Skills)
 		totalPets += len(data.Pets)
 		totalQuests += len(data.Quests)
+		data.mu.RUnlock()
 		if data.IsDirty() {
 			dirtyPlayers++
 		}
@@ -733,17 +724,21 @@ func (c *PlayerCache) UpdateCachedCharacter(charID int64, fn func(*character.Cha
 	data, ok := c.activeSessions[charID]
 	c.mu.RUnlock()
 
-	if !ok || data.Character == nil {
+	if !ok {
 		return nil
 	}
 
 	data.mu.Lock()
-	fn(data.Character)
+	defer data.mu.Unlock()
+	if data.Character == nil {
+		return nil
+	}
+	updated := cloneCharacter(data.Character)
+	fn(updated)
+	data.Character = cloneCharacter(updated)
+	data.revision++
 	data.dirtyChar = true
-	snapshot := *data.Character
-	data.mu.Unlock()
-
-	return &snapshot
+	return updated
 }
 
 func (c *PlayerCache) LoadHotState(ctx context.Context, charID int64) (*HotStateBuffer, error) {

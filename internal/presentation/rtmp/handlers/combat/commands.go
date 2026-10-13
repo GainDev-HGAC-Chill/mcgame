@@ -164,7 +164,11 @@ func (h *Handler) BattleUpdateCmd(ctx *rtmp.RPCContext, args []interface{}) (int
 
 	battle.ClearPendingCommands()
 
+	petRewardCount := caughtPetRewardCountForCharacter(battle.GetPendingPetRewards(), characterID)
 	result := processor.ProcessRound()
+	if h.questNotify != nil && caughtPetRewardCountForCharacter(battle.GetPendingPetRewards(), characterID) > petRewardCount {
+		h.questNotify.PushQuestProgress(ctx, characterID)
+	}
 	if len(result.PetStateOwners) > 0 && h.combatService != nil {
 		stateChanges, err := h.combatService.SyncBattlePetStates(ctx.Context, battle, result.PetStateOwners)
 		if err != nil {
@@ -268,6 +272,16 @@ func (h *Handler) BattleUpdateCmd(ctx *rtmp.RPCContext, args []interface{}) (int
 		zap.Bool("more_turns", result.MoreTurns))
 
 	return response, nil
+}
+
+func caughtPetRewardCountForCharacter(rewards []combatdomain.PetReward, characterID int64) int {
+	count := 0
+	for _, reward := range rewards {
+		if reward.CharacterID == characterID && reward.PetID > 0 {
+			count++
+		}
+	}
+	return count
 }
 
 func (h *Handler) parseCommands(ctx context.Context, cmdArray []interface{}, characterID int64, battle *combatdomain.Battle) []*combatdomain.BattleCommand {

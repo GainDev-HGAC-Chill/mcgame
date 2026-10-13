@@ -132,10 +132,7 @@ func (s *PPVEService) KPData(state *PPVEState) map[string]interface{} {
 }
 
 func (s *PPVEService) PPVEData(state *PPVEState) map[string]interface{} {
-	p := state.P
-	if p == nil {
-		p = map[string]interface{}{}
-	}
+	p := ppvePartsToWire(state.P)
 	config := state.PPVEConfig
 	if config == nil {
 		config = map[string]interface{}{}

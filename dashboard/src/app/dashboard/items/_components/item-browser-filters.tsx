@@ -154,10 +154,10 @@ export function ItemBrowserFilters({
                             <SelectValue placeholder="Sắp xếp" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="item_id">Item ID</SelectItem>
+                            <SelectItem value="item_id">ID vật phẩm</SelectItem>
                             <SelectItem value="name">Tên</SelectItem>
-                            <SelectItem value="kind">Kind</SelectItem>
-                            <SelectItem value="template_type">Type</SelectItem>
+                            <SelectItem value="kind">Nhóm</SelectItem>
+                            <SelectItem value="template_type">Loại</SelectItem>
                             <SelectItem value="required_level">
                                 Yêu cầu cấp
                             </SelectItem>

@@ -201,7 +201,7 @@ export default function MapViewerPage() {
 
     const processMapData = useCallback((data: any) => {
         if (!data.tiles || !Array.isArray(data.tiles)) {
-            throw new Error("Invalid map data format")
+            throw new Error("Định dạng dữ liệu bản đồ không hợp lệ")
         }
 
         // Find coordinate ranges
@@ -304,7 +304,7 @@ export default function MapViewerPage() {
 
                 if (!tilesResponse.ok) {
                     throw new Error(
-                        `Failed to load map_tiles.json for map ${mapId}`
+                        `Không tải được map_tiles.json cho bản đồ ${mapId}`
                     )
                 }
 
@@ -326,7 +326,7 @@ export default function MapViewerPage() {
                 }
             } catch (err) {
                 setError(
-                    err instanceof Error ? err.message : "Failed to load map"
+                    err instanceof Error ? err.message : "Không tải được bản đồ"
                 )
                 console.error("Error loading map:", err)
             } finally {
@@ -362,7 +362,7 @@ export default function MapViewerPage() {
         const col = parseInt(searchCol)
 
         if (isNaN(row) || isNaN(col)) {
-            setConvertResult("Please enter valid tile coordinates")
+            setConvertResult("Vui lòng nhập tọa độ ô hợp lệ")
             return
         }
 
@@ -382,7 +382,7 @@ export default function MapViewerPage() {
         const sy = parseInt(serverY)
 
         if (isNaN(sx) || isNaN(sy)) {
-            setConvertResult("Please enter valid server coordinates")
+            setConvertResult("Vui lòng nhập tọa độ máy chủ hợp lệ")
             return
         }
 
@@ -408,7 +408,7 @@ export default function MapViewerPage() {
                   : "Unknown"
 
         setConvertResult(
-            `Server (${sx}, ${sy}) -> Tile (${tileRow}, ${tileCol}) - Type: ${typeInfo}`
+            `Máy chủ (${sx}, ${sy}) → Ô (${tileRow}, ${tileCol}) - Loại: ${typeInfo}`
         )
         handleTileClick(tileRow, tileCol)
     }
@@ -481,16 +481,16 @@ export default function MapViewerPage() {
                     <Card>
                         <CardHeader className="p-3 pb-2">
                             <CardTitle className="text-base">
-                                Map Controls
+                                Điều khiển bản đồ
                             </CardTitle>
                             <CardDescription className="text-xs">
-                                Select map and adjust display settings
+                                Chọn bản đồ và điều chỉnh hiển thị
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-2 p-3 pt-0">
                             <div>
                                 <Label htmlFor="mapSelect" className="text-xs">
-                                    Map ID
+                                    ID bản đồ
                                 </Label>
                                 <Select
                                     value={currentMapId}
@@ -500,7 +500,7 @@ export default function MapViewerPage() {
                                         id="mapSelect"
                                         className="h-8 w-full"
                                     >
-                                        <SelectValue placeholder="Select map" />
+                                        <SelectValue placeholder="Chọn bản đồ" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {AVAILABLE_MAPS.map(mapId => (
@@ -508,7 +508,7 @@ export default function MapViewerPage() {
                                                 key={mapId}
                                                 value={mapId}
                                             >
-                                                Map {mapId}
+                                                Bản đồ {mapId}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -516,7 +516,7 @@ export default function MapViewerPage() {
                             </div>
 
                             <p className="text-xs text-muted-foreground">
-                                Tile Size: {tileSize}px
+                                Kích thước ô: {tileSize}px
                             </p>
 
                             <div className="space-y-1">
@@ -530,7 +530,7 @@ export default function MapViewerPage() {
                                         htmlFor="showOverlays"
                                         className="text-xs"
                                     >
-                                        Show tile types
+                                        Hiện loại ô
                                     </Label>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -543,7 +543,7 @@ export default function MapViewerPage() {
                                         htmlFor="showCoords"
                                         className="text-xs"
                                     >
-                                        Show coordinates
+                                        Hiện tọa độ
                                     </Label>
                                 </div>
                             </div>
@@ -553,13 +553,13 @@ export default function MapViewerPage() {
                     <Card>
                         <CardHeader className="p-2 pb-1">
                             <CardTitle className="text-sm">
-                                Current Tile
+                                Ô hiện tại
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-1 p-2 pt-0 text-xs">
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">
-                                    Tile (Row, Col):
+                                    Ô (hàng, cột):
                                 </span>
                                 <span className="font-mono font-medium">
                                     {selectedTile
@@ -569,7 +569,7 @@ export default function MapViewerPage() {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">
-                                    Server (X, Y):
+                                    Máy chủ (X, Y):
                                 </span>
                                 <span className="font-mono font-medium">
                                     {selectedTileInfo &&
@@ -580,7 +580,7 @@ export default function MapViewerPage() {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">
-                                    Type:
+                                    Loại:
                                 </span>
                                 <Badge
                                     variant={
@@ -607,7 +607,7 @@ export default function MapViewerPage() {
                         <CardHeader className="p-2 pb-1">
                             <CardTitle className="flex items-center gap-2 text-sm">
                                 <Search className="h-3.5 w-3.5" />
-                                Find by Server Coord
+                                Tìm theo tọa độ máy chủ
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 p-2 pt-0">
@@ -617,7 +617,7 @@ export default function MapViewerPage() {
                                         htmlFor="serverX"
                                         className="text-xs"
                                     >
-                                        Server X
+                                        Tọa độ X máy chủ
                                     </Label>
                                     <Input
                                         id="serverX"
@@ -635,7 +635,7 @@ export default function MapViewerPage() {
                                         htmlFor="serverY"
                                         className="text-xs"
                                     >
-                                        Server Y
+                                        Tọa độ Y máy chủ
                                     </Label>
                                     <Input
                                         id="serverY"
@@ -654,7 +654,7 @@ export default function MapViewerPage() {
                                 className="w-full"
                                 size="sm"
                             >
-                                Find & Go To
+                                Tìm và di chuyển đến
                             </Button>
                             {convertResult && (
                                 <div className="rounded bg-muted p-2 text-xs">
@@ -668,7 +668,7 @@ export default function MapViewerPage() {
                         <CardHeader className="p-2 pb-1">
                             <CardTitle className="flex items-center gap-2 text-sm">
                                 <Navigation className="h-3.5 w-3.5" />
-                                Go To Tile
+                                Đi đến ô
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 p-2 pt-0">
@@ -678,7 +678,7 @@ export default function MapViewerPage() {
                                         htmlFor="searchRow"
                                         className="text-xs"
                                     >
-                                        Tile Row
+                                        Hàng ô
                                     </Label>
                                     <Input
                                         id="searchRow"
@@ -696,7 +696,7 @@ export default function MapViewerPage() {
                                         htmlFor="searchCol"
                                         className="text-xs"
                                     >
-                                        Tile Col
+                                        Cột ô
                                     </Label>
                                     <Input
                                         id="searchCol"
@@ -716,27 +716,27 @@ export default function MapViewerPage() {
                                 size="sm"
                                 variant="secondary"
                             >
-                                Go To Tile
+                                Đi đến ô
                             </Button>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="p-2 pb-1">
-                            <CardTitle className="text-sm">Legend</CardTitle>
+                            <CardTitle className="text-sm">Chú thích</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-1.5 p-2 pt-0 text-xs">
                             <div className="flex items-center gap-2">
                                 <div className="h-4 w-4 rounded border border-green-500 bg-green-500/30" />
-                                <span>Walkable (Type 0)</span>
+                                <span>Có thể đi (loại 0)</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="h-4 w-4 rounded border border-red-500 bg-red-500/30" />
-                                <span>Blocked (Type 2)</span>
+                                <span>Bị chặn (loại 2)</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="h-4 w-4 rounded border-2 border-yellow-500 bg-yellow-500/60" />
-                                <span>Selected</span>
+                                <span>Đã chọn</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -745,13 +745,13 @@ export default function MapViewerPage() {
                         <Card>
                             <CardHeader className="p-2 pb-1">
                                 <CardTitle className="text-sm">
-                                    Map Statistics
+                                    Thống kê bản đồ
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-1 p-2 pt-0 text-xs">
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">
-                                        Map ID:
+                                        ID bản đồ:
                                     </span>
                                     <span className="font-medium">
                                         {currentMapId}
@@ -759,7 +759,7 @@ export default function MapViewerPage() {
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">
-                                        Grid size:
+                                        Kích thước lưới:
                                     </span>
                                     <span className="font-medium">
                                         {gridCols} x {gridRows}
@@ -767,7 +767,7 @@ export default function MapViewerPage() {
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">
-                                        Walkable:
+                                        Có thể đi:
                                     </span>
                                     <span className="font-medium text-green-600">
                                         {stats.walkable}
@@ -775,7 +775,7 @@ export default function MapViewerPage() {
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">
-                                        Blocked:
+                                        Bị chặn:
                                     </span>
                                     <span className="font-medium text-red-600">
                                         {stats.blocked}
@@ -785,7 +785,7 @@ export default function MapViewerPage() {
                                     <>
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">
-                                                Server X range:
+                                                Phạm vi X máy chủ:
                                             </span>
                                             <span className="font-medium text-xs">
                                                 {mapData.xRange.min} -{" "}
@@ -794,7 +794,7 @@ export default function MapViewerPage() {
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">
-                                                Server Y range:
+                                                Phạm vi Y máy chủ:
                                             </span>
                                             <span className="font-medium text-xs">
                                                 {mapData.yRange.min} -{" "}
@@ -818,7 +818,7 @@ export default function MapViewerPage() {
                                 <div className="text-center">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
                                     <p className="text-muted-foreground">
-                                        Loading map...
+                                        Đang tải bản đồ...
                                     </p>
                                 </div>
                             </div>
@@ -826,7 +826,7 @@ export default function MapViewerPage() {
                             <div className="flex h-full w-full items-center justify-center">
                                 <div className="text-center text-red-500">
                                     <p className="font-medium">
-                                        Error loading map
+                                        Lỗi tải bản đồ
                                     </p>
                                     <p className="text-sm">{error}</p>
                                 </div>

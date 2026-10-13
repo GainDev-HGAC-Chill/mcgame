@@ -3,7 +3,7 @@
 // Lucky-day award claim. Replies a Number (1=success) per the AS3
 // onDailySignInActGetAward inline Responder. Reward is the per-week
 // luckyGold[w] gold amount; service emits Outcome.GoldSpent < 0 to signal
-// the credit. We push onUPP with goldDiff > 0 and refresh button state.
+// the credit. We push separate gold and goldBind totals and refresh button state.
 package dailysignin
 
 import (

@@ -4,6 +4,7 @@ import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import {
     PLAYER_NAV_CATEGORIES,
+    PLAYER_NAV_CATEGORY_LABELS,
     PLAYER_NAV_ITEMS,
     type PlayerNavItem,
 } from "../_lib/nav"
@@ -40,7 +41,7 @@ export function PlayerNav() {
                 return (
                     <div key={category} className="space-y-1">
                         <p className="px-3 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                            {category}
+                            {PLAYER_NAV_CATEGORY_LABELS[category]}
                         </p>
                         {items.map(item => (
                             <NavTrigger key={item.value} item={item} />

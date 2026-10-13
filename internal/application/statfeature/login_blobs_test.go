@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildPetPVEDataJSON_PopulatedAndEmpty(t *testing.T) {
-	if got := buildPetPVEDataJSON(nil); got != `{"mlv":0,"p":{},"ppveConfig":{}}` {
+	if got := buildPetPVEDataJSON(nil); got != `{"mlv":0,"p":{"s0":{},"s1":{},"s2":{},"s3":{},"s4":{},"s5":{},"s6":{},"s7":{}},"ppveConfig":{}}` {
 		t.Fatalf("empty petPVEData = %s", got)
 	}
 
@@ -30,6 +30,9 @@ func TestBuildPetPVEDataJSON_PopulatedAndEmpty(t *testing.T) {
 	}
 	if _, leaked := out["kp"]; leaked {
 		t.Fatalf("kp must not appear in petPVEData wire: %v", out)
+	}
+	if len(out["p"].(map[string]interface{})) != 8 || len(state["p"].(map[string]interface{})) != 1 {
+		t.Fatal("login stage hydration omitted containers or mutated stored progression")
 	}
 }
 

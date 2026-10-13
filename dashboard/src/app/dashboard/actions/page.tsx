@@ -75,7 +75,7 @@ export default function ActionsPage() {
 
     const handleAction = (actionType: string) => {
         const durationText =
-            duration === "-1" ? "Permanent" : `${duration} minutes`
+            duration === "-1" ? "Vĩnh viễn" : `${duration} phút`
 
         switch (actionType) {
             case "ban":
@@ -106,28 +106,28 @@ export default function ActionsPage() {
         <div className="space-y-6">
             <Tabs defaultValue="actions" className="space-y-4">
                 <TabsList>
-                    <TabsTrigger value="actions">Execute action</TabsTrigger>
-                    <TabsTrigger value="compensate">Compensate</TabsTrigger>
-                    <TabsTrigger value="history">Action history</TabsTrigger>
+                    <TabsTrigger value="actions">Thực hiện thao tác</TabsTrigger>
+                    <TabsTrigger value="compensate">Đền bù</TabsTrigger>
+                    <TabsTrigger value="history">Lịch sử thao tác</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="actions" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Select action</CardTitle>
+                            <CardTitle>Chọn thao tác</CardTitle>
                             <CardDescription>
-                                Choose the GM action to perform
+                                Chọn thao tác GM cần thực hiện
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {/* Player Search */}
                             <div>
-                                <Label>Search player</Label>
+                                <Label>Tìm người chơi</Label>
                                 <div className="flex gap-2 mt-2">
                                     <div className="relative flex-1">
                                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                         <Input
-                                            placeholder="Enter player name or ID..."
+                                            placeholder="Nhập tên hoặc ID người chơi..."
                                             value={searchPlayer}
                                             onChange={e =>
                                                 setSearchPlayer(e.target.value)
@@ -135,13 +135,13 @@ export default function ActionsPage() {
                                             className="pl-10"
                                         />
                                     </div>
-                                    <Button variant="outline">Search</Button>
+                                    <Button variant="outline">Tìm kiếm</Button>
                                 </div>
                             </div>
 
                             {/* Action Type Selection */}
                             <div>
-                                <Label>Action type</Label>
+                                <Label>Loại thao tác</Label>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
                                     {Object.entries(ACTION_TYPES).map(
                                         ([id, config]) => {
@@ -203,14 +203,14 @@ export default function ActionsPage() {
                                 <Card className="border-primary/50">
                                     <CardHeader>
                                         <CardTitle className="text-lg">
-                                            Action details
+                                            Chi tiết thao tác
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
                                         <div>
-                                            <Label>Reason</Label>
+                                            <Label>Lý do</Label>
                                             <Textarea
-                                                placeholder="Enter reason for this action..."
+                                                placeholder="Nhập lý do thực hiện thao tác..."
                                                 value={reason}
                                                 onChange={e =>
                                                     setReason(e.target.value)
@@ -223,7 +223,7 @@ export default function ActionsPage() {
                                             selectedAction === "mute") && (
                                             <div>
                                                 <Label>
-                                                    Duration (minutes)
+                                                    Thời hạn (phút)
                                                 </Label>
                                                 <Select
                                                     value={duration}
@@ -261,7 +261,7 @@ export default function ActionsPage() {
                                                     setReason("")
                                                 }}
                                             >
-                                                Cancel
+                                                Hủy
                                             </Button>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
@@ -278,16 +278,16 @@ export default function ActionsPage() {
                                                             !reason
                                                         }
                                                     >
-                                                        Confirm
+                                                        Xác nhận
                                                     </Button>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>
-                                                            Confirm action?
+                                                            Xác nhận thao tác?
                                                         </AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            You are performing{" "}
+                                                            Bạn đang thực hiện{" "}
                                                             <strong>
                                                                 {
                                                                     getActionConfig(
@@ -295,37 +295,35 @@ export default function ActionsPage() {
                                                                     )?.label
                                                                 }
                                                             </strong>{" "}
-                                                            on player{" "}
+                                                            với người chơi{" "}
                                                             <strong>
                                                                 {searchPlayer}
                                                             </strong>
                                                             .
                                                             <br />
                                                             <br />
-                                                            Reason: {reason}
+                                                            Lý do: {reason}
                                                             {(selectedAction ===
                                                                 "ban" ||
                                                                 selectedAction ===
                                                                     "mute") && (
                                                                 <>
                                                                     <br />
-                                                                    Duration:{" "}
+                                                                    Thời hạn:{" "}
                                                                     {duration ===
                                                                     "-1"
-                                                                        ? "Permanent"
+                                                                        ? "Vĩnh viễn"
                                                                         : `${duration} minutes`}
                                                                 </>
                                                             )}
                                                             <br />
                                                             <br />
-                                                            This action will be
-                                                            recorded in the
-                                                            history.
+                                                            Thao tác này sẽ được ghi vào lịch sử.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>
-                                                            Cancel
+                                                            Hủy
                                                         </AlertDialogCancel>
                                                         <AlertDialogAction
                                                             onClick={() =>
@@ -334,7 +332,7 @@ export default function ActionsPage() {
                                                                 )
                                                             }
                                                         >
-                                                            Confirm action
+                                                            Xác nhận thao tác
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
@@ -349,12 +347,12 @@ export default function ActionsPage() {
                     {/* Recent Actions */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Recent actions</CardTitle>
+                            <CardTitle>Thao tác gần đây</CardTitle>
                         </CardHeader>
                         <CardContent>
                             {recentActions.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">
-                                    No recent actions.
+                                    Chưa có thao tác gần đây.
                                 </p>
                             ) : (
                                 <div className="space-y-3">
@@ -375,11 +373,11 @@ export default function ActionsPage() {
                                                         <span className="font-medium">
                                                             {action.admin}
                                                         </span>{" "}
-                                                        performed{" "}
+                                                        đã thực hiện{" "}
                                                         <span className="font-medium">
                                                             {config?.label}
                                                         </span>{" "}
-                                                        on{" "}
+                                                        với{" "}
                                                         <span className="font-medium">
                                                             {action.target}
                                                         </span>
@@ -403,21 +401,21 @@ export default function ActionsPage() {
                 <TabsContent value="compensate" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Compensate player</CardTitle>
+                            <CardTitle>Đền bù người chơi</CardTitle>
                             <CardDescription>
-                                Send compensation items or currency to players
+                                Gửi vật phẩm hoặc tiền tệ đền bù cho người chơi
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
                                 <Label>
-                                    Recipient player (leave empty for all)
+                                    Người nhận (để trống để gửi cho tất cả)
                                 </Label>
-                                <Input placeholder="Enter player name or ID..." />
+                                <Input placeholder="Nhập tên hoặc ID người chơi..." />
                             </div>
 
                             <div>
-                                <Label>Compensation type</Label>
+                                <Label>Loại đền bù</Label>
                                 <Select
                                     value={compensationType}
                                     onValueChange={setCompensationType}
@@ -444,15 +442,15 @@ export default function ActionsPage() {
                             compensationType === "both" ? (
                                 <div className="grid grid-cols-3 gap-4">
                                     <div>
-                                        <Label>Gold</Label>
+                                        <Label>Vàng</Label>
                                         <Input type="number" placeholder="0" />
                                     </div>
                                     <div>
-                                        <Label>Gems</Label>
+                                        <Label>Đá quý</Label>
                                         <Input type="number" placeholder="0" />
                                     </div>
                                     <div>
-                                        <Label>Coins</Label>
+                                        <Label>Xu</Label>
                                         <Input type="number" placeholder="0" />
                                     </div>
                                 </div>
@@ -461,16 +459,16 @@ export default function ActionsPage() {
                             {compensationType === "item" ||
                             compensationType === "both" ? (
                                 <div>
-                                    <Label>Item IDs (comma separated)</Label>
+                                    <Label>ID vật phẩm (phân cách bằng dấu phẩy)</Label>
                                     <Input placeholder="item001, item002, item003" />
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        Example: potion_hp, sword_epic
+                                        Ví dụ: potion_hp, sword_epic
                                     </p>
                                 </div>
                             ) : null}
 
                             <div>
-                                <Label>Quantity per item</Label>
+                                <Label>Số lượng mỗi vật phẩm</Label>
                                 <Input
                                     type="number"
                                     placeholder="1"
@@ -479,9 +477,9 @@ export default function ActionsPage() {
                             </div>
 
                             <div>
-                                <Label>Compensation reason</Label>
+                                <Label>Lý do đền bù</Label>
                                 <Textarea
-                                    placeholder="Enter reason..."
+                                    placeholder="Nhập lý do..."
                                     className="min-h-[80px]"
                                 />
                             </div>
@@ -490,26 +488,24 @@ export default function ActionsPage() {
                                 <AlertDialogTrigger asChild>
                                     <Button className="w-full">
                                         <Gift className="h-4 w-4 mr-2" />
-                                        Send compensation
+                                        Gửi đền bù
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>
-                                            Confirm send compensation?
+                                            Xác nhận gửi đền bù?
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            Please review the information
-                                            carefully before sending. This
-                                            action cannot be undone.
+                                            Vui lòng kiểm tra kỹ thông tin trước khi gửi. Không thể hoàn tác thao tác này.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>
-                                            Cancel
+                                            Hủy
                                         </AlertDialogCancel>
                                         <AlertDialogAction>
-                                            Confirm send
+                                            Xác nhận gửi
                                         </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -521,15 +517,15 @@ export default function ActionsPage() {
                 <TabsContent value="history" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>GM action history</CardTitle>
+                            <CardTitle>Lịch sử thao tác GM</CardTitle>
                             <CardDescription>
-                                All actions that have been performed
+                                Tất cả thao tác đã thực hiện
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             {actionHistory.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">
-                                    No action history.
+                                    Chưa có lịch sử thao tác.
                                 </p>
                             ) : (
                                 <div className="space-y-3">
@@ -565,7 +561,7 @@ export default function ActionsPage() {
                                                             {action.admin}
                                                         </span>
                                                         <span className="text-sm text-muted-foreground">
-                                                            did
+                                                            đã thực hiện
                                                         </span>
                                                         <span className="font-medium capitalize">
                                                             {action.type}

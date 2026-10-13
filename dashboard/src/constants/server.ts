@@ -1,10 +1,10 @@
 import { CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 
 export const SERVER_STATUS_CONFIG = {
-    online: { label: "Online", color: "success", icon: CheckCircle },
-    offline: { label: "Offline", color: "destructive", icon: XCircle },
+    online: { label: "Trực tuyến", color: "success", icon: CheckCircle },
+    offline: { label: "Ngoại tuyến", color: "destructive", icon: XCircle },
     maintenance: {
-        label: "Maintenance",
+        label: "Bảo trì",
         color: "warning",
         icon: AlertTriangle,
     },

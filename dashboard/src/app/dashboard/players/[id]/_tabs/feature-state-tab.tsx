@@ -57,7 +57,7 @@ function applyScalar(
         const level = Math.trunc(Number(levelRaw))
         const score = Math.trunc(Number(scoreRaw))
         if (!Number.isFinite(level) || !Number.isFinite(score)) {
-            toast.error("Explorer medal level and score must be numbers")
+            toast.error("Cấp huy chương thám hiểm và điểm phải là số")
             return null
         }
         return { ...state, info: `${level}|${score}` }
@@ -183,7 +183,7 @@ function FeatureCard({
                 )}
 
                 <div className="space-y-1">
-                    <Label className="text-xs">Raw State (JSON)</Label>
+                    <Label className="text-xs">Trạng thái thô (JSON)</Label>
                     <Textarea
                         rows={6}
                         value={json}
@@ -193,8 +193,8 @@ function FeatureCard({
                     />
                     <p className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
                         {fields.length > 0
-                            ? "Guided fields are merged into this JSON on save, overriding matching keys. Edit the JSON directly for any other fields."
-                            : "Edit the full feature state as raw JSON. Writes persist to the database only."}
+                            ? "Các trường biểu mẫu được gộp vào JSON khi lưu và ghi đè khóa trùng. Chỉnh sửa JSON trực tiếp cho các trường khác."
+                            : "Chỉnh sửa toàn bộ trạng thái tính năng dưới dạng JSON. Thay đổi chỉ được lưu vào cơ sở dữ liệu."}
                     </p>
                 </div>
 
@@ -203,7 +203,7 @@ function FeatureCard({
                     onClick={handleSave}
                     disabled={action.isPending}
                 >
-                    Save {system.label}
+                    Lưu {system.label}
                 </Button>
             </CardContent>
         </Card>
@@ -223,7 +223,7 @@ export function FeatureStateTab({ playerId }: { playerId: number }) {
     if (isLoading) {
         return (
             <div className="py-12 text-center text-muted-foreground">
-                Loading feature states...
+                Đang tải trạng thái hệ thống...
             </div>
         )
     }

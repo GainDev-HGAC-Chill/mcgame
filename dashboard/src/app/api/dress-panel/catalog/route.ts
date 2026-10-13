@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
                 if (id <= 0) continue
                 itemNameById.set(
                     id,
-                    row.name?.trim() || fallbackName("Item", id)
+                    row.name?.trim() || fallbackName("Vật phẩm", id)
                 )
             }
         }
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
                 itemName:
                     itemId > 0
                         ? itemNameById.get(itemId) ||
-                          fallbackName("Item", itemId)
+                          fallbackName("Vật phẩm", itemId)
                         : "",
                 recipeId,
                 recipeName:

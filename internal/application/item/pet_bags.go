@@ -40,7 +40,13 @@ func (s *Service) tryApplyPetBagEffect(ctx context.Context, char *character.Char
 		return nil, true, err
 	}
 
-	pets, err := s.petService.ContractPets(ctx, char.ID, templateIDs)
+	var pets []*domainpet.Pet
+	quality := parseDescriptionQuality(tpl.Description)
+	if quality > 0 {
+		pets, err = s.petService.ContractPetsWithQuality(ctx, char.ID, templateIDs, quality)
+	} else {
+		pets, err = s.petService.ContractPets(ctx, char.ID, templateIDs)
+	}
 	if err != nil {
 		return nil, true, err
 	}

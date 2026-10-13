@@ -238,8 +238,8 @@ func TestBuyPm_InsufficientGoldReturnsNoRPCError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuyPm() error = %v, want nil", err)
 	}
-	if result != nil {
-		t.Fatalf("BuyPm() result = %#v, want nil on failure", result)
+	if result != false {
+		t.Fatalf("BuyPm() result = %#v, want false on failure", result)
 	}
 }
 

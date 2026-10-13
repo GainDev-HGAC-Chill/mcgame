@@ -7,11 +7,11 @@ export const BOX_ITEM_AWARD_GUARANTEED_KEY = "guaranteed"
 export const BOX_ITEM_AWARD_TYPE_OPTIONS = [
     { value: "29", label: "Vật phẩm" },
     { value: "19", label: "Trang bị" },
-    { value: "12", label: "Pet" },
+    { value: "12", label: "Thú cưng" },
     { value: "30", label: "Bạc / vàng / danh vọng" },
     { value: "35", label: "Điểm / tiền tệ game" },
     { value: "31", label: "Kinh nghiệm" },
-    { value: "32", label: "Buff" },
+    { value: "32", label: "Hiệu ứng" },
     { value: "33", label: "Danh hiệu" },
     { value: "34", label: "Kỹ năng" },
 ] as const
@@ -97,7 +97,7 @@ const BOX_ITEM_AWARD_QUALITY_COLOR_LABELS = [
 ] as const
 
 const BOX_ITEM_AWARD_PRE_NAME_TYPE_LABELS = [
-    "None",
+    "Không có",
     "Bình Thường",
     "Cường Hóa",
     "Tinh Xảo",
@@ -146,7 +146,7 @@ export function normalizeBoxItemAwardPayload(
 export function boxItemAwardTypeName(type: number): string {
     switch (normalizeBoxItemAwardType(type)) {
         case 12:
-            return "Pet"
+            return "Thú cưng"
         case 19:
             return "Trang bị"
         case 30:
@@ -154,7 +154,7 @@ export function boxItemAwardTypeName(type: number): string {
         case 31:
             return "Kinh nghiệm"
         case 32:
-            return "Buff"
+            return "Hiệu ứng"
         case 33:
             return "Danh hiệu"
         case 34:
@@ -240,7 +240,7 @@ export function boxItemAwardFallbackName(
 ): string {
     switch (normalizeBoxItemAwardType(type)) {
         case 12:
-            return awardId > 0 ? `Pet #${awardId}` : "Pet"
+            return awardId > 0 ? `Thú cưng #${awardId}` : "Thú cưng"
         case 19:
             return awardId > 0 ? `Trang bị #${awardId}` : "Trang bị"
         case 30:
@@ -248,7 +248,7 @@ export function boxItemAwardFallbackName(
         case 31:
             return "Kinh nghiệm"
         case 32:
-            return awardId > 0 ? `Buff #${awardId}` : "Buff"
+            return awardId > 0 ? `Hiệu ứng #${awardId}` : "Hiệu ứng"
         case 33:
             return awardId > 0 ? `Danh hiệu #${awardId}` : "Danh hiệu"
         case 34:

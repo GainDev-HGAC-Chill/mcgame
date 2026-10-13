@@ -175,6 +175,7 @@ func (h *Handler) sendCallback(conn *rtmp.Connection, method string, args ...int
 func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("getInitSlot", h.GetInitSlot)
 	dispatcher.Register("equipOn", h.EquipOn)
+	dispatcher.Register("setTempBag", h.SetTempBag)
 	dispatcher.Register("equipOff", h.EquipOff)
 	dispatcher.Register("useItem", h.UseItem)
 	dispatcher.Register("useItemGold", h.UseItemGold)

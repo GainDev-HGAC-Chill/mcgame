@@ -315,8 +315,8 @@ export default function CreaturesPage() {
     const summaryText = useMemo(() => {
         if (!result) {
             return loading
-                ? "Loading creature data..."
-                : "No creature data available."
+                ? "Đang tải dữ liệu sinh vật..."
+                : "Chưa có dữ liệu sinh vật."
         }
         return `Matched ${result.total} creature | Page ${result.page}/${Math.max(
             result.totalPages,
@@ -334,21 +334,20 @@ export default function CreaturesPage() {
         <section className="flex h-[calc(100vh-10rem)] min-h-[640px] flex-col gap-4 overflow-hidden">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 className="text-xl font-semibold">Creature Browser</h2>
+                    <h2 className="text-xl font-semibold">Tra cứu sinh vật</h2>
                     <p className="text-sm text-muted-foreground">
-                        Map creature names from monster_appr.json to image
-                        assets.
+                        Đối chiếu tên sinh vật từ monster_appr.json với tài nguyên hình ảnh.
                     </p>
                 </div>
                 <Button type="button" onClick={refreshData} disabled={loading}>
                     <RefreshCcw className="mr-2 h-4 w-4" />
-                    Refresh Data
+                    Làm mới dữ liệu
                 </Button>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Filters</CardTitle>
+                    <CardTitle>Bộ lọc</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-4">
@@ -357,7 +356,7 @@ export default function CreaturesPage() {
                                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
                                     type="text"
-                                    placeholder="Creature name or appr id..."
+                                    placeholder="Tên sinh vật hoặc ID ngoại hình..."
                                     autoComplete="off"
                                     value={searchDraft}
                                     onChange={event =>
@@ -376,15 +375,15 @@ export default function CreaturesPage() {
                             disabled={loading}
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Image" />
+                                <SelectValue placeholder="Hình ảnh" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="all">Tất cả</SelectItem>
                                 <SelectItem value="with">
-                                    Only with file
+                                    Chỉ có tệp hình ảnh
                                 </SelectItem>
                                 <SelectItem value="without">
-                                    Only missing file
+                                    Chỉ thiếu tệp hình ảnh
                                 </SelectItem>
                             </SelectContent>
                         </Select>
@@ -397,7 +396,7 @@ export default function CreaturesPage() {
                             disabled={loading}
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Page Size" />
+                                <SelectValue placeholder="Số dòng mỗi trang" />
                             </SelectTrigger>
                             <SelectContent>
                                 {PAGE_SIZE_OPTIONS.map(size => (
@@ -430,7 +429,7 @@ export default function CreaturesPage() {
                             onClick={clearFilters}
                             disabled={loading}
                         >
-                            Clear
+                            Xóa bộ lọc
                         </Button>
                     </div>
                 </CardContent>
@@ -441,7 +440,7 @@ export default function CreaturesPage() {
                     <div className="grid min-h-0 flex-1 gap-3 overflow-auto rounded-md p-4 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
                         {!result || result.items.length === 0 ? (
                             <div className="col-span-full rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                                No matching creature found.
+                                Không tìm thấy sinh vật phù hợp.
                             </div>
                         ) : (
                             result.items.map(item => (
@@ -459,7 +458,7 @@ export default function CreaturesPage() {
                                             </div>
                                         ) : (
                                             <div className="flex h-[96px] w-[96px] items-center justify-center rounded-md border border-dashed bg-muted/20 text-xs text-muted-foreground transition-colors duration-200 group-hover:bg-muted/30">
-                                                No image
+                                                Không có hình
                                             </div>
                                         )}
 
@@ -479,8 +478,8 @@ export default function CreaturesPage() {
 
                     <div className="mt-4 flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">
-                            Showing {rowStart} - {rowEnd} of{" "}
-                            {result?.total || 0} creatures
+                            Đang hiển thị {rowStart} - {rowEnd} trên{" "}
+                            {result?.total || 0} sinh vật
                         </p>
 
                         <div className="flex items-center gap-2">
@@ -500,7 +499,7 @@ export default function CreaturesPage() {
                             </Button>
 
                             <span className="text-sm text-muted-foreground">
-                                Page {currentPage}/{totalPages}
+                                Trang {currentPage}/{totalPages}
                             </span>
 
                             <Button

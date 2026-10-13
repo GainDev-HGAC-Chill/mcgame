@@ -86,12 +86,6 @@ func (h *Handler) InitPmData(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		zap.Int64("character_id", characterID),
 		zap.Int("pm_level", state.PMLevel))
 
-	if err := ctx.Connection.SendCallback("onInitPmData", response); err != nil {
-		h.logger.Error("InitPmData: failed to send callback",
-			zap.Uint32("conn_id", ctx.ConnID),
-			zap.Error(err))
-	}
-
 	return response, nil
 }
 
@@ -161,7 +155,7 @@ func (h *Handler) BuyPm(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 		if ctx.Connection != nil {
 			_ = ctx.Connection.SendCallback("onRedMsg", fmt.Sprintf("Mua thất bại: %s", err.Error()))
 		}
-		return nil, nil
+		return false, nil
 	}
 
 	response := pmBuyResponse(state)
@@ -172,16 +166,13 @@ func (h *Handler) BuyPm(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 		zap.Int("pm_level", state.PMLevel),
 		zap.Float64("keep_day", state.KeepDay))
 
-	if err := ctx.Connection.SendCallback("onBuyPm", response); err != nil {
-		h.logger.Error("BuyPm: failed to send callback",
-			zap.Uint32("conn_id", ctx.ConnID),
-			zap.Error(err))
+	if ctx.Connection != nil {
+		_ = ctx.Connection.SendCallback("onAddPm", response)
+		if state.GoldCost > 0 {
+			_ = ctx.Connection.SendCallback("onAddMoney", float64(characterID), "gold", float64(-state.GoldCost), float64(state.Gold))
+		}
+		_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": state.Gold})
 	}
-	_ = ctx.Connection.SendCallback("onAddPm", response)
-	if state.GoldCost > 0 {
-		_ = ctx.Connection.SendCallback("onAddMoney", float64(characterID), "gold", float64(-state.GoldCost), float64(state.Gold))
-	}
-	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": state.Gold})
 
 	h.pushPMLevelUpdate(ctx, characterID, state.PMLevel)
 

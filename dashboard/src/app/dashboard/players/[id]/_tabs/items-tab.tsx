@@ -75,7 +75,7 @@ function buildPages(bagSlots: number): BagPage[] {
     })
     pages.push({
         key: "pet",
-        label: "Pet",
+        label: "Thú cưng",
         slotType: SLOT_TYPE_PETITEMBAG,
         pageIndex: 0,
         slotCount: 30,
@@ -155,7 +155,7 @@ function ItemSlot({
                     type="button"
                     onClick={onAdd}
                     className="group flex aspect-square items-center justify-center rounded-md border border-dashed border-border/50 bg-muted/10 text-muted-foreground/60 transition hover:border-primary/60 hover:bg-primary/10 hover:text-primary"
-                    aria-label="Add item to this slot"
+                    aria-label="Thêm vật phẩm vào ô này"
                 >
                     <Plus className="h-4 w-4 opacity-0 transition group-hover:opacity-100" />
                 </button>
@@ -221,8 +221,8 @@ function ItemSlot({
                         ID #{item.id} · tpl {item.templateId} · sid {item.sid}
                     </p>
                     <div className="grid grid-cols-2 gap-x-3 text-xs">
-                        <span>Stack: {item.stackCount}</span>
-                        <span>Color: {item.colorCode}</span>
+                        <span>Số lượng: {item.stackCount}</span>
+                        <span>Màu: {item.colorCode}</span>
                         {item.enchantLevel > 0 && (
                             <span>Enchant: +{item.enchantLevel}</span>
                         )}
@@ -235,13 +235,13 @@ function ItemSlot({
                                 {item.maxDurability ?? "?"}
                             </span>
                         )}
-                        <span>Bound: {item.isBound ? "Yes" : "No"}</span>
+                        <span>Khóa: {item.isBound ? "Có" : "Không"}</span>
                     </div>
                     {item.properties &&
                         Object.keys(item.properties).length > 0 && (
                             <div className="mt-1 border-t border-border/40 pt-1">
                                 <p className="text-[10px] font-medium text-muted-foreground">
-                                    Properties
+                                    Thuộc tính
                                 </p>
                                 <div className="grid max-h-40 grid-cols-2 gap-x-3 overflow-y-auto text-[10px]">
                                     {Object.entries(item.properties)
@@ -558,7 +558,7 @@ function ItemEditDialog({
                     parsed === null ||
                     Array.isArray(parsed)
                 ) {
-                    setPropertiesError("Properties must be a JSON object")
+                    setPropertiesError("Thuộc tính phải là đối tượng JSON")
                     return
                 }
                 payload.properties = parsed
@@ -566,14 +566,14 @@ function ItemEditDialog({
                 setPropertiesError("")
             } catch (err) {
                 setPropertiesError(
-                    `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`
+                    `JSON không hợp lệ: ${err instanceof Error ? err.message : String(err)}`
                 )
                 return
             }
         }
 
         if (Object.keys(payload).length <= 1) {
-            toast.error("No changes to apply")
+            toast.error("Không có thay đổi để áp dụng")
             return
         }
 
@@ -590,7 +590,7 @@ function ItemEditDialog({
     }
 
     const handleDelete = () => {
-        if (!confirm(`Delete item #${item.id} (${displayName(item)})?`)) return
+        if (!confirm(`Xóa vật phẩm #${item.id} (${displayName(item)})?`)) return
         action.mutate(
             { action: "remove_item", payload: { instanceId: item.id } },
             {
@@ -631,39 +631,39 @@ function ItemEditDialog({
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
-                        <span className="text-muted-foreground">Template:</span>{" "}
+                        <span className="text-muted-foreground">Mẫu:</span>{" "}
                         {item.templateId}
                     </div>
                     <div>
-                        <span className="text-muted-foreground">Type:</span>{" "}
+                        <span className="text-muted-foreground">Loại:</span>{" "}
                         {item.itemType} ({getItemTypeLabel(item.itemType)})
                     </div>
                     <div>
-                        <span className="text-muted-foreground">Slot:</span>{" "}
+                        <span className="text-muted-foreground">Ô:</span>{" "}
                         {item.slotType}/{item.slotIndex} (sid {item.sid})
                     </div>
                     <div>
-                        <span className="text-muted-foreground">Color:</span>{" "}
+                        <span className="text-muted-foreground">Màu:</span>{" "}
                         {item.colorCode}
                     </div>
                     <div>
-                        <span className="text-muted-foreground">PreName:</span>{" "}
+                        <span className="text-muted-foreground">Tiền tố:</span>{" "}
                         {item.preNameType}
                         {item.preNameType > 0 &&
                             ` (${COLOR_PREFIX[item.preNameType]?.prefix ?? ""})`}
                     </div>
                     <div>
-                        <span className="text-muted-foreground">Stack:</span>{" "}
+                        <span className="text-muted-foreground">Số lượng:</span>{" "}
                         {item.stackCount}
                     </div>
                     <div>
-                        <span className="text-muted-foreground">Bound:</span>{" "}
+                        <span className="text-muted-foreground">Khóa:</span>{" "}
                         {item.isBound ? "Yes" : "No"}
                     </div>
                     {item.durability != null && (
                         <div className="col-span-2">
                             <span className="text-muted-foreground">
-                                Durability:
+                                Độ bền:
                             </span>{" "}
                             {item.durability}/{item.maxDurability ?? "?"}
                         </div>
@@ -672,7 +672,7 @@ function ItemEditDialog({
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
                     <div className="space-y-1">
-                        <Label className="text-xs">Stack Count</Label>
+                        <Label className="text-xs">Số lượng cộng dồn</Label>
                         <Input
                             type="number"
                             placeholder={String(item.stackCount)}
@@ -681,7 +681,7 @@ function ItemEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Color Code (0-5)</Label>
+                        <Label className="text-xs">Mã màu (0–5)</Label>
                         <Input
                             type="number"
                             placeholder={String(item.colorCode)}
@@ -690,7 +690,7 @@ function ItemEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">PreName Type (0-5)</Label>
+                        <Label className="text-xs">Loại tiền tố (0–5)</Label>
                         <Input
                             type="number"
                             placeholder={String(item.preNameType)}
@@ -699,7 +699,7 @@ function ItemEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Enchant Level</Label>
+                        <Label className="text-xs">Cấp cường hóa</Label>
                         <Input
                             type="number"
                             placeholder={String(item.enchantLevel)}
@@ -708,7 +708,7 @@ function ItemEditDialog({
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">Star Level</Label>
+                        <Label className="text-xs">Cấp sao</Label>
                         <Input
                             type="number"
                             placeholder={String(item.starLevel)}
@@ -719,7 +719,7 @@ function ItemEditDialog({
                     {item.durability != null && (
                         <>
                             <div className="space-y-1">
-                                <Label className="text-xs">Durability</Label>
+                                <Label className="text-xs">Độ bền</Label>
                                 <Input
                                     type="number"
                                     placeholder={String(item.durability)}
@@ -731,7 +731,7 @@ function ItemEditDialog({
                             </div>
                             <div className="space-y-1">
                                 <Label className="text-xs">
-                                    Max Durability
+                                    Độ bền tối đa
                                 </Label>
                                 <Input
                                     type="number"
@@ -747,7 +747,7 @@ function ItemEditDialog({
                         </>
                     )}
                     <div className="col-span-2 flex items-center justify-between rounded-md border border-border/40 px-3 py-2">
-                        <Label className="text-xs">Bound</Label>
+                        <Label className="text-xs">Khóa</Label>
                         <Switch
                             checked={isBound ?? item.isBound}
                             onCheckedChange={v => setIsBound(v)}
@@ -757,7 +757,7 @@ function ItemEditDialog({
 
                 <div className="space-y-1 rounded-md border border-border/40 p-2">
                     <div className="flex items-center justify-between">
-                        <Label className="text-xs">Properties (JSON)</Label>
+                        <Label className="text-xs">Thuộc tính (JSON)</Label>
                         <div className="flex items-center gap-2 text-[11px]">
                             <Button
                                 type="button"
@@ -775,7 +775,7 @@ function ItemEditDialog({
                                     setPropertiesError("")
                                 }}
                             >
-                                Load current
+                                Tải giá trị hiện tại
                             </Button>
                             <Button
                                 type="button"
@@ -787,14 +787,14 @@ function ItemEditDialog({
                                     setPropertiesError("")
                                 }}
                             >
-                                Clear
+                                Xóa nội dung
                             </Button>
                             <label className="flex items-center gap-1">
                                 <Switch
                                     checked={replaceProperties}
                                     onCheckedChange={setReplaceProperties}
                                 />
-                                <span>Replace</span>
+                                <span>Thay thế</span>
                             </label>
                         </div>
                     </div>
@@ -810,8 +810,8 @@ function ItemEditDialog({
                     />
                     <p className="text-[10px] text-muted-foreground">
                         {replaceProperties
-                            ? "Replace will overwrite the entire properties map."
-                            : "Merge patches keys into existing properties. Use null to delete a key."}
+                            ? "Thay thế sẽ ghi đè toàn bộ thuộc tính."
+                            : "Gộp sẽ cập nhật khóa vào thuộc tính hiện có. Dùng null để xóa khóa."}
                     </p>
                     {propertiesError && (
                         <p className="text-[10px] text-destructive">
@@ -827,7 +827,7 @@ function ItemEditDialog({
                         onClick={handleDelete}
                         disabled={action.isPending}
                     >
-                        <Trash2 className="mr-1 h-4 w-4" /> Delete
+                        <Trash2 className="mr-1 h-4 w-4" /> Xóa
                     </Button>
                     <div className="flex gap-2">
                         <Button
@@ -838,14 +838,14 @@ function ItemEditDialog({
                                 onClose()
                             }}
                         >
-                            <X className="mr-1 h-4 w-4" /> Cancel
+                            <X className="mr-1 h-4 w-4" /> Hủy
                         </Button>
                         <Button
                             size="sm"
                             onClick={handleUpdate}
                             disabled={action.isPending}
                         >
-                            Apply
+                            Áp dụng
                         </Button>
                     </div>
                 </DialogFooter>
@@ -877,7 +877,7 @@ export function ItemsTab({ playerId }: ItemsTabProps) {
     if (isLoading) {
         return (
             <div className="py-12 text-center text-muted-foreground">
-                Loading inventory...
+                Đang tải túi đồ...
             </div>
         )
     }
@@ -916,7 +916,7 @@ export function ItemsTab({ playerId }: ItemsTabProps) {
                                 className="h-7 gap-1 px-2"
                                 onClick={() => setAddOpen(true)}
                             >
-                                <Plus className="h-3.5 w-3.5" /> Add Item
+                                <Plus className="h-3.5 w-3.5" /> Thêm vật phẩm
                             </Button>
                         </div>
                     </CardHeader>
@@ -945,9 +945,8 @@ export function ItemsTab({ playerId }: ItemsTabProps) {
                             onAddAt={() => setAddOpen(true)}
                         />
                         <p className="text-xs text-muted-foreground">
-                            Hover an item for details. Click an item to edit or
-                            delete. Click an empty slot to add. Color indicates
-                            quality tier.
+                            Di chuột lên vật phẩm để xem chi tiết. Nhấp để sửa hoặc xóa.
+                            Nhấp ô trống để thêm. Màu thể hiện phẩm chất.
                         </p>
                     </CardContent>
                 </Card>

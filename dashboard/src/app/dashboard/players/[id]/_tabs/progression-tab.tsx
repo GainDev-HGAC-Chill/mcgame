@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { usePlayerAction } from "@/hooks/use-player-detail"
+import { TargetLevelControl } from "../_components/target-level-control"
 
 function FieldGroup({
     label,
@@ -83,7 +84,7 @@ export function ProgressionTab({
         }
 
         if (Object.keys(payload).length === 0) {
-            toast.error("Enter a positive Up level or Add exp amount")
+            toast.error("Nhập số cấp tăng thêm hoặc kinh nghiệm cộng thêm lớn hơn 0")
             return
         }
 
@@ -105,7 +106,7 @@ export function ProgressionTab({
         addPositiveInt(payload, "soulPoints", soulPoints)
 
         if (Object.keys(payload).length === 0) {
-            toast.error("Enter a value for at least one soul field")
+            toast.error("Nhập ít nhất một giá trị tu luyện linh hồn")
             return
         }
 
@@ -123,32 +124,33 @@ export function ProgressionTab({
 
     return (
         <div className="space-y-6">
+            <TargetLevelControl playerId={playerId} currentLevel={Number(char.level)} />
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                        Current Progression
+                        Tiến trình hiện tại
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="grid gap-3 md:grid-cols-2">
                         <FieldGroup
-                            label="Level"
+                            label="Cấp độ"
                             value={char.level as number}
                         />
                         <FieldGroup
-                            label="Experience"
+                            label="Kinh nghiệm"
                             value={char.experience as number}
                         />
                         <FieldGroup
-                            label="Soul Level"
+                            label="Cấp linh hồn"
                             value={char.soulLevel as number}
                         />
                         <FieldGroup
-                            label="Soul Exp"
+                            label="Kinh nghiệm linh hồn"
                             value={char.soulExp as number}
                         />
                         <FieldGroup
-                            label="Soul Points"
+                            label="Điểm linh hồn"
                             value={char.soulPoints as number}
                         />
                     </div>
@@ -158,32 +160,31 @@ export function ProgressionTab({
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                        Progression Actions
+                        Điều chỉnh tiến trình
                     </CardTitle>
                     <CardDescription>
-                        Use positive values only. Up level increases from the
-                        current level. Add exp adds on top of the current
-                        experience.
+                        Chỉ dùng giá trị dương. Tăng cấp sẽ cộng vào cấp hiện tại.
+                        Cộng kinh nghiệm sẽ cộng vào kinh nghiệm hiện tại.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-1">
-                            <Label className="text-xs">Up level</Label>
+                            <Label className="text-xs">Tăng cấp</Label>
                             <Input
                                 type="number"
                                 min={1}
-                                placeholder="Levels to gain"
+                                placeholder="Số cấp tăng thêm"
                                 value={levelDelta}
                                 onChange={e => setLevelDelta(e.target.value)}
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Add exp</Label>
+                            <Label className="text-xs">Cộng kinh nghiệm</Label>
                             <Input
                                 type="number"
                                 min={1}
-                                placeholder="Experience to add"
+                                placeholder="Kinh nghiệm cộng thêm"
                                 value={experienceDelta}
                                 onChange={e =>
                                     setExperienceDelta(e.target.value)
@@ -192,17 +193,16 @@ export function ProgressionTab({
                         </div>
                     </div>
                     <p className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                        Up level uses the server progression helper and clears
-                        current exp before any added exp is applied. Add exp
-                        uses the server experience gain flow, so level-ups still
-                        follow server rules.
+                        Tăng cấp dùng quy tắc tiến trình của máy chủ và đặt kinh nghiệm
+                        hiện tại về 0 trước khi cộng thêm. Cộng kinh nghiệm vẫn tuân theo
+                        quy tắc lên cấp bình thường của máy chủ.
                     </p>
                     <Button
                         size="sm"
                         onClick={handleApply}
                         disabled={action.isPending}
                     >
-                        Apply Progression
+                        Áp dụng tiến trình
                     </Button>
                 </CardContent>
             </Card>
@@ -210,57 +210,57 @@ export function ProgressionTab({
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                        Set Progression (direct)
+                        Đặt tiến trình trực tiếp
                     </CardTitle>
                     <CardDescription>
-                        Set Soul Training values directly. Leave a field blank to
-                        keep its current value.
+                        Đặt trực tiếp giá trị tu luyện linh hồn.
+                        Để trống để giữ nguyên giá trị hiện tại.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="space-y-1">
-                            <Label className="text-xs">Soul Level</Label>
+                            <Label className="text-xs">Cấp linh hồn</Label>
                             <Input
                                 type="number"
                                 min={0}
-                                placeholder="Soul level"
+                                placeholder="Cấp linh hồn"
                                 value={soulLevel}
                                 onChange={e => setSoulLevel(e.target.value)}
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Soul Exp</Label>
+                            <Label className="text-xs">Kinh nghiệm linh hồn</Label>
                             <Input
                                 type="number"
                                 min={0}
-                                placeholder="Soul exp"
+                                placeholder="Kinh nghiệm linh hồn"
                                 value={soulExp}
                                 onChange={e => setSoulExp(e.target.value)}
                             />
                         </div>
                         <div className="space-y-1">
-                            <Label className="text-xs">Soul Points</Label>
+                            <Label className="text-xs">Điểm linh hồn</Label>
                             <Input
                                 type="number"
                                 min={0}
-                                placeholder="Soul points"
+                                placeholder="Điểm linh hồn"
                                 value={soulPoints}
                                 onChange={e => setSoulPoints(e.target.value)}
                             />
                         </div>
                     </div>
                     <p className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                        This sets values directly, bypassing the level-up flow.
-                        Soul Points is the same balance shown as Pha Lê (soulPnt)
-                        in the Wallet tab.
+                        Thao tác đặt giá trị trực tiếp, bỏ qua quy trình lên cấp.
+                        Điểm linh hồn là cùng số dư Pha Lê (soulPnt)
+                        trong thẻ Tiền tệ.
                     </p>
                     <Button
                         size="sm"
                         onClick={handleSetProgression}
                         disabled={action.isPending}
                     >
-                        Set Progression
+                        Đặt tiến trình
                     </Button>
                 </CardContent>
             </Card>

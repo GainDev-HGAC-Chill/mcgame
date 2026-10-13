@@ -41,11 +41,11 @@ export default function PlayerManagePage({
     if (!Number.isFinite(playerId) || playerId <= 0) {
         return (
             <div className="space-y-4">
-                <p className="text-destructive">Invalid player ID</p>
+                <p className="text-destructive">ID người chơi không hợp lệ</p>
                 <Link href="/dashboard/players">
                     <Button variant="outline" size="sm">
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Players
+                        Về danh sách người chơi
                     </Button>
                 </Link>
             </div>
@@ -63,13 +63,13 @@ export default function PlayerManagePage({
             {isLoading ? (
                 <Card>
                     <CardContent className="py-12 text-center text-muted-foreground">
-                        Loading player data...
+                        Đang tải dữ liệu người chơi...
                     </CardContent>
                 </Card>
             ) : error ? (
                 <Card>
                     <CardContent className="py-12 text-center text-destructive">
-                        Failed to load player: {error.message}
+                        Không tải được người chơi: {error.message}
                     </CardContent>
                 </Card>
             ) : (

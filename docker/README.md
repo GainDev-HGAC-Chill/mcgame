@@ -42,6 +42,8 @@ The game server runs as a monolith (`MCGAME_GATEWAY_MODE=monolith`). The `main` 
 
 ## Quick start
 
+Windows Local/LAN: see [deployment guide](../docs/local-lan-deployment/setup.md). Use the Go manager; Go source currently requires >=1.26. Admin/API/cache/metrics ports are loopback-only. Game ports bind to `GAME_BIND_ADDRESS` (default `127.0.0.1`); LAN profiles are generated separately without changing gameplay source.
+
 Run everything from the **repository root**, not from `docker/`.
 
 ```bash
@@ -71,7 +73,7 @@ make game up
 
 | Command | What it does |
 | --- | --- |
-| `make game setup` | Writes `docker/.env` from `.env.example` with fresh Supabase secrets. Game server settings (`GAME_*`) live in the same file. Asks before wiping a database that was made with the old secrets. Keeps the `GOOGLE_*` sign-in values of an existing `.env`. |
+| `make game setup` | Writes `docker/.env` with fresh secrets. The Windows Go tool refuses existing `.env` or database; it never wipes state through setup. The legacy shell workflow differs; do not rerun setup on existing deployments. |
 | `make game up` | Starts the database, applies migrations (and seeds on a fresh database), then builds and starts every service. Prunes dangling images afterwards. |
 | `make game down` | Stops every service, including the optional profile. Data stays. |
 | `make game reset` | Wipes the database and storage back to the migrations and seeds, then runs `up`. |
@@ -193,7 +195,7 @@ docker/
 
 **`Missing docker/.env; run: make game setup`**: run `make game setup` first.
 
-**`The migration history is empty but the game tables exist`**: the database is half-applied. Run `make game reset`.
+**`The migration history is empty but the game tables exist`**: stop, back up, inspect schema/history and reconcile safely. Never reset a database containing player data as a deployment repair.
 
 **The client cannot connect**: check that `1935` and `8888` are reachable and read the logs:
 

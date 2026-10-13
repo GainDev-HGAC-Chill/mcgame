@@ -12,7 +12,7 @@ import (
 )
 
 func (h *Handler) PetJoin(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if err := requireArgs(args, 2); err != nil {
+	if err := requireArgs(args, 5); err != nil {
 		return nil, err
 	}
 
@@ -24,24 +24,38 @@ func (h *Handler) PetJoin(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if err != nil {
 		return nil, err
 	}
-	materialPetID, err := parseInt64Arg(args[1])
-	if err != nil {
-		return nil, err
+	materialPetIDs := make([]int64, 0, 4)
+	for _, arg := range args[1:5] {
+		materialPetID, err := parseInt64Arg(arg)
+		if err != nil {
+			return nil, err
+		}
+		materialPetIDs = append(materialPetIDs, materialPetID)
 	}
 
-	p, err := h.petService.FusePets(ctx.Context, characterID, mainPetID, materialPetID)
+	result, err := h.petService.FusePets(ctx.Context, characterID, mainPetID, materialPetIDs)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
+	}
+	for _, petID := range result.ConsumedPetIDs {
+		_ = ctx.Connection.SendCallback("onDelPet", petID)
+	}
+	if result.Success {
+		_ = ctx.Connection.SendCallback("onUpdatePet", float64(result.Pet.ID), "growRate", result.Pet.GrowRate)
+		_ = ctx.Connection.SendCallback("onUpdatePet", float64(result.Pet.ID), "growRateAdd", result.Pet.GrowRateAdd)
+		sendPetPropRefresh(ctx, result.Pet)
 	}
 
 	h.logger.Info("Pets fused",
 		zap.Int64("character_id", characterID),
 		zap.Int64("main_pet_id", mainPetID),
-		zap.Int64("material_pet_id", materialPetID))
+		zap.Int64s("material_pet_ids", materialPetIDs),
+		zap.Bool("success", result.Success))
 
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDetailDTO(),
+		"flag": result.Success,
+		"pid":  result.Pet.ID,
+		"grow": result.Pet.GrowRate,
 	}, nil
 }
 
@@ -64,6 +78,10 @@ func (h *Handler) SeniorPetJoin(ctx *rtmp.RPCContext, args []interface{}) (inter
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
+	for _, petID := range materialPetIDs {
+		_ = ctx.Connection.SendCallback("onDelPet", petID)
+	}
+	_ = ctx.Connection.SendCallback("onUpdatePet", float64(p.ID), "growRate", p.GrowRate+p.GrowRateAdd)
 
 	h.logger.Info("Senior pet fusion completed",
 		zap.Int64("character_id", characterID),
@@ -71,8 +89,9 @@ func (h *Handler) SeniorPetJoin(ctx *rtmp.RPCContext, args []interface{}) (inter
 		zap.Int("material_count", len(materialPetIDs)))
 
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDetailDTO(),
+		"flag": true,
+		"pid":  p.ID,
+		"grow": p.GrowRate + p.GrowRateAdd,
 	}, nil
 }
 
@@ -89,12 +108,12 @@ func (h *Handler) PetXd(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
-	cultivationType, err := parseIntArg(args[1])
+	itemID, err := parseInt64Arg(args[1])
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := h.petService.Cultivate(ctx.Context, characterID, petID, cultivationType)
+	result, err := h.petService.CultivateWithItem(ctx.Context, characterID, petID, itemID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
@@ -102,11 +121,12 @@ func (h *Handler) PetXd(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 	h.logger.Info("Pet cultivation performed",
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID),
-		zap.Int("cultivation_type", cultivationType))
+		zap.Int64("item_id", itemID))
+	sendPetItemUseRefresh(ctx, result)
 
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDetailDTO(),
+		"f":   true,
+		"pet": result.Pet.ToDetailDTO(),
 	}, nil
 }
 
@@ -123,12 +143,12 @@ func (h *Handler) PetPzXsd(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	if err != nil {
 		return nil, err
 	}
-	itemID, err := parseIntArg(args[1])
+	itemID, err := parseInt64Arg(args[1])
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := h.petService.UseCultivationItem(ctx.Context, characterID, petID, itemID)
+	result, err := h.petService.UseCultivationItem(ctx.Context, characterID, petID, itemID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
@@ -136,16 +156,23 @@ func (h *Handler) PetPzXsd(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	h.logger.Info("Pet cultivation item used",
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID),
-		zap.Int("item_id", itemID))
+		zap.Int64("item_id", itemID))
+	sendPetItemUseRefresh(ctx, result)
 
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDetailDTO(),
+		"f":      true,
+		"p":      result.Pet.ID,
+		"t":      result.Property,
+		"num":    result.After,
+		"i":      result.ItemID,
+		"n":      result.RemainingStack,
+		"before": result.Before,
+		"after":  result.After,
 	}, nil
 }
 
 func (h *Handler) PetXsd(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if err := requireArgs(args, 1); err != nil {
+	if err := requireArgs(args, 2); err != nil {
 		return nil, err
 	}
 
@@ -158,7 +185,11 @@ func (h *Handler) PetXsd(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 		return nil, err
 	}
 
-	p, err := h.petService.PetXsd(ctx.Context, characterID, petID)
+	itemID, err := parseInt64Arg(args[1])
+	if err != nil {
+		return nil, err
+	}
+	result, err := h.petService.PetXsd(ctx.Context, characterID, petID, itemID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
@@ -167,9 +198,16 @@ func (h *Handler) PetXsd(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID))
 
+	sendPetItemUseRefresh(ctx, result)
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDetailDTO(),
+		"f":      true,
+		"p":      result.Pet.ID,
+		"t":      result.Property,
+		"num":    result.After,
+		"i":      result.ItemID,
+		"n":      result.RemainingStack,
+		"before": result.Before,
+		"after":  result.After,
 	}, nil
 }
 

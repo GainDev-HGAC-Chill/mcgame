@@ -248,9 +248,7 @@ func (s *Service) GetTeleportDestination(sourceGateID int) (*TeleportDestination
 	// Use From field to find the destination gate (From points to the destination gate ID)
 	destGateID := int(sourceGate.From)
 	if destGateID == 0 {
-		s.logger.Warn("Missing 'from' field in source gate",
-			zap.Int("source_gate_id", sourceGateID))
-		return nil, nil
+		return s.resolveUnlinkedGate(sourceGate), nil
 	}
 
 	destGate := s.gameDataManager.GetSceneItemInstance(destGateID)

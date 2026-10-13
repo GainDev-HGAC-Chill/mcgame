@@ -1,5 +1,9 @@
 # Achievement Snapshot and Claim Baseline
 
+## Callback contract correction (2026-10-11)
+
+Served Flash `onUpdateAchieve(type:int,id:int,data:Object)` requires three arguments and a real delta: type 1 updates achievement `done`; type 2 updates requirement `done/progress`. It is not a zero-argument refresh. Removed the unconditional empty call from quest reward completion that caused #2095/#1063. Existing farm progress pushes with three real arguments remain. No quest-to-achievement evaluator or fabricated completion state was added. See [Quest reward callback audit](../research/2026-10-11_03_QUEST_REWARD_CALLBACK_AUDIT_RESEARCH.md).
+
 The first achievement slice now has both login snapshot hydration and a minimal claim flow that matches the Flash client contract without inventing missing reward metadata:
 
 - `onChooseCharactor` should seed `achieveLog`, `achieveReqLog`, `takeAchieveAwardLog`, and `cData.achPnt` from `achievement.Service.LoadSnapshot()`.

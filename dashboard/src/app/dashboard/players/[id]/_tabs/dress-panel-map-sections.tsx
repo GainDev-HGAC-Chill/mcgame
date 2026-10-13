@@ -162,7 +162,7 @@ const CounterEditorRow = memo(function CounterEditorRow({
                     size="sm"
                     onClick={() => onRemove(index)}
                 >
-                    Remove
+                    Xóa
                 </Button>
             </div>
         </div>
@@ -208,7 +208,7 @@ export const CounterEditorSection = memo(function CounterEditorSection({
                     </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={onAdd}>
-                    Add row
+                    Thêm dòng
                 </Button>
             </div>
             {entries.length === 0 ? (
