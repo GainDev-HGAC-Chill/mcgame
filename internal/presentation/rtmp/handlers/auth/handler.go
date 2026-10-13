@@ -72,40 +72,43 @@ type TitleDataProvider interface {
 }
 
 type Handler struct {
-	authService         *appauth.Service
-	charService         *appchar.Service
-	itemService         *appitem.Service
-	magicEstateService  *appfarm.MagicEstateService
-	petService          *apppet.Service
-	questService        *appquest.Service
-	skillService        *appskill.Service
-	guildService        *appguild.Service
-	starService         *appstar.Service
-	starInstanceService *appstarinstance.Service
-	mountService        *appmount.Service
-	lottoService        *applotto.Service
-	soulService         *appsoul.Service
-	mysteryService      *appmystre.Service
-	decoHoleService     *appdress.DecoHoleService
-	magicCrystalService *appmagiccrystal.Service
-	statFeatureService  *appstatfeature.Service
-	titleService        TitleDataProvider
-	settingsRepo        domainchar.InterfaceSettingsRepository
-	sceneManager        *rtmp.SceneManager
-	rtmpServer          *rtmp.Server
-	presenceStore       *redisstore.SocialPresenceStore
-	lineListProvider    LineListProvider
-	playerCache         PlayerCacheLoader
-	activityList        StartedActivityListProvider
-	loginState          LoginStateProvider
-	loginEvents         LoginEventEmitter
-	achievementState    AchievementSnapshotProvider
-	premiumService      *appactivity.PremiumService
-	buffService         *appbuff.Service
-	configStore         *store.Store
-	accountRepo         domainauth.AccountRepository
-	socialService       BlacklistProvider
-	logger              *zap.Logger
+	authService          *appauth.Service
+	charService          *appchar.Service
+	itemService          *appitem.Service
+	magicEstateService   *appfarm.MagicEstateService
+	petService           *apppet.Service
+	questService         *appquest.Service
+	skillService         *appskill.Service
+	guildService         *appguild.Service
+	starService          *appstar.Service
+	starInstanceService  *appstarinstance.Service
+	mountService         *appmount.Service
+	lottoService         *applotto.Service
+	soulService          *appsoul.Service
+	mysteryService       *appmystre.Service
+	decoHoleService      *appdress.DecoHoleService
+	magicCrystalService  *appmagiccrystal.Service
+	statFeatureService   *appstatfeature.Service
+	titleService         TitleDataProvider
+	settingsRepo         domainchar.InterfaceSettingsRepository
+	sceneManager         *rtmp.SceneManager
+	rtmpServer           *rtmp.Server
+	presenceStore        *redisstore.SocialPresenceStore
+	lineListProvider     LineListProvider
+	playerCache          PlayerCacheLoader
+	activityList         StartedActivityListProvider
+	loginState           LoginStateProvider
+	loginEvents          LoginEventEmitter
+	achievementState     AchievementSnapshotProvider
+	premiumService       *appactivity.PremiumService
+	buffService          *appbuff.Service
+	configStore          *store.Store
+	accountRepo          domainauth.AccountRepository
+	deletionStore        CharacterDeletionStore
+	deletionCache        CharacterDeletionCache
+	deletionPurgeEnabled bool
+	socialService        BlacklistProvider
+	logger               *zap.Logger
 }
 
 func NewHandler(
@@ -252,4 +255,6 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("changeLine", h.ChangeLine)
 	dispatcher.Register("saveGuideLog", h.SaveGuideLog)
 	dispatcher.Register("setDeletePass", h.SetDeletePass)
+	dispatcher.Register("startDeleteChar", h.StartDeleteChar)
+	dispatcher.Register("restoreChar", h.RestoreChar)
 }

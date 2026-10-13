@@ -93,7 +93,27 @@
 ## FIX-2026-10-13-10 — Pet fusion quality/tooltip/random
 
 - Client contract: 1 chính + 4 phụ cùng template/cùng tier; success rates 100/80/50/30; responder `{flag,pid,grow}`.
-- Nguyên nhân tooltip: root growth đổi nhưng nested `property` không refresh; callback `onRefreshPetProp` trước đó gửi sai một object thay vì `(petID, property)`. DTO cũng đặt effective growth vào `property.growRate`, khiến client cộng `growRateAdd` hai lần.
-- Sửa: validate template/tier, chặn max tier, clamp success vào đúng tier kế tiếp, giữ random success; DTO root effective + nested base/add; callback root và nested property đúng signature.
+- Nguyên nhân tooltip: root growth đổi nhưng nested `property` không refresh. Runtime #1063 xác nhận `CallBack.onRefreshPetProp` nhận đúng một wrapper `{id,s}`, không phải hai positional args. Fusion trước đó còn cộng phần tăng bậc vào `GrowRateAdd`, khiến client hiển thị `1.50 + 0.11` thay vì phẩm chất cơ bản tím.
+- Sửa: validate template/tier, chặn max tier, giữ random success; khi thành công đặt `GrowRate` cơ bản ngẫu nhiên theo từng 0.01 trong bậc kế tiếp và không đổi `GrowRateAdd`; DTO tách base/add; callback dùng wrapper `{id,s}`.
 - Test: failure/success/replay, incompatible materials, max tier, rates, DTO growth contract, pet handler/cache/postgres focused tests PASS.
 - Trạng thái: CODE_FIXED — chưa live-test tooltip/fusion animation trong Flash.
+
+## FIX-2026-10-13-11 — Nâng cấp kỹ năng Pet báo method not found
+
+- Nguyên nhân: Flash gọi fire-and-forget `petUpSkill(petID, slot)` nhưng dispatcher chưa đăng ký RPC.
+- Sửa: thêm application flow tìm skill cùng `codeName` ở level kế tiếp, tiêu hao manual theo phẩm chất 1365/1366/1367 (level 1→2: 1; level 2→3: 3), lưu Pet và gửi callback inventory/Pet.
+- Test: focused upgrade service và toàn bộ pet handler PASS; targeted vet/build PASS.
+- Trạng thái: CODE_FIXED — chưa smoke-test Flash và chưa kiểm chứng transaction thật khi persistence item thất bại.
+
+## FIX-2026-10-13-12 — Đặt skill Pet vào auto gây #1010
+
+- Nguyên nhân: `PetManagerPanel.onInitViewPetMngP` bỏ qua `data.pi`/`data.soulInfo` khi merge và chờ hai object này ở wrapper root; DTO server chỉ trả `{data: ...}`, làm `Core.updatePetSetting` đọc `pi` undefined.
+- Sửa: `Pet.ToDTO` giữ `pi` và `soulInfo` ở wrapper root, đồng thời bổ sung `bt8` vào payload `pi`.
+- Test: DTO contract và toàn bộ pet handler PASS; targeted vet/build PASS.
+- Trạng thái: CODE_FIXED — chưa kéo-thả skill trong Flash sau deploy.
+
+## FIX-2026-10-13-13 — Nút xóa nhân vật bị vô hiệu hóa
+
+- Working tree hiện có implementation server schedule/restore/purge và các artifact client/SWF từ một luồng khác; không ghi đè hoặc nhận là thay đổi của nhóm này.
+- Test server: auth handler và PostgreSQL package PASS; build PASS.
+- Trạng thái: PARTIAL/UNVERIFIED — client source có thay đổi ngoài phạm vi và chưa smoke-test; purge mặc định tắt.

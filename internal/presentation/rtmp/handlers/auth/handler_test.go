@@ -654,7 +654,7 @@ func TestSyncCharacterPremiumState_SyncsActiveMirrorLevelWithoutCharacterWrite(t
 }
 
 func TestChooseCharacter_GrantsDailyPMLoginExpOncePerDay(t *testing.T) {
-	now := time.Date(2026, 4, 19, 9, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	accountID := uuid.New()
 	char := domainchar.NewCharacter(accountID, "tester", 1, 0)
 	char.ID = 4010

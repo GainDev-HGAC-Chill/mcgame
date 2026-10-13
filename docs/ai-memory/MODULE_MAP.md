@@ -9,6 +9,8 @@
 | Pet quality | `internal/domain/pet/quality.go` | `ColorByGrowRate` | grow rate | Bậc màu theo grow rate |
 | Pet fusion | `internal/application/pet/service.go` | `FusePets`, `SeniorFusePets` | `FusionRepository` | 1 chính + 4 phụ ở fusion thường |
 | Pet fusion RPC | `internal/presentation/rtmp/handlers/pet/fusion.go` | `PetJoin`, `SeniorPetJoin` | pet service | Callback `onDelPet`, `onUpdatePet` |
+| Pet skill upgrade | `internal/application/pet/skill_upgrade.go`, `handlers/pet/skill_upgrade.go` | `UpgradePetSkill`, `PetUpSkill` | pet/item repos, game data | Flash RPC `petUpSkill(petID, slot)` |
+| Pet battle settings DTO | `internal/domain/pet/pet.go` | `ToDTO` | `Property.pi` | `pi`/`soulInfo` phải có ở wrapper root |
 | Pet DB transaction | `internal/infrastructure/persistence/postgres/pet_repository.go` | `ApplyFusion` | pgx transaction | Cache đổi sau commit |
 | Pet cache | `internal/infrastructure/cache/cached_pet_repo.go` | `ApplyFusion` | `PlayerData` | Không để xóa cache từng phần |
 | Pet cultivation | `internal/application/pet/item_consumption.go` | item-use wrappers | item repo, pet repo | Trừ stack và rollback Pet khi consume lỗi |
@@ -28,5 +30,7 @@
 | Quest notification | `handlers/quest/notify.go` | `PushQuestProgress`, `RefreshQuestProgressSilently` | quest service | `onAddChaQuest` có toast nhận quest |
 | Quest 166 capture | `handlers/combat/commands.go` | battle update reward refresh | quest notify | Pet template 56, quality q=1 |
 | Quest Admin | `dashboard/src/app/api/quests/` | API routes | Supabase auth/RPC | Flash publication vẫn blocked |
+| Ranking | `internal/presentation/rtmp/handlers/ranking/` | `RankGet`, `GetRankList` | chưa có ranking repository | Hiện là stub/empty payload |
+| Character deletion | `handlers/auth/character_deletion.go`, `postgres/character_deletion_repository.go` | schedule/restore/purge | DB functions, cache | Working-tree implementation; purge opt-in |
 | PostgreSQL item | `internal/infrastructure/persistence/postgres/item_repository.go` | CRUD/move | player schema | Properties JSONB giữ metadata hạn |
 | Player cache | `internal/infrastructure/cache/player_cache.go` | `persistPlayerData` | Redis/Postgres | Write-behind không mặc định là transaction đa entity |

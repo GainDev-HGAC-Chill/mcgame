@@ -272,7 +272,7 @@ package com.qeedoo.ui.view.compFore
                                                                     "x":135,
                                                                     "y":11,
                                                                     "styleName":"LoginButton",
-                                                                    "enabled":false
+                                                                    "enabled":true
                                                                 });
                                                             }
                                                         }), new UIComponentDescriptor({
@@ -1837,6 +1837,7 @@ package com.qeedoo.ui.view.compFore
             cName = _arg_1.cName;
             cLevel = _arg_1.cLevel;
             cClass = _arg_1.cClass;
+			button7.enabled = !_arg_1.deleted;
             button5.enabled = true;
             if (_arg_1.deleted)
             {
