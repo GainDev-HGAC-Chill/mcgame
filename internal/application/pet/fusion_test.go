@@ -80,6 +80,14 @@ func TestFusePetsSuccessConsumesFourMaterialsAndUpdatesMainOnce(t *testing.T) {
 		}
 		return 124
 	}
+	mainPet, err := repo.FindByID(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainPet.GrowRateAdd = 0.11 // stale value written by the old fusion implementation
+	if err := repo.Save(context.Background(), mainPet); err != nil {
+		t.Fatal(err)
+	}
 	result, err := service.FusePets(context.Background(), 1, 1, []int64{2, 3, 4, 5})
 	if err != nil {
 		t.Fatal(err)

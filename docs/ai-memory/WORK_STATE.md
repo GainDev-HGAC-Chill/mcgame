@@ -13,6 +13,7 @@
 - Timed transport giữ item 7/30 ngày, không gia hạn/tái kích hoạt, ưu tiên pass trước consumable.
 - Pet fusion validate 1+4 cùng template/tier, tỷ lệ 100/80/50/30, đúng một bậc; DTO/callback tooltip đã đồng bộ.
 - Đã sửa lại theo bằng chứng Flash runtime: `onRefreshPetProp` dùng một wrapper `{id,s}`; fusion đổi `GrowRate` cơ bản ngẫu nhiên trong bậc kế tiếp và không cộng fusion vào `GrowRateAdd`.
+- Fusion thành công hiện xóa `GrowRateAdd` cũ để tự phục hồi Pet từng bị build cũ lưu sai `+0.11`; test đầu vào có `GrowRateAdd=0.11` PASS.
 - Đã thêm RPC `petUpSkill`, tiêu hao manual 1365/1366/1367 và callback inventory/Pet.
 - Đã giữ `pi`/`soulInfo` ở root wrapper Pet DTO và bổ sung `bt8`, tránh lỗi `Core.updatePetSetting` sau khi mở Pet Manager.
 
@@ -33,6 +34,7 @@
 - Auth handler + PostgreSQL tests PASS cho source character-delete hiện có.
 - Full `internal/application/pet` chạy lại: vẫn đúng 4 baseline failures về stat/equipment/skill; các package domain/pet, pet handler, auth và postgres PASS.
 - Targeted `go vet` PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS.
+- Sau sửa stale `+0.11`: focused `TestFusePets`, toàn bộ pet handler và domain/pet PASS; diff-check hai file code sạch.
 
 ## Runtime/database
 

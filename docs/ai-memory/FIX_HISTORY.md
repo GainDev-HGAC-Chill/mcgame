@@ -95,6 +95,7 @@
 - Client contract: 1 chính + 4 phụ cùng template/cùng tier; success rates 100/80/50/30; responder `{flag,pid,grow}`.
 - Nguyên nhân tooltip: root growth đổi nhưng nested `property` không refresh. Runtime #1063 xác nhận `CallBack.onRefreshPetProp` nhận đúng một wrapper `{id,s}`, không phải hai positional args. Fusion trước đó còn cộng phần tăng bậc vào `GrowRateAdd`, khiến client hiển thị `1.50 + 0.11` thay vì phẩm chất cơ bản tím.
 - Sửa: validate template/tier, chặn max tier, giữ random success; khi thành công đặt `GrowRate` cơ bản ngẫu nhiên theo từng 0.01 trong bậc kế tiếp và không đổi `GrowRateAdd`; DTO tách base/add; callback dùng wrapper `{id,s}`.
+- Hồi quy bổ sung: build cũ từng lưu phần tăng bậc vào `GrowRateAdd` (điển hình `1.50 + 0.11`). Fusion thành công nay đặt `GrowRateAdd=0` để không giữ lại hệ số cường hóa giả trên Pet đã bị dữ liệu cũ làm bẩn.
 - Test: failure/success/replay, incompatible materials, max tier, rates, DTO growth contract, pet handler/cache/postgres focused tests PASS.
 - Trạng thái: CODE_FIXED — chưa live-test tooltip/fusion animation trong Flash.
 

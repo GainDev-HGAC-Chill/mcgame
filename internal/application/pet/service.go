@@ -588,6 +588,10 @@ func (s *Service) FusePets(ctx context.Context, charID int64, mainPetID int64, m
 			minHundredths := int(domainpet.PetGrowRateBands[oldTier]*100) + 1
 			maxHundredths := int(domainpet.PetGrowRateBands[nextTier] * 100)
 			mainPet.GrowRate = float64(s.fusionGrowth(minHundredths, maxHundredths)) / 100
+			// Normal fusion replaces the base quality. Older builds stored the
+			// tier increase in GrowRateAdd (for example 1.50 + 0.11), so clear
+			// that stale strengthening value when the fusion succeeds.
+			mainPet.GrowRateAdd = 0
 			mainPet.RecalculateStats()
 		}
 	}
