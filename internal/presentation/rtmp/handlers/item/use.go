@@ -162,7 +162,7 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 				"packGetNum":   giftBox.GetNum,
 			}
 			slotSID := int(usedItem.CalculateSID())
-			ctx.Connection.SendCallback("itemMultitoSel", data, slotSID)
+			ctx.Connection.SendCallback("itemMultitoSel", data, usedItem.ID)
 
 			h.pendingGiftBoxesMu.Lock()
 			h.pendingGiftBoxes[characterID] = &pendingGiftBox{
@@ -453,7 +453,7 @@ func (h *Handler) SelMultiItemByIdx(ctx *rtmp.RPCContext, args []interface{}) (i
 			return -1, nil
 		}
 		ctx.Connection.SendCallback("onAddPet", pets[0].ToDTO())
-	} else if choice.TableType == 19 {
+} else if choice.TableType == 19 {
     colorCode := domainitem.EquipmentColorCodeFromQuality(choice.Quality)
 
     newItem, addErr := h.itemService.AddItemWithColor(
@@ -478,18 +478,8 @@ func (h *Handler) SelMultiItemByIdx(ctx *rtmp.RPCContext, args []interface{}) (i
         return -1, nil
     }
 
-    ctx.Connection.SendCallback(
-        "onAddCharactorSlot",
-        h.itemDTO(newItem),
-    )
-		} else {
-		newItem, addErr := h.itemService.AddItem(ctx.Context, characterID, choice.ID, domainitem.ItemTypeConsumable, choice.StackNum)
-		if addErr != nil {
-			return -1, nil
-		}
-		ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(newItem))
-	}
-
+    ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(newItem))
+}
 	pending.GetNum--
 	pending.Choices = append(pending.Choices[:int(selectedIdx)], pending.Choices[int(selectedIdx)+1:]...)
 

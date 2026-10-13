@@ -66,6 +66,7 @@ func (h *giftBoxEffectHandler) Apply(ctx context.Context, uctx *UseContext, char
 	if h.gameData == nil {
 		return nil, fmt.Errorf("gamedata manager not available")
 	}
+	
 	if tpl.ID == 3376 {
     result.GiftBox = &GiftBoxData{
         GetNum: 1,

@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"mcgame-server/internal/gamedata/models"
+	"mcgame-server/internal/gamedata/predef"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -75,19 +76,27 @@ func (h *Handler) InitCB(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 		h.logger.Error("InitCB: failed to load quests", zap.Error(err))
 		availableQuests = []*models.QuestTemplate{}
 	}
-
 	questList := make([]map[string]interface{}, 0)
+
 	for i, q := range availableQuests {
+		// Tạo dữ liệu nhiệm vụ
+		questData := q.ToDTO()
+
+		// EXP trắng gốc, client tự nhân hệ số màu
+		questData["awardExp"] = predef.CalcCallboardExp(
+			int(q.MinLevel),
+			0,
+		)
+
 		questList = append(questList, map[string]interface{}{
 			"id":     int(q.ID),
 			"qid":    strconv.FormatInt(q.ID, 10),
 			"state":  102,
 			"sIndex": i + 1,
 			"c":      int(q.Color),
-			"data":   q.ToDTO(),
+			"data":   questData,
 		})
 	}
-
 	h.logger.Info("InitCB: sending quest list", zap.Int("count", len(questList)))
 
 	return map[string]interface{}{"f": true, "n": 10, "data": questList}, nil

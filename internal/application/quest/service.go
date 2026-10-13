@@ -1243,7 +1243,12 @@ func (s *Service) applyRewards(ctx context.Context, charID int64, questID int, c
 		}
 		if questType == predef.QuestTypeCallboard {
 			multiplier := predef.CallboardMultiplier(int(questTpl.Color))
-			totalExp = int64(float64(totalExp) * multiplier)
+
+			totalExp = predef.CalcCallboardExp(
+				int(questTpl.MinLevel),
+				int(questTpl.Color),
+			)
+
 			totalMoney = int64(float64(questTpl.MoneyNum) * multiplier)
 		}
 	}
@@ -1603,7 +1608,7 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 		targetColor = 4
 	default:
 		return nil, nil, pkgerrors.ErrInvalidArgs
-	}
+	}	
 	// Check Limit
 	if !s.checkDailyRefreshLimit(charID) {
 		return nil, map[string]interface{}{
@@ -1619,10 +1624,10 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 	}
 
 	// Get Character for Level check
-	// char, err := s.charRepo.FindByID(ctx, charID)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
+	char, err := s.charRepo.FindByID(ctx, charID)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	allQuests := s.gameDataManager.GetAllQuests()
 	candidateQuests := make([]*models.QuestTemplate, 0)
@@ -1637,24 +1642,30 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 	}
 
 	for _, q := range allQuests {
-		// Filter by Level
-		// if int(q.MinLevel) > char.Level || (q.MaxLevel > 0 && int(q.MaxLevel) < char.Level) {
-		// 	continue
-		// }
+		// Chỉ lấy nhiệm vụ treo thưởng
+		if int(q.Type) != predef.QuestTypeCallboard {
+			continue
+		}
 
-		// Filter by Color (matches targetColor)
+		// Đúng cấp nhân vật
+		if char.Level < int(q.MinLevel) {
+			continue
+		}
+		if q.MaxLevel > 0 && char.Level > int(q.MaxLevel) {
+			continue
+		}
 
-		// Filter by Active
+		// Đúng màu được chọn
+		if int(q.Color) != targetColor {
+			continue
+		}
+
+		// Bỏ qua nhiệm vụ đang nhận
 		if activeIDs[int(q.ID)] {
 			continue
 		}
 
-		// Filter by Type 9 (Call Board)
-		if int(q.Type) != 9 {
-			continue
-		}
-
-	candidateQuests = append(candidateQuests, q)
+		candidateQuests = append(candidateQuests, q)
 	}
 
 	// Không có nhiệm vụ phù hợp thì không trừ vật phẩm
@@ -1699,20 +1710,27 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 	questList := make([]map[string]interface{}, 0)
 	cachedIDs := make([]int, 0)
 
+
 	for i := 0; i < limit; i++ {
 		q := candidateQuests[i]
 		sIndex := i + 1
+
+		questData := q.ToDTO()
+		// EXP trắng gốc; client tự nhân hệ số màu.
+		questData["awardExp"] = predef.CalcCallboardExp(
+			int(q.MinLevel),
+			0,
+		)
 		cachedIDs = append(cachedIDs, int(q.ID))
 		questList = append(questList, map[string]interface{}{
 			"id":     int(q.ID),
 			"qid":    strconv.Itoa(int(q.ID)),
-			"state":  102, // ST_QUEST_CANTAKE
+			"state":  102,
 			"sIndex": sIndex,
-			"c":      targetColor, // Use target color
-			"data":   q.ToDTO(),
+			"c":      targetColor,
+			"data":   questData,
 		})
 	}
-
 	// Save to Cache
 	s.SaveCallBoardSession(charID, cachedIDs)
 
@@ -1830,7 +1848,7 @@ func (s *Service) checkDailyRefreshLimit(charID int64) bool {
 	if counter.date != now {
 		return true // New day, allow
 	}
-	return counter.count < 4
+	return counter.count < 50
 }
 
 func (s *Service) incrementDailyRefreshLimit(charID int64) {

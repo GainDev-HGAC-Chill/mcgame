@@ -52,6 +52,38 @@ var BasicGetMoney = [161]int64{
 	2206784, 2475287, 2475287, 2475287, 2475287, 2475287, 2758873, 2758873, 2758873, 2758873,
 	2758873,
 }
+var CallboardBaseExp = [16]int64{
+    3481,   // 10
+    6166,   // 20
+    9515,   // 30
+    13525,  // 40
+    18200,  // 50
+    23537,  // 60
+    29537,  // 70
+    36200,  // 80
+    43527,  // 90
+    51515,  // 100
+    68416,  // 110
+    101350, // 120
+    210368, // 130
+    421634, // 140
+    421634, // 150
+    421634, // 160
+}
+
+func CalcCallboardExp(level, color int) int64 {
+    if level < 10 || level >= 170 {
+        return 0
+    }
+    if color < 0 || color >= len(CallboardAwardNum) {
+        return 0
+    }
+
+    index := (level - 10) / 10
+    multiplier := int64(CallboardAwardNum[color])
+
+    return CallboardBaseExp[index] * multiplier
+}
 
 func CalcClassQuestExp(level, completionCount int) int64 {
 	if level < 0 || level > 160 {
