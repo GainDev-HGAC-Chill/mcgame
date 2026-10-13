@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"testing"
-	"time"
 
 	appchar "mcgame-server/internal/application/character"
 	domainauth "mcgame-server/internal/domain/auth"
@@ -14,47 +13,37 @@ import (
 )
 
 type testDeletionStore struct {
-	scheduledID   int64
-	deadline      time.Time
-	scheduleCalls int
-	restoreCalls  int
-	pending       bool
-	pendingCalls  int
+	deleteCalls int
+	deletedID   int64
+	accountID   uuid.UUID
+	deleted     bool
 }
 
-func (s *testDeletionStore) ScheduleDeletion(_ context.Context, _ uuid.UUID, id int64, at time.Time) (bool, error) {
-	s.scheduleCalls++
-	if s.pending {
+func (s *testDeletionStore) DeleteNow(_ context.Context, accountID uuid.UUID, id int64) (bool, error) {
+	s.deleteCalls++
+	s.accountID = accountID
+	s.deletedID = id
+	if s.deleted {
 		return false, nil
 	}
-	s.scheduledID, s.deadline, s.pending = id, at, true
+	s.deleted = true
 	return true, nil
 }
-func (s *testDeletionStore) RestoreDeletion(_ context.Context, _ uuid.UUID, id int64) (bool, error) {
-	s.restoreCalls++
-	if id != s.scheduledID || !s.pending {
-		return false, nil
-	}
-	s.pending = false
-	return true, nil
+
+type testDeletionCache struct {
+	calls int
+	id    int64
 }
-func (s *testDeletionStore) CharacterDeletionTimes(_ context.Context, _ uuid.UUID) (map[int64]int64, error) {
-	if !s.pending {
-		return map[int64]int64{}, nil
-	}
-	return map[int64]int64{s.scheduledID: s.deadline.Unix()}, nil
-}
-func (s *testDeletionStore) IsDeletionPending(_ context.Context, _ uuid.UUID, id int64) (bool, error) {
-	s.pendingCalls++
-	return id == s.scheduledID && s.pending, nil
-}
-func (s *testDeletionStore) PurgeOneExpired(_ context.Context, _ uuid.UUID, _ int64) (bool, error) {
-	return false, nil
+
+func (s *testDeletionCache) InvalidateCharacter(_ context.Context, id int64) error {
+	s.calls++
+	s.id = id
+	return nil
 }
 
 func deletionHandlerFixture() (*Handler, *testDeletionStore, *domainchar.Character) {
 	owner := uuid.New()
-	char := &domainchar.Character{ID: 101, AccountID: owner, Name: "SafeTest", ClassID: 1, Gender: 0, Level: 1}
+	char := &domainchar.Character{ID: 101, AccountID: owner, Name: "DeleteTest", ClassID: 1, Gender: 0, Level: 1}
 	repo := &authTestCharacterRepo{char: char}
 	account := &domainauth.Account{ID: owner, SecondaryPassword: domainauth.DefaultSecondaryPasswordMD5}
 	h := NewHandler(nil, appchar.NewService(repo, zap.NewNop()), nil, nil, nil, nil, &authTestAccountRepo{account: account}, zap.NewNop())
@@ -67,46 +56,41 @@ func TestValidDeletionMD5(t *testing.T) {
 	if !validDeletionMD5(domainauth.DefaultSecondaryPasswordMD5) {
 		t.Fatal("default MD5 rejected")
 	}
-	if validDeletionMD5("123456") {
-		t.Fatal("plaintext must be rejected")
-	}
-	if validDeletionMD5("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz") {
-		t.Fatal("non hex must be rejected")
+	if validDeletionMD5("123456") || validDeletionMD5("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz") {
+		t.Fatal("invalid password hash accepted")
 	}
 }
 
-func TestStartDeleteCharSecondaryPasswordAndRestore(t *testing.T) {
+func TestStartDeleteCharDeletesImmediatelyAndInvalidatesCache(t *testing.T) {
 	h, store, char := deletionHandlerFixture()
+	cache := &testDeletionCache{}
+	h.SetCharacterDeletionCache(cache)
 	ctx, _ := characterListContext("scene/")
 	ctx.AccountID = char.AccountID.String()
+
 	if _, err := h.StartDeleteChar(ctx, []interface{}{float64(char.ID), "00000000000000000000000000000000"}); err != nil {
-		t.Fatalf("wrong password result: %v", err)
+		t.Fatalf("wrong password RPC: %v", err)
 	}
-	if store.scheduleCalls != 0 {
-		t.Fatal("wrong password scheduled deletion")
+	if store.deleteCalls != 0 || cache.calls != 0 {
+		t.Fatal("wrong password deleted a character")
 	}
-	before := time.Now()
+
 	if _, err := h.StartDeleteChar(ctx, []interface{}{float64(char.ID), domainauth.DefaultSecondaryPasswordMD5}); err != nil {
-		t.Fatalf("schedule: %v", err)
+		t.Fatalf("correct password RPC: %v", err)
 	}
-	if store.scheduleCalls != 1 || store.scheduledID != char.ID || !store.pending {
-		t.Fatal("deletion was not scheduled")
+	if store.deleteCalls != 1 || !store.deleted || store.deletedID != char.ID || store.accountID != char.AccountID {
+		t.Fatal("immediate delete was not called with verified owner")
 	}
-	if store.deadline.Before(before.Add(characterDeletionDelay - time.Minute)) {
-		t.Fatal("deletion deadline too early")
+	if cache.calls != 1 || cache.id != char.ID {
+		t.Fatal("deleted character cache was not invalidated")
 	}
-	originalDeadline := store.deadline
+
+	// Replaying a request must not delete again or invalidate anything twice.
 	if _, err := h.StartDeleteChar(ctx, []interface{}{float64(char.ID), domainauth.DefaultSecondaryPasswordMD5}); err != nil {
-		t.Fatalf("repeat request: %v", err)
+		t.Fatalf("replayed request RPC: %v", err)
 	}
-	if !store.deadline.Equal(originalDeadline) {
-		t.Fatal("replay extended deletion deadline")
-	}
-	if _, err := h.RestoreChar(ctx, []interface{}{float64(0), float64(char.ID)}); err != nil {
-		t.Fatalf("restore: %v", err)
-	}
-	if store.pending || store.restoreCalls != 1 {
-		t.Fatal("restore failed")
+	if store.deleteCalls != 2 || cache.calls != 1 {
+		t.Fatal("replayed delete mutated cache")
 	}
 }
 
@@ -117,26 +101,7 @@ func TestStartDeleteCharRejectsOtherAccount(t *testing.T) {
 	if _, err := h.StartDeleteChar(ctx, []interface{}{float64(101), domainauth.DefaultSecondaryPasswordMD5}); err != nil {
 		t.Fatalf("RPC response: %v", err)
 	}
-	if store.scheduleCalls != 0 {
-		t.Fatal("foreign account scheduled deletion")
-	}
-}
-
-func TestChooseCharacterPendingDeletionNeverEntersGame(t *testing.T) {
-	h, store, char := deletionHandlerFixture()
-	store.pending = true
-	store.scheduledID = char.ID
-	ctx, sender := characterListContext("scene/")
-	ctx.AccountID = char.AccountID.String()
-	if _, err := h.ChooseCharacter(ctx, []interface{}{float64(char.ID)}); err != nil {
-		t.Fatalf("RPC response: %v", err)
-	}
-	if store.pendingCalls != 1 {
-		t.Fatal("pending deletion not checked on login")
-	}
-	for _, m := range sender.methods {
-		if m == "onChooseCharactor" {
-			t.Fatal("pending deletion entered game")
-		}
+	if store.deleteCalls != 0 {
+		t.Fatal("foreign account deleted a character")
 	}
 }

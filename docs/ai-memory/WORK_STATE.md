@@ -55,3 +55,8 @@
 1. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
 2. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
 3. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
+
+## 2026-10-13 - Immediate Character Delete / 30 FPS Shared Link
+- Added immediate delete RPC using ownership-guarded SQL, secondary MD5 validation and cache invalidation.
+- Kept GameLoaders30.swf public URL, using fresh internal main asset 32 to bypass old main cache.
+- Migration and cleanup are staged; live rollout must be independently verified.

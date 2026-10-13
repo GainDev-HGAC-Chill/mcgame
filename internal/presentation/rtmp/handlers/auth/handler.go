@@ -106,7 +106,6 @@ type Handler struct {
 	accountRepo          domainauth.AccountRepository
 	deletionStore        CharacterDeletionStore
 	deletionCache        CharacterDeletionCache
-	deletionPurgeEnabled bool
 	socialService        BlacklistProvider
 	logger               *zap.Logger
 }
@@ -256,5 +255,4 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("saveGuideLog", h.SaveGuideLog)
 	dispatcher.Register("setDeletePass", h.SetDeletePass)
 	dispatcher.Register("startDeleteChar", h.StartDeleteChar)
-	dispatcher.Register("restoreChar", h.RestoreChar)
 }

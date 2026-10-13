@@ -100,17 +100,6 @@ func (h *Handler) ChooseCharacter(ctx *rtmp.RPCContext, args []interface{}) (int
 		return nil, pkgerrors.ErrUnauthorized
 	}
 
-	if h.deletionStore != nil {
-		pending, pendingErr := h.deletionStore.IsDeletionPending(ctx.Context, accountID, characterID)
-		if pendingErr != nil {
-			h.logger.Error("ChooseCharacter: deletion state check failed", zap.Error(pendingErr))
-			return rtmp.ErrorToResponse(pendingErr), nil
-		}
-		if pending {
-			return rtmp.ErrorToResponse(pkgerrors.ErrInvalidInput), nil
-		}
-	}
-
 	char, err := h.charService.Select(ctx.Context, &appchar.SelectRequest{
 		AccountID:   accountID,
 		CharacterID: characterID,

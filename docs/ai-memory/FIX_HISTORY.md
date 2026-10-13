@@ -117,3 +117,8 @@
 - Working tree hiện có implementation server schedule/restore/purge và các artifact client/SWF từ một luồng khác; không ghi đè hoặc nhận là thay đổi của nhóm này.
 - Test server: auth handler và PostgreSQL package PASS; build PASS.
 - Trạng thái: PARTIAL/UNVERIFIED — client source có thay đổi ngoài phạm vi và chưa smoke-test; purge mặc định tắt.
+
+## 2026-10-13 - Immediate Character Delete / 30 FPS Shared Link
+- Added immediate delete RPC using ownership-guarded SQL, secondary MD5 validation and cache invalidation.
+- Kept GameLoaders30.swf public URL, using fresh internal main asset 32 to bypass old main cache.
+- Migration and cleanup are staged; live rollout must be independently verified.

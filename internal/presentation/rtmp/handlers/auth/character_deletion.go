@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -14,14 +13,10 @@ import (
 	pkgerrors "mcgame-server/pkg/errors"
 )
 
-const characterDeletionDelay = 7 * 24 * time.Hour
-
+// DeleteNow must validate account ownership and delete the character atomically
+// inside PostgreSQL. The game must never trust a client-supplied account ID.
 type CharacterDeletionStore interface {
-	ScheduleDeletion(context.Context, uuid.UUID, int64, time.Time) (bool, error)
-	RestoreDeletion(context.Context, uuid.UUID, int64) (bool, error)
-	CharacterDeletionTimes(context.Context, uuid.UUID) (map[int64]int64, error)
-	IsDeletionPending(context.Context, uuid.UUID, int64) (bool, error)
-	PurgeOneExpired(context.Context, uuid.UUID, int64) (bool, error)
+	DeleteNow(context.Context, uuid.UUID, int64) (bool, error)
 }
 
 type CharacterDeletionCache interface {
@@ -36,10 +31,6 @@ func (h *Handler) SetCharacterDeletionCache(cache CharacterDeletionCache) {
 	h.deletionCache = cache
 }
 
-func (h *Handler) SetCharacterDeletionPurgeEnabled(enabled bool) {
-	h.deletionPurgeEnabled = enabled
-}
-
 func (h *Handler) deletionAccountID(ctx *rtmp.RPCContext) (uuid.UUID, error) {
 	if ctx == nil || ctx.Connection == nil || ctx.Connection.IsGlobalConnection() || ctx.AccountID == "" || ctx.CharacterID != "" {
 		return uuid.Nil, pkgerrors.ErrUnauthorized
@@ -51,6 +42,8 @@ func (h *Handler) deletionAccountID(ctx *rtmp.RPCContext) (uuid.UUID, error) {
 	return accountID, nil
 }
 
+// StartDeleteChar keeps the Flash RPC contract (character ID, secondary-password MD5).
+// Unlike the old 7-day implementation, successful authentication deletes immediately.
 func (h *Handler) StartDeleteChar(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	if h.deletionStore == nil || h.charService == nil || h.accountRepo == nil {
 		return rtmp.ErrorToResponse(pkgerrors.ErrInvalidInput), nil
@@ -86,41 +79,22 @@ func (h *Handler) StartDeleteChar(ctx *rtmp.RPCContext, args []interface{}) (int
 	if h.rtmpServer != nil && h.rtmpServer.IsCharacterOnline(strconv.FormatInt(characterID, 10)) {
 		return rtmp.ErrorToResponse(pkgerrors.ErrInvalidInput), nil
 	}
-	applied, err := h.deletionStore.ScheduleDeletion(ctx.Context, accountID, characterID, time.Now().Add(characterDeletionDelay))
+	deleted, err := h.deletionStore.DeleteNow(ctx.Context, accountID, characterID)
 	if err != nil {
-		h.logger.Error("StartDeleteChar: scheduling failed", zap.Error(err), zap.Int64("character_id", characterID))
+		h.logger.Error("StartDeleteChar: immediate deletion failed", zap.Int64("character_id", characterID), zap.Error(err))
 		return rtmp.ErrorToResponse(err), nil
 	}
-	h.logger.Info("StartDeleteChar processed", zap.Int64("character_id", characterID), zap.Bool("created", applied))
-	h.sendCharacterListCallback(ctx)
-	return nil, nil
-}
-
-func (h *Handler) RestoreChar(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if h.deletionStore == nil || h.charService == nil {
-		return rtmp.ErrorToResponse(pkgerrors.ErrInvalidInput), nil
-	}
-	if len(args) < 1 || len(args) > 2 {
-		return rtmp.ErrorToResponse(pkgerrors.ErrInvalidArgs), nil
-	}
-	characterID, ok := lastInt64Arg(args)
-	if !ok || characterID <= 0 {
-		return rtmp.ErrorToResponse(pkgerrors.ErrInvalidArgs), nil
-	}
-	accountID, err := h.deletionAccountID(ctx)
-	if err != nil {
-		return rtmp.ErrorToResponse(err), nil
-	}
-	char, err := h.charService.GetByID(ctx.Context, characterID)
-	if err != nil || char == nil || char.AccountID != accountID {
+	if !deleted {
 		return rtmp.ErrorToResponse(pkgerrors.ErrCharacterNotOwned), nil
 	}
-	restored, err := h.deletionStore.RestoreDeletion(ctx.Context, accountID, characterID)
-	if err != nil {
-		h.logger.Error("RestoreChar failed", zap.Error(err), zap.Int64("character_id", characterID))
-		return rtmp.ErrorToResponse(err), nil
+	// DB deletion has committed; never report it as failed merely because Redis
+	// invalidation failed. Log the latter so operators can investigate.
+	if h.deletionCache != nil {
+		if cacheErr := h.deletionCache.InvalidateCharacter(ctx.Context, characterID); cacheErr != nil {
+			h.logger.Error("StartDeleteChar: cache invalidation failed after delete", zap.Int64("character_id", characterID), zap.Error(cacheErr))
+		}
 	}
-	h.logger.Info("RestoreChar processed", zap.Int64("character_id", characterID), zap.Bool("restored", restored))
+	h.logger.Info("StartDeleteChar: character permanently deleted", zap.String("account_id", ctx.AccountID), zap.Int64("character_id", characterID))
 	h.sendCharacterListCallback(ctx)
 	return nil, nil
 }
@@ -131,36 +105,4 @@ func validDeletionMD5(s string) bool {
 	}
 	_, err := hex.DecodeString(s)
 	return err == nil
-}
-
-func (h *Handler) deletionTimesForAccount(ctx *rtmp.RPCContext, accountID uuid.UUID) (map[int64]int64, error) {
-	if h.deletionStore == nil {
-		return nil, pkgerrors.ErrInvalidInput
-	}
-	times, err := h.deletionStore.CharacterDeletionTimes(ctx.Context, accountID)
-	if err != nil || !h.deletionPurgeEnabled || h.deletionCache == nil {
-		return times, err
-	}
-	now := time.Now().Unix()
-	purged := false
-	for id, deleteAt := range times {
-		if deleteAt > now || (h.rtmpServer != nil && h.rtmpServer.IsCharacterOnline(strconv.FormatInt(id, 10))) {
-			continue
-		}
-		ok, purgeErr := h.deletionStore.PurgeOneExpired(ctx.Context, accountID, id)
-		if purgeErr != nil {
-			h.logger.Error("Failed to purge expired character", zap.Int64("character_id", id), zap.Error(purgeErr))
-			continue
-		}
-		if ok {
-			purged = true
-			if invalidateErr := h.deletionCache.InvalidateCharacter(ctx.Context, id); invalidateErr != nil {
-				h.logger.Error("Failed to invalidate deleted character cache", zap.Int64("character_id", id), zap.Error(invalidateErr))
-			}
-		}
-	}
-	if purged {
-		return h.deletionStore.CharacterDeletionTimes(ctx.Context, accountID)
-	}
-	return times, nil
 }

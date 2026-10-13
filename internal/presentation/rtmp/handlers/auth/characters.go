@@ -216,21 +216,9 @@ func (h *Handler) loadCharacterList(ctx *rtmp.RPCContext, accountID uuid.UUID, a
 		return []map[string]interface{}{}
 	}
 
-	deletionTimes := map[int64]int64{}
-	if h.deletionStore != nil {
-		deletionTimes, err = h.deletionTimesForAccount(ctx, accountID)
-		if err != nil {
-			h.logger.Error("Failed to load character deletion state", zap.Error(err))
-			return []map[string]interface{}{}
-		}
-	}
-
 	charList := make([]map[string]interface{}, len(chars))
 	for i, char := range chars {
 		charList[i] = h.characterListEntry(char)
-		if deleteTime, pending := deletionTimes[char.ID]; pending {
-			charList[i]["delTime"] = deleteTime
-		}
 	}
 
 	return charList
