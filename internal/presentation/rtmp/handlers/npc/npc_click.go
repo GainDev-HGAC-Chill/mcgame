@@ -877,7 +877,19 @@ func (h *Handler) ClickNpc(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		return nil, nil
 	}
 
+	if npcID == 387 {
+    h.logger.Info("WISH_TREE_CALLBACK_DEBUG",
+        zap.Int64("character_id", characterID),
+        zap.Int("npc_id", npcID),
+        zap.Any("payload", interaction.payload),
+    )
+	}
+
 	if err := ctx.Connection.SendCallbackSync("npcFuncInit", interaction.payload); err != nil {
+		if npcID == 387 {
+			h.logger.Info("WISH_TREE_TEST_SKIP_CALLBACK")
+		return nil, nil
+		}
 		h.logger.Error("Failed to send npcFuncInit callback", zap.Error(err))
 	}
 
