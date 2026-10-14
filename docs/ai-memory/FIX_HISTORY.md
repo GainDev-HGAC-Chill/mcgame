@@ -1,5 +1,20 @@
 # MCGame Fix History
 
+## FIX-2026-10-14-16 — Phiếu lễ và Thẻ Kim Phiếu
+
+- Hiện tượng: `Ngân Phiếu Lễ` 654, `Hoàng Kim Lễ` 1064 và `Thẻ Kim Phiếu` 3848 đi vào generic type-550 và không đổi được tiền theo mô tả.
+- Sửa: application path riêng cho đúng ba template; 654 cộng 10.000 `moneyBind`, 1064 cộng 50 `goldBind`, 3848 chọn ngẫu nhiên 88/188/288/588/888/1888 `goldBind`; hỗ trợ dùng đơn/nhiều và callback `onAddMoney`.
+- An toàn: validate template/level/target/count/overflow; lỗi persist ví sau consume dừng trước success callback và không tự replay.
+- Test: focused application và toàn bộ item handler PASS; targeted vet/build PASS.
+- Trạng thái: CODE_FIXED — chưa deploy hoặc Flash smoke-test.
+
+## FIX-2026-10-14-17 — Quest Admin không cần đăng nhập
+
+- Hiện tượng: giao diện chỉnh sửa nhiệm vụ phụ thuộc Supabase Auth/admin session.
+- Sửa: Quest API cấp editor identity nội bộ cố định, không gọi Auth; PATCH vẫn bắt buộc exact same-origin. Validation/revision/active-use/audit giữ nguyên.
+- Test: quest editor/validation/permission tests và dashboard typecheck PASS; production build compile/typecheck xong nhưng copy standalone bị Windows symlink `EPERM`.
+- Trạng thái: CODE_FIXED — chưa deploy/smoke-test dashboard.
+
 ## FIX-2026-10-13-01 — Shop điểm thưởng
 
 - Hiện tượng: WebPanel hiện có điểm nhưng System Shop báo `not enough points`.

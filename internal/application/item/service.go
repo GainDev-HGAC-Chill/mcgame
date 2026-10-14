@@ -1156,6 +1156,17 @@ func (s *Service) UseItem(ctx context.Context, char *character.Character, itemID
 		}
 		return it, result, nil
 	}
+	if isGiftCurrencyVoucher(it.TemplateID) {
+		targetType := 0
+		if uctx != nil {
+			targetType = uctx.TargetType
+		}
+		result, err := s.useGiftCurrencyVoucher(ctx, char, it, tpl, 1, targetType)
+		if err != nil {
+			return nil, nil, err
+		}
+		return it, result, nil
+	}
 	if isCapacityBook(it.TemplateID) {
 		targetType := 0
 		if uctx != nil {
@@ -1405,6 +1416,9 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 
 	if it.TemplateID == 1132 {
 		return s.useSilverVoucher(ctx, char, it, tpl, count, targetType)
+	}
+	if isGiftCurrencyVoucher(it.TemplateID) {
+		return s.useGiftCurrencyVoucher(ctx, char, it, tpl, count, targetType)
 	}
 	if isCapacityBook(it.TemplateID) {
 		return s.useCapacityBooks(ctx, char, it, tpl, count, targetType)

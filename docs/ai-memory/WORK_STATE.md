@@ -5,6 +5,7 @@
 - Hoàn tất bộ nhớ AI và bốn lỗi: găng thu thập, túi cứu thương HP/MP, timed transport disconnect, Pet fusion quality/tooltip/random.
 - Tiếp tục nhóm lỗi mới: callback/fusion Pet, nâng skill Pet, auto-skill, ranking, Quest Admin, xóa nhân vật và túi chế tạo.
 - Kiểm tra toàn bộ skill chủ động Pet theo target count, damage/heal và effect so với mô tả.
+- Hoàn tất đúng nhóm voucher `Ngân Phiếu Lễ`/`Hoàng Kim Lễ`/`Thẻ Kim Phiếu` và mở trực tiếp giao diện Quest Admin dashboard không cần phiên đăng nhập; không mở rộng sang item hay trang quản trị khác.
 
 ## Đã hoàn thành
 
@@ -17,6 +18,8 @@
 - Fusion thành công hiện xóa `GrowRateAdd` cũ để tự phục hồi Pet từng bị build cũ lưu sai `+0.11`; test đầu vào có `GrowRateAdd=0.11` PASS.
 - Đã thêm RPC `petUpSkill`, tiêu hao manual 1365/1366/1367 và callback inventory/Pet.
 - Đã giữ `pi`/`soulInfo` ở root wrapper Pet DTO và bổ sung `bt8`, tránh lỗi `Core.updatePetSetting` sau khi mở Pet Manager.
+- Đã thêm application path riêng cho đúng template `654` Ngân Phiếu Lễ, `1064` Hoàng Kim Lễ và `3848` Thẻ Kim Phiếu; hỗ trợ dùng đơn/nhiều, kiểm tra level/target/count/overflow, tiêu hao rồi cộng đúng ví khóa và phát `granted_currencies`.
+- Quest Admin API không còn yêu cầu Supabase Auth/admin session; mọi request được cấp quyền editor nội bộ cố định, còn PATCH vẫn bắt buộc same-origin.
 
 ## File đang sửa/chưa commit
 
@@ -36,12 +39,15 @@
 - Full `internal/application/pet` chạy lại: vẫn đúng 4 baseline failures về stat/equipment/skill; các package domain/pet, pet handler, auth và postgres PASS.
 - Targeted `go vet` PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS.
 - Sau sửa stale `+0.11`: focused `TestFusePets`, toàn bộ pet handler và domain/pet PASS; diff-check hai file code sạch.
+- Focused voucher application tests và toàn bộ item handler PASS; Quest editor/validation/permission tests PASS; dashboard `corepack pnpm typecheck` PASS. Go targeted vet và `go build -o bin/gameserver ./cmd/gameserver` PASS.
+- Dashboard production build đã compile/typecheck và generate đủ page nhưng bước copy `.next/standalone` fail do Windows không cho tạo pnpm symlink (`EPERM`), không phải lỗi TypeScript/source. Full `go vet ./...` bị các package trong thư mục backup ngoài source `backup_bloodbag_before_atomic`; targeted vet của package sửa PASS.
 
 ## Runtime/database
 
 - `bin/gameserver` đã build bản mới; container `mcgame-server` chưa restart và vẫn cần deploy được cho phép.
 - Không có migration mới: blood bag dùng bảng wallet/stat-feature hiện có.
 - Không live-test và không thay đổi dữ liệu người chơi.
+- Nhóm voucher/Quest Admin mới không có migration hoặc thay đổi dữ liệu; chưa deploy/restart/smoke-test.
 
 ## Rủi ro/chưa xác minh
 
@@ -64,6 +70,7 @@
 2. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
 3. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
 4. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
+5. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 

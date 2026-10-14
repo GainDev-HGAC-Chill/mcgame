@@ -123,8 +123,8 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 
 	if err := h.charService.Update(ctx.Context, char); err != nil {
 		h.logger.Error("Failed to update character after item use", zap.Error(err))
-		if it.TemplateID == 1132 {
-			return nil, fmt.Errorf("failed to persist silver voucher credit after consumption; do not automatically replay: %w", err)
+		if _, ok := result["granted_currencies"]; ok {
+			return nil, fmt.Errorf("failed to persist currency credit after item consumption; do not automatically replay: %w", err)
 		}
 		if updates, ok := result["capacity_updates"].(map[string]interface{}); ok && len(updates) > 0 {
 			return nil, fmt.Errorf("failed to persist expansion capacity after book consumption; book preservation is not guaranteed: %w", err)
@@ -246,8 +246,8 @@ func (h *Handler) UseMultiItem(ctx *rtmp.RPCContext, args []interface{}) (interf
 
 	if err := h.charService.Update(ctx.Context, char); err != nil {
 		h.logger.Error("Failed to update character after multi-item use", zap.Error(err))
-		if usedItem, ok := result["used_item"].(*domainitem.Item); ok && usedItem.TemplateID == 1132 {
-			return nil, fmt.Errorf("failed to persist silver voucher credit after consumption; do not automatically replay: %w", err)
+		if _, ok := result["granted_currencies"]; ok {
+			return nil, fmt.Errorf("failed to persist currency credit after item consumption; do not automatically replay: %w", err)
 		}
 		if updates, ok := result["capacity_updates"].(map[string]interface{}); ok && len(updates) > 0 {
 			return nil, fmt.Errorf("failed to persist expansion capacity after book consumption; book preservation is not guaranteed: %w", err)

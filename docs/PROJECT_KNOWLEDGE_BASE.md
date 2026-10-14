@@ -67,6 +67,7 @@ This file is an **index** of per-feature memory documents under `docs/memory/`. 
 - [TBL_QUEST_PRE](database/details/TBL_QUEST_PRE.md) — 2007 prerequisite rows; kind (item/prior quest), preQuestType AND/OR logic in TBL_QUEST.
 - [TBL_QUEST_LOOP](database/details/TBL_QUEST_LOOP.md) — 11 repeatable loop-quest series; nid NPC, num rounds, refresh cooldown, team composition, server-side scriptGet/scriptGiveUp.
 - [Quest Loop System](memory/quest-loop-system.md) — TBL_QUEST_LOOP + type=7 "Nhiệm Vụ Vòng" repeatable series, takeLoop/cancelLoop/loopRepaire RPCs, type-1 cancel guard, type-6 daily re-take gating, Trị An/Trừ Ma loop-boss summon.
+- [Quest Admin Dashboard](memory/quest-admin.md) — unauthenticated dashboard access, fixed audit actor identity and same-origin write guard.
 - [TBL_ANSWER](database/details/TBL_ANSWER.md) — 3627 quiz questions; t/a/b/c/d/r fields for Maze and Answer panel events.
 - [TBL_CHARACTOR_QUEST](database/details/TBL_CHARACTOR_QUEST.md) — runtime per-character active quest state (empty static export); fields confirmed from AS client.
 - [TBL_CHARACTOR_QUEST_KILL](database/details/TBL_CHARACTOR_QUEST_KILL.md) — runtime per-character kill-progress counters (empty static export); charactorQuestId + num fields confirmed.
