@@ -23,8 +23,7 @@ dashboard/tsconfig.tsbuildinfo
 docker/client/*.xml
 
 # Reproducible opt-in FPS trial copies; original Flash assets remain tracked.
-frontend/s/sv/GameLoaders30.swf
-frontend/s/sv/6a41a5ba5c0006ab4e0c1321a2b05030
+
 
 # Machine-local tools, caches and relocated Docker disk (never commit data).
 .local/
