@@ -46,6 +46,7 @@
 - Baseline trước audit nhiệm vụ đối thoại: application quest, quest/NPC handlers và targeted vet PASS; `cmd/questaudit` build PASS. `go test ./internal/...` chỉ còn đúng 4 baseline Pet và 2 baseline chat-stat, không có lỗi quest.
 - Registry policy tests, quest/quest-handler/NPC-handler focused tests và targeted vet PASS. `bin/questaudit.exe` báo đúng 227 (67/67/93), zero drift/NPC/requirement/currency/dialogue diagnostics; partition hiện tại: catalog 3682, conversation 227, special 90, missing-target 4, currency 215, unconfigured 1312.
 - Broad `go test ./internal/... -count=1` sau implementation chỉ còn đúng 4 baseline Pet và 2 baseline chat-stat đã biết; toàn bộ quest/NPC packages PASS. `go build -o bin/questaudit.exe ./cmd/questaudit` và `go build -o bin/gameserver ./cmd/gameserver` PASS.
+- Independent verification sửa test `cmd/questaudit` từng phụ thuộc artifact `.local/research` bị Git ignore; test registry nay chỉ đọc ba catalog checked-in `TBL_QUEST`, `TBL_QUEST_REQUIRE`, `TBL_NPC` và PASS trên focused run. Full `go vet ./...` vẫn chỉ bị thư mục backup ngoài source `backup_bloodbag_before_atomic`; targeted vet của toàn bộ package sửa PASS.
 
 ## Runtime/database
 

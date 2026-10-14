@@ -3,6 +3,8 @@
 **Date**: 2026-10-14 · **Status**: Approved  
 **Goal**: Allow the 160 newly audited type-2/type-4 dialogue-only quests to become ready and turn in at their catalog finish NPC, while preserving the existing 67 reviewed quests (including operator-confirmed quest 46) and keeping all ambiguous or contradicted empty definitions fail-closed.
 
+**Implementation result**: CODE_FIXED. The 227-entry registry, policy integration, audit diagnostics, and regressions are implemented. Independent verification removed the audit test's dependency on an ignored `.local` artifact; registry tests now use only checked-in quest/requirement/NPC catalogs. Deployment and Flash smoke testing remain pending separate approval.
+
 Research base:
 - `docs/research/2026-10-14_03_DIALOGUE_ONLY_QUEST_AUDIT.md` — exhaustive catalog partition and exact approved-candidate sets.
 - `docs/research/2026-10-12_06_ALL_QUEST_REQUIREMENTS_AUDIT_RESEARCH.md` — existing completion authority, canonical objective reconciliation, and fail-closed boundaries; its quest-46 statement is superseded.
