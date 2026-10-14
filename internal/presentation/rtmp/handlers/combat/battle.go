@@ -429,6 +429,13 @@ func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface
 	if playerParticipant != nil {
 		char, charErr := h.charService.GetByID(ctx.Context, characterID)
 		if charErr == nil {
+			h.logger.Info("BATTLE_HP_DEBUG",
+				zap.Int64("character_id", characterID),
+				zap.Int("db_loaded_hp", char.CurrentHP),
+				zap.Int("db_loaded_max_hp", char.MaxHP),
+				zap.Int("battle_hp", playerParticipant.CurrentHP),
+				zap.Int("battle_mp", playerParticipant.CurrentMP),
+			)
 			char.CurrentHP = playerParticipant.CurrentHP
 			char.CurrentMP = playerParticipant.CurrentMP
 			char.CurrentSP = playerParticipant.CurrentSP

@@ -6,10 +6,10 @@ package combat
 import (
 	"strconv"
 
+	"go.uber.org/zap"
+	appbloodbag "mcgame-server/internal/application/bloodbag"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
-
-	"go.uber.org/zap"
 )
 
 func (h *Handler) MazeRecover(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -66,33 +66,135 @@ func (h *Handler) UseBloodBag(ctx *rtmp.RPCContext, args []interface{}) (interfa
 	if err != nil {
 		return nil, pkgerrors.ErrUnauthorized
 	}
+	if h.bloodBag == nil {
+		return nil, nil
+	}
 
 	char, err := h.charService.GetByID(ctx.Context, characterID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
 
-	const hpRestore = 500
-	char.CurrentHP += hpRestore
-	if char.CurrentHP > char.MaxHP {
-		char.CurrentHP = char.MaxHP
+	var (
+		charUsed       int64
+		petHPUsed      int64
+		petMPUsed      int64
+		reserve        appbloodbag.State
+		reserveChanged bool
+		charHP         = char.CurrentHP
+	)
+
+	// 1. Hồi HP nhân vật.
+	if char.CurrentHP > 0 {
+		effective := *char
+		effective.RecalculateStats()
+
+		if h.itemService != nil {
+			bonuses := h.itemService.AggregateEquipmentStats(
+				ctx.Context, characterID,
+			)
+			effective.ApplyEquipmentBonuses(bonuses)
+		}
+
+		if effective.MaxHP > char.CurrentHP {
+			newHP, used, state, recoveryErr :=
+				h.bloodBag.RestoreCharacterHP(
+					ctx.Context, characterID, effective.MaxHP,
+				)
+
+			if recoveryErr != nil {
+				h.logger.Error("Blood bag character recovery failed",
+					zap.Int64("character_id", characterID),
+					zap.Error(recoveryErr))
+			} else if used > 0 {
+				charHP = newHP
+				charUsed = used
+				reserve = state
+				reserveChanged = true
+
+				// Đồng bộ cache để HP không bị ghi đè.
+				char.CurrentHP = newHP
+				if saveErr := h.charService.Save(
+					ctx.Context, char,
+				); saveErr != nil {
+					h.logger.Error("Blood bag character cache sync failed",
+						zap.Int64("character_id", characterID),
+						zap.Error(saveErr))
+					return nil, nil
+				}
+			}
+		}
 	}
 
-	if err := h.charService.Save(ctx.Context, char); err != nil {
-		h.logger.Warn("Failed to save character after use blood bag", zap.Error(err))
+	// 2. Hồi HP và MP pet, độc lập với HP nhân vật.
+	if h.petService != nil {
+		pet, petErr := h.petService.GetActivePetForRecovery(
+			ctx.Context, characterID,
+		)
+
+		if petErr != nil {
+			h.logger.Error("Blood bag active pet lookup failed",
+				zap.Int64("character_id", characterID),
+				zap.Error(petErr))
+		} else if pet != nil && pet.Life > 0 {
+			if (pet.CurrentHP > 0 && pet.CurrentHP < pet.MaxHP) ||
+				(pet.CurrentMP < pet.MaxMP) {
+
+				newPetHP, newPetMP, usedHP, usedMP, state, recoveryErr :=
+					h.bloodBag.RestorePetVitals(
+						ctx.Context,
+						characterID,
+						pet.ID,
+						pet.MaxHP,
+						pet.MaxMP,
+					)
+
+				if recoveryErr != nil {
+					h.logger.Error("Blood bag pet recovery failed",
+						zap.Int64("character_id", characterID),
+						zap.Int64("pet_id", pet.ID),
+						zap.Error(recoveryErr))
+				} else if usedHP > 0 || usedMP > 0 {
+					petHPUsed = usedHP
+					petMPUsed = usedMP
+					reserve = state
+					reserveChanged = true
+
+					h.logger.Info("Blood bag pet restored",
+						zap.Int64("character_id", characterID),
+						zap.Int64("pet_id", pet.ID),
+						zap.Int("new_hp", newPetHP),
+						zap.Int("new_mp", newPetMP),
+						zap.Int64("hp_consumed", usedHP),
+						zap.Int64("mp_consumed", usedMP))
+				}
+			}
+		}
 	}
 
-	ctx.Connection.SendCallback("onUPP", map[string]interface{}{
-		"hp": char.CurrentHP,
-	})
+	// 3. Gửi trạng thái dự trữ mới nhất về Flash.
+	if reserveChanged && ctx.Connection != nil {
+		_ = ctx.Connection.SendCallback(
+			"onUPP",
+			map[string]interface{}{
+				"currentHp": charHP,
+				"currentMp": char.CurrentMP,
+				"ep":        reserve.String(),
+			},
+		)
+	}
 
-	h.logger.Info("Use blood bag",
-		zap.Int64("character_id", characterID),
-		zap.Int("hp_restored", hpRestore))
+	if charUsed > 0 {
+		h.logger.Info("Blood bag character HP restored",
+			zap.Int64("character_id", characterID),
+			zap.Int("new_hp", charHP),
+			zap.Int64("consumed", charUsed))
+	}
 
-	return map[string]interface{}{
-		"success": true,
-	}, nil
+	_ = petHPUsed
+	_ = petMPUsed
+
+	return nil, nil
 }
 
 func (h *Handler) BBGoldRelive(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -105,7 +207,14 @@ func (h *Handler) BBGoldRelive(ctx *rtmp.RPCContext, args []interface{}) (interf
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
-
+	h.logger.Info("BLOODBAG_HP_CHECK",
+		zap.Int64("character_id", characterID),
+		zap.Int("current_hp", char.CurrentHP),
+		zap.Int("max_hp", char.MaxHP),
+		zap.Int("current_mp", char.CurrentMP),
+		zap.Int("max_mp", char.MaxMP),
+		zap.Bool("service_ready", h.bloodBag != nil),
+	)
 	goldCost := int64(100)
 	if char.MoneyBind < goldCost {
 		h.logger.Warn("BBGoldRelive: insufficient gold",

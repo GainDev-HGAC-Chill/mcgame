@@ -300,3 +300,96 @@ func (s *Service) RefillFromItem(
 
 	return StateFromMap(data), remaining, nil
 }
+
+type reserveConsumer interface {
+	ConsumeBloodBagReserve(
+		ctx context.Context,
+		charID int64,
+		bagType int,
+		requested int64,
+	) (map[string]interface{}, int64, error)
+}
+
+func (s *Service) ConsumeReserve(
+	ctx context.Context,
+	charID int64,
+	bagType int,
+	requested int64,
+) (State, int64, error) {
+	if s == nil || s.featureRepo == nil ||
+		charID <= 0 || bagType < 1 ||
+		bagType > 4 || requested <= 0 {
+		return State{}, 0, ErrInvalidRequest
+	}
+
+	repo, ok := s.featureRepo.(reserveConsumer)
+	if !ok {
+		return State{}, 0, fmt.Errorf(
+			"blood bag reserve repository unavailable",
+		)
+	}
+
+	value, _ := s.locks.LoadOrStore(charID, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+
+	data, consumed, err := repo.ConsumeBloodBagReserve(
+		ctx, charID, bagType, requested,
+	)
+	if err != nil {
+		return State{}, 0, err
+	}
+
+	return StateFromMap(data), consumed, nil
+}
+
+// RestoreCharacterHP performs the full recovery transaction atomically.
+func (s *Service) RestoreCharacterHP(ctx context.Context, charID int64, effectiveMax int) (int, int64, State, error) {
+	if s == nil || charID <= 0 || effectiveMax <= 0 {
+		return 0, 0, State{}, ErrInvalidRequest
+	}
+	repo, ok := s.featureRepo.(interface {
+		RestoreCharacterHPFromBloodBag(context.Context, int64, int) (int, int64, map[string]interface{}, error)
+	})
+	if !ok {
+		return 0, 0, State{}, fmt.Errorf("atomic character blood bag recovery unavailable")
+	}
+	value, _ := s.locks.LoadOrStore(charID, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+	hp, used, state, err := repo.RestoreCharacterHPFromBloodBag(ctx, charID, effectiveMax)
+	return hp, used, StateFromMap(state), err
+}
+func (s *Service) RestorePetVitals(
+	ctx context.Context,
+	charID, petID int64,
+	maxHP, maxMP int,
+) (int, int, int64, int64, State, error) {
+	if s == nil || charID <= 0 || petID <= 0 {
+		return 0, 0, 0, 0, State{}, ErrInvalidRequest
+	}
+
+	repo, ok := s.featureRepo.(interface {
+		RestorePetVitalsFromBloodBag(
+			context.Context, int64, int64, int, int,
+		) (int, int, int64, int64, map[string]interface{}, error)
+	})
+	if !ok {
+		return 0, 0, 0, 0, State{},
+			fmt.Errorf("atomic pet recovery unavailable")
+	}
+
+	value, _ := s.locks.LoadOrStore(charID, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+
+	hp, mp, usedHP, usedMP, data, err :=
+		repo.RestorePetVitalsFromBloodBag(
+			ctx, charID, petID, maxHP, maxMP,
+		)
+
+	return hp, mp, usedHP, usedMP, StateFromMap(data), err
+}

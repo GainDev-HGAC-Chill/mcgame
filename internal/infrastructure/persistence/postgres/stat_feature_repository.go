@@ -307,3 +307,237 @@ func toInt64(v interface{}) (int64, bool) {
 	}
 	return 0, false
 }
+func (r *StatFeatureRepository) ConsumeBloodBagReserve(
+	ctx context.Context,
+	charID int64,
+	bagType int,
+	requested int64,
+) (map[string]interface{}, int64, error) {
+	if charID <= 0 || requested <= 0 ||
+		bagType < 1 || bagType > 4 {
+		return nil, 0, fmt.Errorf("invalid blood bag consume")
+	}
+
+	keys := []string{
+		"", "characterHp", "characterMp", "petHp", "petMp",
+	}
+	key := keys[bagType]
+
+	var raw []byte
+	var consumed int64
+
+	err := r.db.pool.QueryRow(ctx, `
+        WITH locked AS (
+            SELECT character_id,
+                   state,
+                   LEAST(
+                       GREATEST(
+                           COALESCE((state ->> $2)::bigint, 0),
+                           0
+                       ),
+                       $3::bigint
+                   ) AS amount
+            FROM player.character_stat_features
+            WHERE character_id = $1
+              AND feature_key = 'blood_bag'
+            FOR UPDATE
+        ),
+        updated AS (
+            UPDATE player.character_stat_features f
+            SET state = jsonb_set(
+                    f.state,
+                    ARRAY[$2::text],
+                    to_jsonb(
+                        GREATEST(
+                            COALESCE((f.state ->> $2)::bigint, 0)
+                            - locked.amount, 0
+                        )
+                    ),
+                    true
+                ),
+                updated_at = now()
+            FROM locked
+            WHERE f.character_id = locked.character_id
+              AND f.feature_key = 'blood_bag'
+            RETURNING f.state, locked.amount
+        )
+        SELECT state, amount FROM updated
+    `, charID, key, requested).Scan(&raw, &consumed)
+
+	if err == pgx.ErrNoRows {
+		return map[string]interface{}{}, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var state map[string]interface{}
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return nil, 0, err
+	}
+
+	return state, consumed, nil
+}
+
+// RestoreCharacterHPFromBloodBag updates HP and its reserve in one transaction.
+// The effective maximum is calculated by the combat layer (including equipment).
+func (r *StatFeatureRepository) RestoreCharacterHPFromBloodBag(
+	ctx context.Context, charID int64, effectiveMax int,
+) (int, int64, map[string]interface{}, error) {
+	if charID <= 0 || effectiveMax <= 0 {
+		return 0, 0, nil, fmt.Errorf("invalid blood bag recovery")
+	}
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var hp int
+	err = tx.QueryRow(ctx, `SELECT current_hp FROM player.character_attributes WHERE character_id=$1 FOR UPDATE`, charID).Scan(&hp)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	if hp <= 0 || hp >= effectiveMax {
+		return hp, 0, nil, nil
+	}
+	var raw []byte
+	err = tx.QueryRow(ctx, `SELECT state FROM player.character_stat_features WHERE character_id=$1 AND feature_key='blood_bag' FOR UPDATE`, charID).Scan(&raw)
+	if err == pgx.ErrNoRows {
+		return hp, 0, nil, nil
+	}
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	var state map[string]interface{}
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return 0, 0, nil, err
+	}
+	reserve, valid := toInt64(state["characterHp"])
+	if !valid || reserve <= 0 {
+		return hp, 0, state, nil
+	}
+	consumed := int64(effectiveMax - hp)
+	if consumed > reserve {
+		consumed = reserve
+	}
+	newHP := hp + int(consumed)
+	state["characterHp"] = reserve - consumed
+	updated, err := json.Marshal(state)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE player.character_attributes SET current_hp=$2 WHERE character_id=$1`, charID, newHP); err != nil {
+		return 0, 0, nil, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE player.character_stat_features SET state=$2::jsonb, updated_at=now() WHERE character_id=$1 AND feature_key='blood_bag'`, charID, updated); err != nil {
+		return 0, 0, nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return 0, 0, nil, err
+	}
+	return newHP, consumed, state, nil
+}
+func (r *StatFeatureRepository) RestorePetVitalsFromBloodBag(
+	ctx context.Context,
+	charID, petID int64,
+	effectiveMaxHP, effectiveMaxMP int,
+) (int, int, int64, int64, map[string]interface{}, error) {
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var hp, mp, life int
+	err = tx.QueryRow(ctx, `
+		SELECT current_hp, current_mp, life
+		FROM player.character_pets
+		WHERE id = $1 AND character_id = $2
+		FOR UPDATE
+	`, petID, charID).Scan(&hp, &mp, &life)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+	if life <= 0 {
+		return hp, mp, 0, 0, nil, nil
+	}
+
+	var raw []byte
+	err = tx.QueryRow(ctx, `
+		SELECT state
+		FROM player.character_stat_features
+		WHERE character_id = $1 AND feature_key = 'blood_bag'
+		FOR UPDATE
+	`, charID).Scan(&raw)
+	if err == pgx.ErrNoRows {
+		return hp, mp, 0, 0, nil, nil
+	}
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+
+	var state map[string]interface{}
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+
+	hpReserve, _ := toInt64(state["petHp"])
+	mpReserve, _ := toInt64(state["petMp"])
+
+	var usedHP, usedMP int64
+
+	if hp > 0 && effectiveMaxHP > hp && hpReserve > 0 {
+		usedHP = int64(effectiveMaxHP - hp)
+		if usedHP > hpReserve {
+			usedHP = hpReserve
+		}
+	}
+
+	if effectiveMaxMP > mp && mpReserve > 0 {
+		usedMP = int64(effectiveMaxMP - mp)
+		if usedMP > mpReserve {
+			usedMP = mpReserve
+		}
+	}
+
+	if usedHP == 0 && usedMP == 0 {
+		return hp, mp, 0, 0, state, nil
+	}
+
+	newHP := hp + int(usedHP)
+	newMP := mp + int(usedMP)
+
+	state["petHp"] = hpReserve - usedHP
+	state["petMp"] = mpReserve - usedMP
+
+	updated, err := json.Marshal(state)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE player.character_pets
+		SET current_hp = $2,
+		    current_mp = $3,
+		    updated_at = now()
+		WHERE id = $1 AND character_id = $4
+	`, petID, newHP, newMP, charID)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE player.character_stat_features
+		SET state = $2::jsonb, updated_at = now()
+		WHERE character_id = $1 AND feature_key = 'blood_bag'
+	`, charID, updated)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+
+	return newHP, newMP, usedHP, usedMP, state, nil
+}

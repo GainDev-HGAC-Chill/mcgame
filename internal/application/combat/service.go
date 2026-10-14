@@ -253,6 +253,11 @@ func (s *Service) HandleCharacterDisconnect(ctx context.Context, charID int64) (
 	participantID := fmt.Sprintf("%d", charID)
 	player := battle.GetParticipant(participantID)
 	if player != nil {
+		s.logger.Warn("DISCONNECT_BATTLE_HP",
+			zap.Int64("character_id", charID),
+			zap.Int("battle_hp", player.CurrentHP),
+			zap.String("battle_id", battle.ID),
+		)
 		if err := s.charRepo.UpdateStats(ctx, charID, player.CurrentHP, player.CurrentMP, player.CurrentSP); err != nil {
 			s.logger.Warn("Failed to persist character stats on disconnect battle cleanup",
 				zap.Int64("character_id", charID),

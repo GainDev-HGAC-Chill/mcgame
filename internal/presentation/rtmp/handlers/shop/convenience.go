@@ -60,7 +60,6 @@ func (h *Handler) BuyBloodBag(ctx *rtmp.RPCContext, args []interface{}) (interfa
 		return rtmp.ErrorToResponse(err), nil
 	}
 	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": result.NewGold})
-	_ = ctx.Connection.SendCallback("setBloodBag", result.State.String())
 	return nil, nil
 }
 

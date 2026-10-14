@@ -4,7 +4,9 @@
 package combat
 
 import (
+	"go.uber.org/zap"
 	appbattle "mcgame-server/internal/application/battle"
+	appbloodbag "mcgame-server/internal/application/bloodbag"
 	appbuff "mcgame-server/internal/application/buff"
 	appchar "mcgame-server/internal/application/character"
 	appcombat "mcgame-server/internal/application/combat"
@@ -20,8 +22,6 @@ import (
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/infrastructure/rtmp"
 	questhandler "mcgame-server/internal/presentation/rtmp/handlers/quest"
-
-	"go.uber.org/zap"
 )
 
 type Handler struct {
@@ -45,6 +45,7 @@ type Handler struct {
 	battleInfoLookup    func(string) (*combatdomain.Battle, error)
 	logger              *zap.Logger
 	buffService         *appbuff.Service
+	bloodBag            *appbloodbag.Service
 }
 
 func NewHandler(combatService *appcombat.Service, sceneService *appscene.Service, charService *appchar.Service, battleService *appbattle.Service, questService *appquest.Service, sceneManager *rtmp.SceneManager, accountRepo auth.AccountRepository, logger *zap.Logger) *Handler {
@@ -86,6 +87,12 @@ func (h *Handler) SetRTMPServer(server *rtmp.Server) {
 
 func (h *Handler) SetItemService(itemService *appitem.Service) {
 	h.itemService = itemService
+}
+
+func (h *Handler) SetBloodBagService(
+	service *appbloodbag.Service,
+) {
+	h.bloodBag = service
 }
 
 func (h *Handler) SetBuffService(buffService *appbuff.Service) {
