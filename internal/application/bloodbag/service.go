@@ -207,3 +207,96 @@ func bounded(value int64) int64 {
 	}
 	return value
 }
+
+// PreviewItemRefill kiểm tra vật phẩm và tính trạng thái mới.
+// Chưa lưu database và chưa trừ vật phẩm.
+func (s *Service) PreviewItemRefill(
+	ctx context.Context,
+	charID int64,
+	templateID int,
+	count int,
+) (State, error) {
+	if s == nil || s.featureRepo == nil || charID <= 0 || count <= 0 {
+		return State{}, ErrInvalidRequest
+	}
+
+	cfg, ok := GetItemConfig(templateID)
+	if !ok || cfg.Amount <= 0 || cfg.BagType < 1 || cfg.BagType > 4 {
+		return State{}, ErrInvalidRequest
+	}
+
+	// Chặn số lượng vượt sức chứa và tránh tràn số.
+	if int64(count) > Capacity/cfg.Amount {
+		return State{}, ErrCapacityExceeded
+	}
+
+	amount := int64(count) * cfg.Amount
+
+	state, err := s.Load(ctx, charID)
+	if err != nil {
+		return State{}, err
+	}
+
+	current := state.Value(cfg.BagType)
+
+	if amount > Capacity-current {
+		return State{}, ErrCapacityExceeded
+	}
+
+	state.SetValue(cfg.BagType, current+amount)
+
+	return state, nil
+}
+
+type itemRefillRepository interface {
+	CommitBloodBagItemRefill(
+		ctx context.Context,
+		charID, itemID int64,
+		templateID, bagType, count int,
+		unitAmount int64,
+	) (map[string]interface{}, int, error)
+}
+
+func (s *Service) RefillFromItem(
+	ctx context.Context,
+	charID, itemID int64,
+	templateID, count int,
+) (State, int, error) {
+	if s == nil || s.featureRepo == nil ||
+		charID <= 0 || itemID <= 0 || count <= 0 {
+		return State{}, 0, ErrInvalidRequest
+	}
+
+	cfg, ok := GetItemConfig(templateID)
+	if !ok || cfg.Amount <= 0 ||
+		cfg.BagType < 1 || cfg.BagType > 4 {
+		return State{}, 0, ErrInvalidRequest
+	}
+
+	repo, ok := s.featureRepo.(itemRefillRepository)
+	if !ok {
+		return State{}, 0, fmt.Errorf(
+			"blood bag: atomic refill repository unavailable",
+		)
+	}
+
+	value, _ := s.locks.LoadOrStore(charID, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+
+	data, remaining, err := repo.CommitBloodBagItemRefill(
+		ctx,
+		charID,
+		itemID,
+		templateID,
+		cfg.BagType,
+		count,
+		cfg.Amount,
+	)
+	if err != nil {
+		return State{}, 0, err
+	}
+
+	return StateFromMap(data), remaining, nil
+}

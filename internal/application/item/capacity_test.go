@@ -232,7 +232,7 @@ func TestUseCapacityBookRequiresAuthoritativeTemplate(t *testing.T) {
 }
 
 func TestOtherScrollDoesNotExpandContainers(t *testing.T) {
-	svc, repo := capacityTestService(t, 327, 2)
+	svc, repo := capacityTestService(t, 999999, 2)
 	char := &domainchar.Character{ID: 99, Level: 1, BagSlotNum: 1, BankSlotNum: 1, PetMaxNum: 6}
 	before := *char
 	_, result, err := svc.UseItem(context.Background(), char, 88, nil)

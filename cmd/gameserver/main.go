@@ -280,6 +280,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	statFeatureRepo := postgres.NewStatFeatureRepository(gameDb)
 	statFeatureService := appstatfeature.NewService(statFeatureRepo, log)
 	bloodBagService := appbloodbag.NewService(characterRepo, statFeatureRepo)
+	itemService.SetBloodBagService(bloodBagService)
 	statFeatureService.SetGameDataManager(gameDataManager)
 	itemService.SetCharacterBonusProvider(statFeatureService)
 	buffRepo := postgres.NewBuffRepository(gameDb)
@@ -550,7 +551,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	combatHandler.SetPetService(petService)
 	combatHandler.RegisterHandlers(dispatcher)
 	stationaryCtx, stopStationary := context.WithCancel(
-    context.Background(),
+		context.Background(),
 	)
 
 	go combatHandler.RunStationaryEncounters(stationaryCtx)

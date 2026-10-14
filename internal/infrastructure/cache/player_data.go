@@ -357,3 +357,37 @@ func (p *PlayerData) GetDirtySnapshot() *DirtySnapshot {
 
 	return snapshot
 }
+
+// SyncCommittedItemCount cập nhật cache sau khi PostgreSQL
+// đã commit việc trừ vật phẩm. Không đánh dấu dirty.
+func (p *PlayerData) SyncCommittedItemCount(
+	itemID int64,
+	remaining int,
+) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	current, exists := p.Items[itemID]
+	if !exists {
+		return
+	}
+
+	if remaining <= 0 {
+		delete(p.Items, itemID)
+	} else {
+		updated := cloneItem(current)
+		updated.StackCount = remaining
+		p.Items[itemID] = updated
+	}
+
+	delete(p.dirtyItems, itemID)
+
+	p.deletedItems = slices.DeleteFunc(
+		p.deletedItems,
+		func(id int64) bool {
+			return id == itemID
+		},
+	)
+
+	p.revision++
+}

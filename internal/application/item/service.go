@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	appbloodbag "mcgame-server/internal/application/bloodbag"
 	appbuff "mcgame-server/internal/application/buff"
 	apptitle "mcgame-server/internal/application/title"
 	domainbuff "mcgame-server/internal/domain/buff"
@@ -74,9 +75,14 @@ type Service struct {
 	typeHandlers        map[int]ItemEffectHandler
 	awardHandler        *awardEffectHandler
 	fallbackHandlers    []ItemEffectHandler
+	bloodBag            *appbloodbag.Service
 }
 
 const pasarFragmentTemplateID = 5351
+
+func (s *Service) SetBloodBagService(service *appbloodbag.Service) {
+	s.bloodBag = service
+}
 
 func IsDirectUseDisabledTemplate(templateID int) bool {
 	return templateID == pasarFragmentTemplateID
@@ -1092,7 +1098,24 @@ func (s *Service) UseItem(ctx context.Context, char *character.Character, itemID
 	if IsDirectUseDisabledTemplate(it.TemplateID) {
 		return it, map[string]interface{}{"ignored": true}, nil
 	}
+	if _, ok := appbloodbag.GetItemConfig(it.TemplateID); ok {
+		if s.bloodBag == nil || !it.IsConsumable() {
+			return nil, nil, pkgerrors.ErrCannotUseItem
+		}
 
+		state, remaining, err := s.refillBloodBagItem(
+			ctx, it, 1,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		it.StackCount = remaining
+
+		return it, map[string]interface{}{
+			"blood_bag": state.Map(),
+		}, nil
+	}
 	// Handle Equipment (Auto-Equip)
 	if it.IsEquipment() {
 		displaced, err := s.EquipItem(ctx, char.ID, itemID, -1) // -1 for auto-slot
@@ -1324,16 +1347,38 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 		return nil, pkgerrors.ErrInsufficientItems
 	}
 
+	if _, ok := appbloodbag.GetItemConfig(it.TemplateID); ok {
+		if s.bloodBag == nil {
+			return nil, pkgerrors.ErrCannotUseItem
+		}
+
+		state, remaining, err := s.refillBloodBagItem(
+			ctx, it, count,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		it.StackCount = remaining
+
+		return map[string]interface{}{
+			"consumed":  count,
+			"remaining": remaining,
+			"item_id":   it.ID,
+			"used_item": it,
+			"blood_bag": state.Map(),
+		}, nil
+	}
 	// Get template for item effects
 	var tpl *models.ItemTemplateTemplate
 	if s.gameDataRec != nil {
 		tpl = s.gameDataRec.GetItem(it.TemplateID)
 	}
 
-		_, _, isExpBook := expBookConfig(it.TemplateID)
-		_, _, isEncounterBook := encounterBookConfig(it.TemplateID)
+	_, _, isExpBook := expBookConfig(it.TemplateID)
+	_, _, isEncounterBook := encounterBookConfig(it.TemplateID)
 
-		if isExpBook || isEncounterBook {		
+	if isExpBook || isEncounterBook {
 		if count != 1 {
 			return nil, pkgerrors.ErrInvalidArgs
 		}
@@ -2687,4 +2732,56 @@ func (s *Service) DeleteItemByTemplateAndSlotType(ctx context.Context, charID in
 	}
 
 	return nil
+}
+
+type bloodBagInventoryCache interface {
+	FlushBeforeBloodBagRefill(
+		ctx context.Context,
+		charID int64,
+	) error
+
+	SyncCommittedBloodBagItem(
+		ctx context.Context,
+		it *item.Item,
+		remaining int,
+	)
+}
+
+func (s *Service) refillBloodBagItem(
+	ctx context.Context,
+	it *item.Item,
+	count int,
+) (appbloodbag.State, int, error) {
+	if s.bloodBag == nil || it == nil || count <= 0 {
+		return appbloodbag.State{}, 0, pkgerrors.ErrCannotUseItem
+	}
+
+	cacheRepo, hasCache := s.itemRepo.(bloodBagInventoryCache)
+
+	if hasCache {
+		if err := cacheRepo.FlushBeforeBloodBagRefill(
+			ctx, it.CharacterID,
+		); err != nil {
+			return appbloodbag.State{}, 0, err
+		}
+	}
+
+	state, remaining, err := s.bloodBag.RefillFromItem(
+		ctx,
+		it.CharacterID,
+		it.ID,
+		it.TemplateID,
+		count,
+	)
+	if err != nil {
+		return appbloodbag.State{}, 0, err
+	}
+
+	if hasCache {
+		cacheRepo.SyncCommittedBloodBagItem(
+			ctx, it, remaining,
+		)
+	}
+
+	return state, remaining, nil
 }

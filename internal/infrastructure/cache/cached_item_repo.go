@@ -7,11 +7,11 @@ package cache
 
 import (
 	"context"
-	"strings"
-
+	"go.uber.org/zap"
 	"mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/item"
 	pkgerrors "mcgame-server/pkg/errors"
+	"strings"
 )
 
 type CachedItemRepository struct {
@@ -351,4 +351,55 @@ func (r *CachedItemRepository) CountBySlotType(ctx context.Context, charID int64
 	}
 
 	return r.delegate.CountBySlotType(ctx, charID, slotType)
+}
+
+// Đẩy các thay đổi đang chờ xuống database trước
+// khi thực hiện transaction trực tiếp bằng PostgreSQL.
+func (r *CachedItemRepository) FlushBeforeBloodBagRefill(
+	ctx context.Context,
+	charID int64,
+) error {
+	return r.cache.SavePlayer(ctx, charID)
+}
+
+// Đồng bộ cache sau khi giao dịch nạp túi cứu thương
+// đã commit thành công.
+func (r *CachedItemRepository) SyncCommittedBloodBagItem(
+	ctx context.Context,
+	it *item.Item,
+	remaining int,
+) {
+	if it == nil {
+		return
+	}
+
+	if data := r.cache.GetPlayer(it.CharacterID); data != nil {
+		data.SyncCommittedItemCount(it.ID, remaining)
+
+		if err := r.cache.saveToRedis(ctx, data); err != nil {
+			r.cache.logger.Warn(
+				"Failed to sync blood bag refill item to Redis",
+				zap.Int64("character_id", it.CharacterID),
+				zap.Int64("item_id", it.ID),
+				zap.Error(err),
+			)
+		}
+	}
+
+	if r.cache.warmLoader != nil &&
+		shouldTrackWarmInventorySlot(it.SlotType, it.SlotIndex) {
+
+		itemID := it.ID
+		if remaining <= 0 {
+			itemID = 0
+		}
+
+		_ = r.cache.warmLoader.UpdateItem(
+			ctx,
+			it.CharacterID,
+			itemID,
+			it.SlotType,
+			it.SlotIndex,
+		)
+	}
 }
