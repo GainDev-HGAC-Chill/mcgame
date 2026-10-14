@@ -45,7 +45,7 @@ func expBookConfig(id int) (int, time.Duration, bool) {
 func encounterBookConfig(id int) (int, time.Duration, bool) {
     switch id {
     case 327:
-        return 313, 0, true
+        return 313, 15 * time.Minute, true
 
     case 328:
         return 314, 15 * time.Minute, true
