@@ -21,22 +21,11 @@ const (
 	PolicyInvalid        = "invalid_catalog"
 )
 
-var reviewedConversationIDs = map[int]bool{
-	1: true, 2: true, 3: true, 4: true, 6: true, 15: true, 23: true,
-	24: true, 25: true, 26: true, 27: true, 28: true, 29: true,
-	31: true, 32: true, 33: true, 34: true, 35: true, 36: true, 37: true, 38: true, 39: true, 40: true, 41: true, 42: true, 43: true, 44: true, 45: true, 46: true,
-	54: true, 58: true, 161: true, 163: true, 165: true, 167: true, 169: true, 172: true, 173: true,
-	382: true, 383: true, 384: true, 385: true, 386: true,
-	1710: true, 1711: true, 1712: true, 1713: true,
-	2563: true, 2564: true, 2565: true, 2566: true, 2567: true, 2568: true, 2571: true, 2578: true,
-	3191: true, 3192: true, 3193: true, 3194: true, 3195: true, 3196: true, 3197: true, 3198: true, 3199: true, 3200: true, 3201: true, 5189: true,
-}
-
 func ClassifyQuestCompletion(tpl *models.QuestTemplate, requirements []*models.QuestRequireTemplate) (string, int) {
 	if tpl == nil {
 		return PolicyInvalid, 0
 	}
-	if tpl.Rn > 0 || tpl.Rn < 0 {
+	if tpl.Rn != 0 {
 		return PolicyCurrency, 0
 	}
 	if len(requirements) > 0 {
@@ -50,6 +39,9 @@ func ClassifyQuestCompletion(tpl *models.QuestTemplate, requirements []*models.Q
 			return PolicyInvalid, 0
 		}
 		return PolicyCatalog, 0
+	}
+	if tpl.Rt != 0 {
+		return PolicyCurrency, 0
 	}
 	if int(tpl.Type) == 10 {
 		id := int(tpl.ID)
@@ -72,10 +64,21 @@ func ClassifyQuestCompletion(tpl *models.QuestTemplate, requirements []*models.Q
 			}
 		}
 	}
-	if int(tpl.Type) == 1 && reviewedConversationIDs[int(tpl.ID)] && tpl.FinishNPC > 0 {
-		return PolicyConversation, int(tpl.FinishNPC)
+	if spec, ok := reviewedConversationQuests[int(tpl.ID)]; ok && conversationFingerprintMatches(tpl, spec) {
+		return PolicyConversation, spec.FinishNPC
 	}
 	return PolicyUnconfigured, 0
+}
+
+func conversationFingerprintMatches(tpl *models.QuestTemplate, spec conversationQuestSpec) bool {
+	return tpl != nil &&
+		tpl.Type == float64(spec.QuestType) &&
+		tpl.StartNPC == float64(spec.StartNPC) &&
+		tpl.FinishNPC == float64(spec.FinishNPC) &&
+		spec.FinishNPC > 0 &&
+		tpl.Name == spec.Name &&
+		strings.TrimSpace(tpl.StartText) != "" &&
+		strings.TrimSpace(tpl.CompleteText) != ""
 }
 
 func descriptionThreshold(name, prefix string) (int, bool) {

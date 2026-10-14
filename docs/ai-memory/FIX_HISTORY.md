@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-14-18 — Hoàn tất registry nhiệm vụ đối thoại
+
+- Hiện tượng: completion policy chỉ cho phép 67 quest type 1 theo ID, nên 160 quest đối thoại type 2/4 đã audit vẫn luôn state 103 và không thể turn-in.
+- Sửa: thay allowlist ID-only bằng registry 227 fingerprint exact `ID/name/type/startNPC/finishNPC`; chỉ cho phép khi không có ordinary requirement, `rt/rn=0`, dialogue đầy đủ và finish NPC dương. Quest 46 được giữ nguyên; catalog drift và nhóm mơ hồ tiếp tục fail closed.
+- Audit: `cmd/questaudit` kiểm tra type counts, fingerprint/NPC/dialogue drift, requirement/currency overlap và exact policy partition. Checked catalogs báo 227 (67/67/93), zero diagnostics; partition 3682 catalog, 227 conversation, 90 special, 4 missing-target, 215 currency, 1312 unconfigured.
+- Test: focused quest/handler/NPC/audit và targeted vet PASS; broad internal chỉ còn 4 baseline Pet + 2 chat-stat; `questaudit` và `gameserver` build PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không migration và không thay đổi player data.
+
 ## FIX-2026-10-14-16 — Phiếu lễ và Thẻ Kim Phiếu
 
 - Hiện tượng: `Ngân Phiếu Lễ` 654, `Hoàng Kim Lễ` 1064 và `Thẻ Kim Phiếu` 3848 đi vào generic type-550 và không đổi được tiền theo mô tả.

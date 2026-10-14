@@ -106,7 +106,7 @@ func TestSpecialRequirementsFailClosedWithoutResettingHistory(t *testing.T) {
 		t.Fatal("unsupported empty growup quest reported complete")
 	}
 	talk := specialQuestService(t, 1, "Bắt Đầu Thực Tập", 1)
-	if err := talk.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, models.QuestTemplate{ID: 1, Name: "Bắt Đầu Thực Tập", Type: 1, FinishNPC: 231})}); err != nil {
+	if err := talk.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, models.QuestTemplate{ID: 1, Name: "Bắt Đầu Thực Tập", Type: 1, StartNPC: 240, FinishNPC: 231, StartText: "start", CompleteText: "complete"})}); err != nil {
 		t.Fatal(err)
 	}
 	if err := talk.gameDataManager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustQuestJSON(t, models.NpcTemplate{ID: 231, PosMapID: 1, PosX: 100, PosY: 100})}); err != nil {

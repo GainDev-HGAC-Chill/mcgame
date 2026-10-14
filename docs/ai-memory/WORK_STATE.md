@@ -6,6 +6,7 @@
 - Tiếp tục nhóm lỗi mới: callback/fusion Pet, nâng skill Pet, auto-skill, ranking, Quest Admin, xóa nhân vật và túi chế tạo.
 - Kiểm tra toàn bộ skill chủ động Pet theo target count, damage/heal và effect so với mô tả.
 - Hoàn tất đúng nhóm voucher `Ngân Phiếu Lễ`/`Hoàng Kim Lễ`/`Thẻ Kim Phiếu` và mở trực tiếp giao diện Quest Admin dashboard không cần phiên đăng nhập; không mở rộng sang item hay trang quản trị khác.
+- Đã triển khai completion policy cho registry fingerprint 227 nhiệm vụ đối thoại đã duyệt (67 type 1, 67 type 2, 93 type 4); chưa thay đổi dữ liệu nhiệm vụ hoặc tiến độ người chơi.
 
 ## Đã hoàn thành
 
@@ -20,6 +21,7 @@
 - Đã giữ `pi`/`soulInfo` ở root wrapper Pet DTO và bổ sung `bt8`, tránh lỗi `Core.updatePetSetting` sau khi mở Pet Manager.
 - Đã thêm application path riêng cho đúng template `654` Ngân Phiếu Lễ, `1064` Hoàng Kim Lễ và `3848` Thẻ Kim Phiếu; hỗ trợ dùng đơn/nhiều, kiểm tra level/target/count/overflow, tiêu hao rồi cộng đúng ví khóa và phát `granted_currencies`.
 - Quest Admin API không còn yêu cầu Supabase Auth/admin session; mọi request được cấp quyền editor nội bộ cố định, còn PATCH vẫn bắt buộc same-origin.
+- Audit 5.530 quest xác định 227 nhiệm vụ đối thoại tin cậy cao: 67 ID hiện tại (Quest 46 được operator xác nhận) và 160 ứng viên mới type 2/4. Registry lưu exact name/type/startNPC/finishNPC từ checked `TBL_QUEST.json`; catalog drift, requirement, `rt/rn`, thiếu dialogue/NPC tiếp tục fail closed. Giữ chặn 711 ứng viên mơ hồ, 77 ứng viên mâu thuẫn và 669 empty definition khác.
 
 ## File đang sửa/chưa commit
 
@@ -41,6 +43,9 @@
 - Sau sửa stale `+0.11`: focused `TestFusePets`, toàn bộ pet handler và domain/pet PASS; diff-check hai file code sạch.
 - Focused voucher application tests và toàn bộ item handler PASS; Quest editor/validation/permission tests PASS; dashboard `corepack pnpm typecheck` PASS. Go targeted vet và `go build -o bin/gameserver ./cmd/gameserver` PASS.
 - Dashboard production build đã compile/typecheck và generate đủ page nhưng bước copy `.next/standalone` fail do Windows không cho tạo pnpm symlink (`EPERM`), không phải lỗi TypeScript/source. Full `go vet ./...` bị các package trong thư mục backup ngoài source `backup_bloodbag_before_atomic`; targeted vet của package sửa PASS.
+- Baseline trước audit nhiệm vụ đối thoại: application quest, quest/NPC handlers và targeted vet PASS; `cmd/questaudit` build PASS. `go test ./internal/...` chỉ còn đúng 4 baseline Pet và 2 baseline chat-stat, không có lỗi quest.
+- Registry policy tests, quest/quest-handler/NPC-handler focused tests và targeted vet PASS. `bin/questaudit.exe` báo đúng 227 (67/67/93), zero drift/NPC/requirement/currency/dialogue diagnostics; partition hiện tại: catalog 3682, conversation 227, special 90, missing-target 4, currency 215, unconfigured 1312.
+- Broad `go test ./internal/... -count=1` sau implementation chỉ còn đúng 4 baseline Pet và 2 baseline chat-stat đã biết; toàn bộ quest/NPC packages PASS. `go build -o bin/questaudit.exe ./cmd/questaudit` và `go build -o bin/gameserver ./cmd/gameserver` PASS.
 
 ## Runtime/database
 
@@ -71,6 +76,7 @@
 3. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
 4. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
 5. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
+6. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 

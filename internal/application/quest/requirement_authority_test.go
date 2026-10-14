@@ -187,7 +187,7 @@ func TestRequirementAuthoritySpecialDependenciesFailClosed(t *testing.T) {
 		t.Run(fmt.Sprint(tc.id), func(t *testing.T) {
 			svc := specialQuestService(t, tc.id, tc.name, tc.kind)
 			if tc.id == 1 {
-				if err := svc.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, models.QuestTemplate{ID: 1, Type: 1, FinishNPC: 231})}); err != nil {
+				if err := svc.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, models.QuestTemplate{ID: 1, Name: "Bắt Đầu Thực Tập", Type: 1, StartNPC: 240, FinishNPC: 231, StartText: "start", CompleteText: "complete"})}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -295,7 +295,8 @@ func TestRequirementAuthorityLevelAndPetThresholds(t *testing.T) {
 }
 
 func TestRequirementAuthorityConversationLocation(t *testing.T) {
-	for _, tc := range []struct {
+	quests := []int{46, 196, 71}
+	locations := []struct {
 		name        string
 		mapID, x, y int
 		complete    bool
@@ -305,29 +306,37 @@ func TestRequirementAuthorityConversationLocation(t *testing.T) {
 		{"beyond radius", 1, 401, 100, false},
 		{"diagonal remote", 1, 400, 400, false},
 		{"wrong map", 2, 100, 100, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			svc := specialQuestService(t, 1, "Reviewed conversation", 1)
-			if err := svc.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, models.QuestTemplate{ID: 1, Type: 1, FinishNPC: 231})}); err != nil {
-				t.Fatal(err)
-			}
-			if err := svc.gameDataManager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustQuestJSON(t, models.NpcTemplate{ID: 231, PosMapID: 1, PosX: 100, PosY: 100})}); err != nil {
-				t.Fatal(err)
-			}
-			svc.SetCharacterRepository(&questTestCharacterRepo{char: &domainchar.Character{ID: 2, MapID: tc.mapID, PosX: tc.x, PosY: tc.y}})
-			qp := domainquest.NewQuestProgress(2, 1, nil)
-			if !tc.complete {
-				authorityBlocked(t, svc, qp)
-				return
-			}
-			if dto := svc.EnrichQuestDTO(context.Background(), qp); dto["state"] != 104 {
-				t.Fatalf("nearby conversation blocked: %v", dto)
-			}
-			authoritySave(t, svc, qp)
-			if _, _, err := svc.CompleteQuest(context.Background(), 2, 1); err != nil {
-				t.Fatal(err)
-			}
-		})
+	}
+	for _, questID := range quests {
+		spec := reviewedConversationQuests[questID]
+		for _, tc := range locations {
+			t.Run(fmt.Sprintf("quest_%d_%s", questID, tc.name), func(t *testing.T) {
+				svc := specialQuestService(t, questID, spec.Name, spec.QuestType)
+				tpl := models.QuestTemplate{ID: int64(questID), Name: spec.Name, Type: float64(spec.QuestType), StartNPC: float64(spec.StartNPC), FinishNPC: float64(spec.FinishNPC), StartText: "start", CompleteText: "complete"}
+				if err := svc.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, tpl)}); err != nil {
+					t.Fatal(err)
+				}
+				if err := svc.gameDataManager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustQuestJSON(t, models.NpcTemplate{ID: int64(spec.FinishNPC), PosMapID: 1, PosX: 100, PosY: 100})}); err != nil {
+					t.Fatal(err)
+				}
+				svc.SetCharacterRepository(&questTestCharacterRepo{char: &domainchar.Character{ID: 2, MapID: tc.mapID, PosX: tc.x, PosY: tc.y}})
+				qp := domainquest.NewQuestProgress(2, questID, nil)
+				if !tc.complete {
+					authorityBlocked(t, svc, qp)
+					return
+				}
+				if dto := svc.EnrichQuestDTO(context.Background(), qp); dto["state"] != 104 {
+					t.Fatalf("nearby conversation blocked: %v", dto)
+				}
+				authoritySave(t, svc, qp)
+				if _, _, err := svc.CompleteQuest(context.Background(), 2, questID); err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err := svc.CompleteQuest(context.Background(), 2, questID); !errors.Is(err, pkgerrors.ErrInvalidInput) {
+					t.Fatalf("duplicate completion err=%v", err)
+				}
+			})
+		}
 	}
 }
 

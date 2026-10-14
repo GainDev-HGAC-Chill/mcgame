@@ -1,5 +1,13 @@
 # NPC & Quest System
 
+## Reviewed dialogue registry expansion (2026-10-14)
+
+Dialogue-only completion is now authorized by a 227-entry fingerprint registry: 67 type-1 quests, 67 type-2 quests, and 93 type-4 quests. Each entry records the exact checked `TBL_QUEST.json` ID, name, type, start NPC, and finish NPC. Runtime also requires no ordinary requirement rows, zero `rt/rn`, non-empty start and complete dialogue, and a positive finish NPC. Any fingerprint or dialogue drift fails closed as unconfigured; no Vietnamese text scanning or broad empty-quest inference occurs. Operator-confirmed quest 46 (`Chế Tạo Huy Hiệu`, NPC 430) remains authorized.
+
+The existing lifecycle is unchanged: canonical objectives stay empty, readiness changes from state 103 to 104 only within the server-owned 300-unit finish-NPC map/proximity gate, and final turn-in checks location again before one-shot rewards. The 711 ambiguous candidates, 77 contradicted candidates, and 669 other empty definitions remain unauthorized by this change.
+
+`cmd/questaudit` now joins the compose snapshot with checked quest/NPC catalogs and reports registry counts, fingerprint drift, missing finish NPCs, ordinary-requirement or `rt/rn` overlap, missing dialogue, and the exact policy partition. The checked snapshot reports 227 reviewed entries with a 67/67/93 split and zero registry diagnostics. Current partition: 3,682 catalog, 227 reviewed conversations, 90 implemented specials, 4 missing-target, 215 unsupported currency, and 1,312 unconfigured definitions. Focused application/quest-handler/NPC-handler/audit tests, targeted vet, and both `questaudit`/`gameserver` builds pass. Broad internal regression has only the known four Pet stat/equipment/skill and two chat-stat failures; quest packages pass. No migration, player-data change, deployment, or restart was performed.
+
 ## Capture quest refresh (2026-10-13)
 
 Successful pet capture now triggers `QuestNotifyHelper.PushQuestProgress` from the combat turn handler when a new pet reward belongs to the current character. This refreshes submit-pet objectives immediately instead of leaving the Flash quest panel at `0/1` until a new quest snapshot is requested. The change is tested and built locally but has not been deployed because the user chose not to restart `mcgame-server`.
