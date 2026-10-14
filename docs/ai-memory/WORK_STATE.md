@@ -7,6 +7,7 @@
 - Kiểm tra toàn bộ skill chủ động Pet theo target count, damage/heal và effect so với mô tả.
 - Hoàn tất đúng nhóm voucher `Ngân Phiếu Lễ`/`Hoàng Kim Lễ`/`Thẻ Kim Phiếu` và mở trực tiếp giao diện Quest Admin dashboard không cần phiên đăng nhập; không mở rộng sang item hay trang quản trị khác.
 - Đã triển khai completion policy cho registry fingerprint 227 nhiệm vụ đối thoại đã duyệt (67 type 1, 67 type 2, 93 type 4); chưa thay đổi dữ liệu nhiệm vụ hoặc tiến độ người chơi.
+- Đã sửa đồng bộ cường hóa Pet: `petStar` roll đúng bảng Flash 100/100/90/80/70/60/50/30/30/30/30/20% cho sao đích 1→12, hỗ trợ Nội Đơn Chúc Phúc giữ sao khi thất bại từ 8+, và phát refresh nested `property` để bảng Pet dùng cùng `GrowRate + GrowRateAdd`; chưa deploy/Flash smoke-test.
 
 ## Đã hoàn thành
 
@@ -47,6 +48,8 @@
 - Registry policy tests, quest/quest-handler/NPC-handler focused tests và targeted vet PASS. `bin/questaudit.exe` báo đúng 227 (67/67/93), zero drift/NPC/requirement/currency/dialogue diagnostics; partition hiện tại: catalog 3682, conversation 227, special 90, missing-target 4, currency 215, unconfigured 1312.
 - Broad `go test ./internal/... -count=1` sau implementation chỉ còn đúng 4 baseline Pet và 2 baseline chat-stat đã biết; toàn bộ quest/NPC packages PASS. `go build -o bin/questaudit.exe ./cmd/questaudit` và `go build -o bin/gameserver ./cmd/gameserver` PASS.
 - Independent verification sửa test `cmd/questaudit` từng phụ thuộc artifact `.local/research` bị Git ignore; test registry nay chỉ đọc ba catalog checked-in `TBL_QUEST`, `TBL_QUEST_REQUIRE`, `TBL_NPC` và PASS trên focused run. Full `go vet ./...` vẫn chỉ bị thư mục backup ngoài source `backup_bloodbag_before_atomic`; targeted vet của toàn bộ package sửa PASS.
+- Pet enhancement live refresh: thêm `onRefreshPetProp` sau nâng/xóa sao và regression payload `1.56 + 0.40 = 1.96`; Pet handler/domain, targeted enhancement, targeted vet và gameserver build PASS; broad internal còn đúng baseline 4 Pet + 2 chat-stat ngoài phạm vi.
+- Pet star probability: bỏ hành vi thành công 100% đến 12 sao; server dùng exact base table mà Flash hiển thị. Failure giữ sao dưới 8, từ 8 trở lên về 0 nếu không có protection; Nội Đơn Chúc Phúc 2276 được validate/consume và trả `flag/starSafeNum`. Focused probability/failure/protection tests, targeted vet và gameserver build PASS; broad internal giữ nguyên baseline 4 Pet + 2 chat-stat.
 
 ## Runtime/database
 

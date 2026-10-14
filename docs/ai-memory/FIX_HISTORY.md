@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-15-19 — Đồng bộ tỷ lệ và hệ số cường hóa Pet
+
+- Hiện tượng: server luôn nâng thành công tới 12 sao dù Flash hiển thị tỷ lệ giảm dần; tổng hệ số đã lưu đúng, ví dụ `1.56 + 0.40 = 1.96`, nhưng bảng Pet vẫn có thể hiện `1.56`.
+- Nguyên nhân: application không roll xác suất; responder chỉ cập nhật `growRateAdd` ở root Pet trong khi `PetPanel`/`PetManagerPanel` tính từ nested `property.growRateAdd`.
+- Sửa: dùng exact base rates Flash `100/100/90/80/70/60/50/30/30/30/30/20%` cho sao đích 1→12. Failure giữ sao dưới 8; từ 8+ về 0 nếu không có Nội Đơn Chúc Phúc hợp lệ, có protection thì giữ sao và consume item. `petStar`/`petStarClear` đồng thời phát `onRefreshPetProp({id,s})` từ DTO mới nhất.
+- Test: exact rate table, deterministic success/failure, mốc 8 có/không protection, response `flag/starSafeNum`, regression `1.56 + 0.40 = 1.96`, Pet handler/domain, targeted vet và gameserver build PASS. Broad internal giữ nguyên baseline 4 Pet + 2 chat-stat.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+
 ## FIX-2026-10-14-18 — Hoàn tất registry nhiệm vụ đối thoại
 
 - Hiện tượng: completion policy chỉ cho phép 67 quest type 1 theo ID, nên 160 quest đối thoại type 2/4 đã audit vẫn luôn state 103 và không thể turn-in.

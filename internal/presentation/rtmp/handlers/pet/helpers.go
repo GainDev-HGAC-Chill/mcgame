@@ -100,12 +100,27 @@ func petDTOData(p *domainpet.Pet) map[string]interface{} {
 }
 
 func sendPetPropRefresh(ctx *rtmp.RPCContext, p *domainpet.Pet) {
+	if ctx == nil || ctx.Connection == nil {
+		return
+	}
+	payload := petPropRefreshPayload(p)
+	if payload != nil {
+		_ = ctx.Connection.SendCallback("onRefreshPetProp", payload)
+	}
+}
+
+func petPropRefreshPayload(p *domainpet.Pet) map[string]interface{} {
+	if p == nil {
+		return nil
+	}
 	petDTO := petDTOData(p)
-	if prop, ok := petDTO["property"]; ok {
-		_ = ctx.Connection.SendCallback("onRefreshPetProp", map[string]interface{}{
-			"id": p.ID,
-			"s":  prop,
-		})
+	prop, ok := petDTO["property"]
+	if !ok {
+		return nil
+	}
+	return map[string]interface{}{
+		"id": p.ID,
+		"s":  prop,
 	}
 }
 
@@ -113,11 +128,18 @@ func sendPetItemUseRefresh(ctx *rtmp.RPCContext, result *apppet.PetItemUseResult
 	if ctx == nil || ctx.Connection == nil || result == nil {
 		return
 	}
-	if result.RemainingStack <= 0 {
-		_ = ctx.Connection.SendCallback("onDelCharactorSlot", float64(result.ItemID), float64(result.ItemSID))
+	sendPetInventoryStackRefresh(ctx, result.ItemID, result.ItemSID, result.RemainingStack)
+	if result.SafeItemID > 0 {
+		sendPetInventoryStackRefresh(ctx, result.SafeItemID, result.SafeItemSID, result.SafeRemaining)
+	}
+}
+
+func sendPetInventoryStackRefresh(ctx *rtmp.RPCContext, itemID int64, itemSID, remaining int) {
+	if remaining <= 0 {
+		_ = ctx.Connection.SendCallback("onDelCharactorSlot", float64(itemID), float64(itemSID))
 		return
 	}
-	_ = ctx.Connection.SendCallback("onUpChaSlotStackNum", float64(result.ItemID), float64(result.RemainingStack), float64(result.ItemSID))
+	_ = ctx.Connection.SendCallback("onUpChaSlotStackNum", float64(itemID), float64(remaining), float64(itemSID))
 }
 
 func sendPetAttributeRefresh(ctx *rtmp.RPCContext, p *domainpet.Pet) {

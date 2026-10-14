@@ -28,6 +28,7 @@ type Service struct {
 	logger               *zap.Logger
 	fusionRoll           func(int) bool
 	fusionGrowth         func(int, int) int
+	starRoll             func(int) bool
 }
 
 const (
@@ -41,6 +42,7 @@ func NewService(petRepo domainpet.Repository, logger *zap.Logger) *Service {
 		logger:       logger,
 		fusionRoll:   defaultPetFusionRoll,
 		fusionGrowth: defaultPetFusionGrowth,
+		starRoll:     defaultPetStarRoll,
 	}
 }
 

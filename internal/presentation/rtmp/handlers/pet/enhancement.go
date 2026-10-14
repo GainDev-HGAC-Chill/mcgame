@@ -3,6 +3,7 @@
 package pet
 
 import (
+	apppet "mcgame-server/internal/application/pet"
 	domainpet "mcgame-server/internal/domain/pet"
 	"mcgame-server/internal/infrastructure/rtmp"
 	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
@@ -93,26 +94,41 @@ func (h *Handler) PetStar(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if err != nil {
 		return nil, err
 	}
-	result, err := h.petService.UpgradeStarWithItem(ctx.Context, characterID, petID, itemID)
+	var safeItemID int64
+	if len(args) >= 3 && args[2] != nil {
+		safeItemID, err = parseInt64Arg(args[2])
+		if err != nil {
+			return nil, err
+		}
+	}
+	result, err := h.petService.UpgradeStarWithItem(ctx.Context, characterID, petID, itemID, safeItemID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
 	sendPetItemUseRefresh(ctx, result)
 	p := result.Pet
+	sendPetPropRefresh(ctx, p)
 
-	h.logger.Info("Pet star upgraded",
+	h.logger.Info("Pet star enhancement attempted",
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID),
-		zap.Int("stars", p.UpgradeNum))
+		zap.Int("stars", p.UpgradeNum),
+		zap.Bool("success", result.Success))
 
+	return petStarResponse(result), nil
+}
+
+func petStarResponse(result *apppet.PetItemUseResult) map[string]interface{} {
+	p := result.Pet
 	return map[string]interface{}{
-		"flag":        true,
+		"flag":        result.Success,
 		"petId":       p.ID,
 		"starNum":     p.UpgradeNum,
 		"growRateAdd": p.GrowRateAdd,
 		"starSlotId":  result.ItemID,
 		"num":         result.RemainingStack,
-	}, nil
+		"starSafeNum": result.SafeRemaining,
+	}
 }
 
 func (h *Handler) ContractPet(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -169,6 +185,7 @@ func (h *Handler) PetStarClear(ctx *rtmp.RPCContext, args []interface{}) (interf
 	}
 	sendPetItemUseRefresh(ctx, result)
 	p := result.Pet
+	sendPetPropRefresh(ctx, p)
 
 	h.logger.Info("Pet stars cleared",
 		zap.Int64("character_id", characterID),
