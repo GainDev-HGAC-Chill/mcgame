@@ -620,6 +620,7 @@ services:
         condition: service_started
     ports:
       - 127.0.0.1:${ADMIN_DASHBOARD_PORT:-3000}:3000
+      - 26.31.111.123:${ADMIN_DASHBOARD_PORT:-3000}:3000
     volumes:
       - ../frontend/s/res:/app/frontend/s/res:ro
     environment:

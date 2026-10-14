@@ -91,7 +91,23 @@ func (h *Handler) lottoByClient(ctx *rtmp.RPCContext, args []interface{}) (inter
 			zap.Int("type", drawType), zap.Int("num", num), zap.Error(err))
 		return false, nil
 	}
+	// Đồng bộ vàng ngay sau khi quay thưởng thành công.
+	newGold, goldErr := h.service.GetGold(ctx.Context, charID)
+	if goldErr != nil {
+		h.logger.Error("lotto: failed to refresh gold",
+			zap.Int64("character_id", charID),
+			zap.Error(goldErr))
+	} else {
+		if err := ctx.Connection.SendCallback("onUPP", map[string]interface{}{
+			"gold": newGold,
+		}); err != nil {
+			h.logger.Warn("lotto: failed to send gold update", zap.Error(err))
+		}
+	}
+
+	// Cập nhật Kho Ước Nguyện.
 	_ = ctx.Connection.SendCallback("updateLottoBag", bag)
+
 	return true, nil
 }
 

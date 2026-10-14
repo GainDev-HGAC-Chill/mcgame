@@ -198,3 +198,19 @@ func planToEntry(p *models.PlanTemplate) LottoEntry {
 		B:  int(p.B),
 	}
 }
+// GetGold returns the latest persisted gold balance.
+func (s *Service) GetGold(ctx context.Context, charID int64) (int64, error) {
+	if s.chars == nil {
+		return 0, ErrLottoNoCharRepo
+	}
+
+	char, err := s.chars.FindByID(ctx, charID)
+	if err != nil {
+		return 0, err
+	}
+	if char == nil {
+		return 0, ErrLottoNoCharRepo
+	}
+
+	return char.Gold, nil
+}
