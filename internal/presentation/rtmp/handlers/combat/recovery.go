@@ -159,7 +159,18 @@ func (h *Handler) UseBloodBag(ctx *rtmp.RPCContext, args []interface{}) (interfa
 					petMPUsed = usedMP
 					reserve = state
 					reserveChanged = true
+					// Đồng bộ HP/MP mới vào cache pet.
+					// PostgreSQL đã được cập nhật bởi RestorePetVitals.
+					pet.CurrentHP = newPetHP
+					pet.CurrentMP = newPetMP
 
+					if saveErr := h.petService.Save(ctx.Context, pet); saveErr != nil {
+						h.logger.Error("Blood bag pet cache sync failed",
+							zap.Int64("character_id", characterID),
+							zap.Int64("pet_id", pet.ID),
+							zap.Error(saveErr))
+						return nil, nil
+					}
 					h.logger.Info("Blood bag pet restored",
 						zap.Int64("character_id", characterID),
 						zap.Int64("pet_id", pet.ID),
