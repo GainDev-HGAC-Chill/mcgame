@@ -549,7 +549,11 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	combatHandler.SetBuffService(buffService)
 	combatHandler.SetPetService(petService)
 	combatHandler.RegisterHandlers(dispatcher)
+	stationaryCtx, stopStationary := context.WithCancel(
+    context.Background(),
+	)
 
+	go combatHandler.RunStationaryEncounters(stationaryCtx)
 	npcHandler := npchandler.NewHandler(sceneService, charService, questService, rtmpServer.GetSceneManager(), accountRepo, log)
 	npcHandler.SetGameDataManager(gameDataManager)
 	npcHandler.SetCombatService(combatService)
@@ -864,7 +868,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
+	stopStationary()
 	if err := rtmpServer.Stop(); err != nil {
 		log.Error("Error stopping RTMP server", zap.Error(err))
 	}

@@ -91,7 +91,38 @@ func (h *Handler) CheckBattleOnMove(ctx *rtmp.RPCContext, args []interface{}) (i
 			"encountered": false,
 		}, nil
 	}
+	hasNoEncounter := false
+	hasCrazyEncounter := false
+	hasStationaryEncounter := false
+	hasFullMonsters := false
 
+	if h.buffService != nil {
+		buffs, err := h.buffService.ListActive(ctx.Context, characterID)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, b := range buffs {
+			switch b.BuffID {
+			case 313:
+				hasNoEncounter = true
+			case 314:
+				hasCrazyEncounter = true
+			case 1203:
+				hasStationaryEncounter = true
+			case 1365:
+				hasFullMonsters = true
+			}
+		}
+	}
+
+	if hasNoEncounter {
+		return map[string]interface{}{
+			"success":     true,
+			"inBattle":    false,
+			"encountered": false,
+		}, nil
+	}
 	if ctx.Connection.IsRandomEncounterOnCooldown(ctx.Timestamp) {
 		return map[string]interface{}{
 			"success":     true,
@@ -106,6 +137,10 @@ func (h *Handler) CheckBattleOnMove(ctx *rtmp.RPCContext, args []interface{}) (i
 		if mapTemplate != nil {
 			encounterRate = normalizeEncounterRate(mapTemplate.BasicBattleRate)
 		}
+	}
+	if hasCrazyEncounter ||
+		(hasStationaryEncounter && ctx.Method == "stationaryEncounterTick") {
+		encounterRate = 1.0
 	}
 	if encounterRate <= 0 {
 		return map[string]interface{}{
@@ -141,7 +176,10 @@ func (h *Handler) CheckBattleOnMove(ctx *rtmp.RPCContext, args []interface{}) (i
 				playerCount = 1
 			}
 			enemyCount := h.getEnemyCountForPlayers(playerCount)
-			if enemyCount > len(normalCreatures) {
+
+			if hasFullMonsters {
+				enemyCount = 10
+			} else if enemyCount > len(normalCreatures) {
 				enemyCount = len(normalCreatures)
 			}
 
