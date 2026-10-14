@@ -359,6 +359,27 @@ func TestItemHandler_UseItem_InvalidSlotIDType_IsIgnored(t *testing.T) {
 	}
 }
 
+func TestItemHandler_UseItem_PasarFragmentIsSilentNoOp(t *testing.T) {
+	char := &domainchar.Character{ID: 1, Name: "tester", Level: 1}
+	it := &domainitem.Item{ID: 100, CharacterID: 1, TemplateID: 5351, ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, SlotIndex: 0, StackCount: 30}
+	handler, ctx := buildItemTestHandler(t, char, it)
+
+	resp, err := handler.UseItem(ctx, []interface{}{float64(1), float64(-1), float64(100)})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp != nil {
+		t.Fatalf("expected nil response, got %#v", resp)
+	}
+	stored, err := handler.itemService.GetItemByID(context.Background(), 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.StackCount != 30 {
+		t.Fatalf("stack count = %d, want 30", stored.StackCount)
+	}
+}
+
 func TestItemHandler_DropItem_AcceptsNumericStringItemID(t *testing.T) {
 	char := &domainchar.Character{ID: 1, Name: "tester", Level: 1}
 	it := &domainitem.Item{ID: 101, CharacterID: 1, TemplateID: 1001, ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, SlotIndex: 1, StackCount: 1}

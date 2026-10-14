@@ -76,6 +76,12 @@ type Service struct {
 	fallbackHandlers    []ItemEffectHandler
 }
 
+const pasarFragmentTemplateID = 5351
+
+func IsDirectUseDisabledTemplate(templateID int) bool {
+	return templateID == pasarFragmentTemplateID
+}
+
 type RepairResult struct {
 	Cost     int64
 	NewMoney int64
@@ -1083,6 +1089,9 @@ func (s *Service) UseItem(ctx context.Context, char *character.Character, itemID
 	if it.CharacterID != char.ID {
 		return nil, nil, pkgerrors.ErrItemNotOwned
 	}
+	if IsDirectUseDisabledTemplate(it.TemplateID) {
+		return it, map[string]interface{}{"ignored": true}, nil
+	}
 
 	// Handle Equipment (Auto-Equip)
 	if it.IsEquipment() {
@@ -1321,7 +1330,10 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 		tpl = s.gameDataRec.GetItem(it.TemplateID)
 	}
 
-	if _, _, ok := expBookConfig(it.TemplateID); ok {
+		_, _, isExpBook := expBookConfig(it.TemplateID)
+		_, _, isEncounterBook := encounterBookConfig(it.TemplateID)
+
+		if isExpBook || isEncounterBook {		
 		if count != 1 {
 			return nil, pkgerrors.ErrInvalidArgs
 		}

@@ -5,6 +5,7 @@ package combat
 
 import (
 	appbattle "mcgame-server/internal/application/battle"
+	appbuff "mcgame-server/internal/application/buff"
 	appchar "mcgame-server/internal/application/character"
 	appcombat "mcgame-server/internal/application/combat"
 	appgroup "mcgame-server/internal/application/group"
@@ -43,6 +44,7 @@ type Handler struct {
 	accountRepo         auth.AccountRepository
 	battleInfoLookup    func(string) (*combatdomain.Battle, error)
 	logger              *zap.Logger
+	buffService         *appbuff.Service
 }
 
 func NewHandler(combatService *appcombat.Service, sceneService *appscene.Service, charService *appchar.Service, battleService *appbattle.Service, questService *appquest.Service, sceneManager *rtmp.SceneManager, accountRepo auth.AccountRepository, logger *zap.Logger) *Handler {
@@ -84,6 +86,10 @@ func (h *Handler) SetRTMPServer(server *rtmp.Server) {
 
 func (h *Handler) SetItemService(itemService *appitem.Service) {
 	h.itemService = itemService
+}
+
+func (h *Handler) SetBuffService(buffService *appbuff.Service) {
+	h.buffService = buffService
 }
 
 func (h *Handler) SetPetService(petService *apppet.Service) {

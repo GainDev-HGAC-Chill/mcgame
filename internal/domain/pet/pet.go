@@ -5,6 +5,7 @@ package pet
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -407,6 +408,15 @@ func (p *Pet) AddStar() bool {
 	return true
 }
 
+func (p *Pet) AddGrowthRate(amount float64) {
+	if amount <= 0 {
+		return
+	}
+	p.GrowRateAdd = math.Round((p.GrowRateAdd+amount)*100) / 100
+	p.RecalculateStats()
+	p.UpdatedAt = time.Now()
+}
+
 func (p *Pet) ImproveAptitude(aptType AptitudeType, amount int) {
 	switch aptType {
 	case AptTypeStrength:
@@ -472,6 +482,11 @@ func (p *Pet) ToDTO() map[string]interface{} {
 		"state":        state,
 		"creatureData": creatureData,
 	}
+	dto["attStrength"] = petDTOAttribute(p, "finalStrength", "attStrength")
+	dto["attAgility"] = petDTOAttribute(p, "finalAgility", "attAgility")
+	dto["attStamina"] = petDTOAttribute(p, "finalStamina", "attStamina")
+	dto["attIntelligence"] = petDTOAttribute(p, "finalIntelligence", "attIntelligence")
+	dto["attEnergy"] = petDTOAttribute(p, "finalEnergy", "attEnergy")
 
 	// Basic Aptitudes
 	dto["aptStrength"] = p.AptStrength
@@ -559,6 +574,16 @@ func (p *Pet) ToDTO() map[string]interface{} {
 		"pi":       dto["pi"],
 		"soulInfo": dto["soulInfo"],
 	}
+}
+
+func petDTOAttribute(p *Pet, propertyKey, creatureKey string) int {
+	if p != nil {
+		if value, ok := petSceneIntValue(p.Property[propertyKey]); ok {
+			return int(value)
+		}
+		return int(creatureDataFloat(p.CreatureData, creatureKey))
+	}
+	return 0
 }
 
 func (p *Pet) ToSceneDTO() map[string]interface{} {

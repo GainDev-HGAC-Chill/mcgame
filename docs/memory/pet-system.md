@@ -29,6 +29,12 @@ Reason: pet cold cache can be stale relative to the active session. If cold data
 
 `initViewPetMngP` must return wrapped pet DTOs from `Pet.ToDTO()` and the top-level payload must be keyed by pet ID, not a positional slice. The Flash `PetManagerPanel.onInitViewPetMngP()` expects `pet.data`, flattens it client-side, then stores the result in `_core.player.petList` and later indexes that structure by `petId` in callbacks like `onUpdatePet` and `onRefreshPetProp`. Returning flattened `petDTOData()` breaks `_local_2.data.tid`, and returning a slice breaks `_core.player.petList[petId]`, so list display may work while pet callbacks silently miss.
 
+Pet slots resolve hover data separately through `gdc(39, petId)`. That path must return the current character's flat `Pet.ToDetailDTO()` as `{type:39,index:petId,data:...}`; an empty TBL_PET compatibility response leaves `TipCre` without skills and attributes. The detail DTO must include root `skill1..skill15`, `attStrength`, `attAgility`, `attStamina`, `attIntelligence`, and `attEnergy`, because `TipCre.setInst()` reads those fields directly. Ownership remains enforced by `pet.Service.GetPetDetail`.
+
+## Pet Star Enhancement Contract
+
+`petStar(petId, itemInstanceId)` consumes a Pet-function Nội Đơn with item template `type=507`, `useType=4`, `propType=3`. On success it increments `upgradeNum` and adds `proplNum / 100` to persisted `GrowRateAdd`, rounded to two decimal places, then recalculates Pet stats. The checked-in Nội Đơn templates currently encode additions from `0.02` through `0.13`; the value must come from game data rather than an item-ID switch. The responder returns the updated `growRateAdd`, while normal inventory callbacks remove or decrement the consumed instance.
+
 ## Pet Client State Contract
 
 Flash pet UI does not treat `state` as the same thing as server-side `is_following`.

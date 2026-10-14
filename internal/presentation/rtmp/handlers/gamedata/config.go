@@ -36,17 +36,12 @@ func (h *Handler) GetDataConfig(ctx *rtmp.RPCContext, args []interface{}) (inter
 	if err != nil {
 		return nil, err
 	}
+	if tableType == 39 {
+		return h.getCurrentCharacterPet(ctx, tableType, recordID), nil
+	}
 
 	tableName, ok := models.TableIDToName[tableType]
 	if !ok {
-		if tableType == 39 {
-			h.logger.Info("GetDataConfig: providing empty response for TBL_PET (39)", zap.Uint32("conn_id", ctx.ConnID))
-			return map[string]interface{}{
-				"type": tableType,
-				"data": []interface{}{},
-			}, nil
-		}
-
 		h.logger.Warn("GetDataConfig: unknown table type",
 			zap.Uint32("conn_id", ctx.ConnID),
 			zap.Int("table_type", tableType),
@@ -66,6 +61,27 @@ func (h *Handler) GetDataConfig(ctx *rtmp.RPCContext, args []interface{}) (inter
 	}
 
 	return h.getSingleDataConfig(ctx, rpcCtx, repo, tableType, tableName, recordID)
+}
+
+func (h *Handler) getCurrentCharacterPet(ctx *rtmp.RPCContext, tableType, recordID int) map[string]interface{} {
+	response := map[string]interface{}{
+		"type":  tableType,
+		"data":  nil,
+		"index": recordID,
+	}
+	if h.petService == nil || recordID <= 0 {
+		return response
+	}
+	characterID, err := strconv.ParseInt(ctx.CharacterID, 10, 64)
+	if err != nil {
+		return response
+	}
+	p, err := h.petService.GetPetDetail(ctx.Context, characterID, int64(recordID))
+	if err != nil || p == nil {
+		return response
+	}
+	response["data"] = p.ToDetailDTO()
+	return response
 }
 
 func (h *Handler) getAllDataConfig(ctx *rtmp.RPCContext, rpcCtx context.Context, repo gamedatastore.Repository, tableType int, tableName string) (interface{}, error) {

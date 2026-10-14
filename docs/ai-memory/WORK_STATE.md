@@ -75,6 +75,8 @@
 - Bước tiếp theo: Flash smoke-test sau khi được phê duyệt deploy/restart; chưa thay đổi dữ liệu production.
 - Sửa bổ sung `Hổ Khiếu Sơn Lâm`: override thành toàn bộ địch tối đa 10, physical 80/100/120%, giải một buff có lợi với xác suất độc lập 30/40/50% trên từng mục tiêu còn sống; focused test/vet PASS.
 - Sửa bổ sung `Thợ Săn Sát Thủ`: toàn đội 10, Speed/Accuracy +10/15/20% trong 5 lượt. `Tứ Phương Khiếp Đảm`: 4/6/8 địch ngẫu nhiên, cả hai Attack và Speed −5/8/12% trong 1 lượt, 10/20/30% xóa toàn bộ buff có lợi theo từng mục tiêu. Focused test/vet PASS.
+- Hoàn tất nhóm Pet/inventory mới: `petStar` đọc `TBL_ITEM_TEMPLATE.proplNum` của 10 Nội Đơn checked-in để cộng `GrowRateAdd` và tính lại stats; `gdc(39, petId)` trả detail DTO Pet theo ownership với skill và năm trường `att*` root; template 5351 Mảnh Pasar bị chặn trước generic dispatch, trả no-op im lặng và không tiêu hao khi nhấp đôi. Focused/full handler tests PASS; `go vet ./...` và build `bin/gameserver` PASS sau khi bổ sung import, setter và wiring `combatHandler.SetBuffService(buffService)`. Scoped diff-check sạch; hunk encounter-book ngoài luồng trong `item/service.go` vẫn có trailing whitespace. Trạng thái CODE_FIXED, chưa Flash smoke-test/deploy.
+- Broad application chạy lại: Pet vẫn đúng 4 baseline failures cũ; item còn nhóm award-quality baseline và thêm `TestOtherScrollDoesNotExpandContainers` từ thay đổi `effect_scroll.go` ngoài luồng hiện tại (`Encounter buff service unavailable`). Không sửa/ghi đè nhóm ngoài phạm vi này.
 
 ## 2026-10-13 - Immediate Character Delete / 30 FPS Shared Link
 - Added immediate delete RPC using ownership-guarded SQL, secondary MD5 validation and cache invalidation.

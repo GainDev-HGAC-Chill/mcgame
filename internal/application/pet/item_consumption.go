@@ -55,6 +55,13 @@ func (s *Service) UpgradeStarWithItem(ctx context.Context, charID, petID, itemID
 	if err != nil {
 		return nil, err
 	}
+	if s.gameDataManager == nil {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+	tpl := s.gameDataManager.GetItem(it.TemplateID)
+	if tpl == nil || int(tpl.Type) != 507 || int(tpl.UseType) != 4 || int(tpl.PropType) != 3 || tpl.ProplNum <= 0 {
+		return nil, pkgerrors.ErrInvalidInput
+	}
 	p, err := s.getPetAndValidate(ctx, charID, petID)
 	if err != nil {
 		return nil, err
@@ -63,6 +70,7 @@ func (s *Service) UpgradeStarWithItem(ctx context.Context, charID, petID, itemID
 	if !p.AddStar() {
 		return nil, pkgerrors.ErrInvalidInput
 	}
+	p.AddGrowthRate(tpl.ProplNum / 100)
 	return s.finishPetItemUse(ctx, original, p, it)
 }
 

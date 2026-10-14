@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strconv"
 
+	"go.uber.org/zap"
 	appitem "mcgame-server/internal/application/item"
+	domainbuff "mcgame-server/internal/domain/buff"
 	"mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
 	domainpet "mcgame-server/internal/domain/pet"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
-
-	"go.uber.org/zap"
 )
 
 func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -76,6 +76,9 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 			return rtmp.ErrorToResponse(pkgerrors.ErrItemNotFound), nil
 		}
 	}
+	if appitem.IsDirectUseDisabledTemplate(it.TemplateID) {
+		return nil, nil
+	}
 
 	h.logger.Info("UseItem: calling service.UseItem",
 		zap.Int64("character_id", characterID),
@@ -113,6 +116,9 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 			return nil, nil
 		}
 		return rtmp.ErrorToResponse(err), nil
+	}
+	if ignored, _ := result["ignored"].(bool); ignored {
+		return nil, nil
 	}
 
 	if err := h.charService.Update(ctx.Context, char); err != nil {
@@ -271,8 +277,7 @@ func (h *Handler) UseMultiItem(ctx *rtmp.RPCContext, args []interface{}) (interf
 	} else if usedItem, ok := result["used_item"].(*domainitem.Item); ok {
 		ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(usedItem))
 	}
-	sendCapacityUpdate(ctx, result)
-	h.sendStructuredRewardCallbacks(ctx, result, char)
+	h.sendEffectCallbacks(ctx, result, char)
 	delete(result, "used_item")
 
 	h.logger.Info("Multi item used",
@@ -418,9 +423,29 @@ func (h *Handler) sendEffectCallbacks(ctx *rtmp.RPCContext, result map[string]in
 		}
 		ctx.Connection.SendCallback("warnTemporaryBag", items)
 	}
+	if h.buffService != nil {
+		if buffs, ok := result["granted_buffs"].([]*domainbuff.Buff); ok {
+			for _, b := range buffs {
+				if b == nil {
+					continue
+				}
+
+				payload := h.buffService.BuildLongBuffPayload(b)
+
+				if err := ctx.Connection.SendCallback(
+					"onAddLongBuff",
+					payload,
+				); err != nil {
+					h.logger.Warn(
+						"Failed to send buff icon",
+						zap.Error(err),
+					)
+				}
+			}
+		}
+	}
 	h.sendStructuredRewardCallbacks(ctx, result, char)
 }
-
 
 func (h *Handler) SelMultiItemByIdx(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	if len(args) < 2 {

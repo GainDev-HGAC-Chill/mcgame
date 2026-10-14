@@ -2,6 +2,10 @@
 
 Latest voucher1132 follow-up deployed17:34:09 (2026-10-12), game running/restart_count0; scoped tests/vet/build PASS. Flash validation NOT TESTED; crafting sale-bag null remains unresolved, not covered by voucher or quest-sort repairs. No item/player repair or reward replay. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
 
+## Mảnh Pasar direct-use guard (2026-10-14)
+
+Item template `5351` (`Mảnh Pasar`, type `550`, `useType=1`) is a collection fragment, not a directly usable reward bag. `useItem` now treats this exact template as a silent no-op before quest, book, and generic effect dispatch. Double-clicking it returns no connection/internal error and does not consume or mutate the stack. No other type-550 item is affected.
+
 ## Silver voucher 1132 (2026-10-12)
 
 Actual live useItem1132 returned cannot-use-item: type550 has no self-opening award definition. Exact Bạch Ngân Lễ (10 Vạn) implementation grants100000 silver per consumed instance; unbound→money, bound→moneyBind, based on explicit template description (the shorter info text inconsistently says kim phiếu and is not used to credit gold). Template gold100 is a shop price, not payout. Single and multi-use validate template/use target/level/count/overflow, consume before changing character balance, and send one onAddMoney(delta,total) plus correct remaining-stack/SID updates. Item-write failures leave wallet/book unchanged. Later character-write failure remains nontransactional, returns an error without success credit callbacks; never auto-replay. No old voucher use or wallet history was repaired; only1132 is supported by this rule, not inferred million vouchers or unrelated scrolls. Item app/handler tests PASS; Flash retest/deploy pending.

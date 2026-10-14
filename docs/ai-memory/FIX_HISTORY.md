@@ -130,3 +130,12 @@
 - Sửa: thêm registry family+level phủ 153 template/55 family, domain `SkillPlan`/effect engine và các primitive đã duyệt. Bổ sung chín template nguồn Pet đặc thù: `Hổ Khiếu Sơn Lâm`, `Thợ Săn Sát Thủ`, `Tứ Phương Khiếp Đảm`; thêm Accuracy modifier, random-target RNG battle-local và remove-all-beneficial effect.
 - Test: registry khớp chính xác 144 template sách Pet cộng 9 template đặc thù; focused application/domain PASS; `go vet ./...` PASS; build `bin/gameserver` PASS. Broad internal regression chỉ còn baseline ngoài phạm vi ở item/Pet/chat.
 - Trạng thái: CODE_FIXED — chưa Flash smoke-test/deploy; không restart server và không đổi dữ liệu production.
+
+## FIX-2026-10-14-15 — Hệ số cường hóa/tooltip Pet và Mảnh Pasar
+
+- Nguyên nhân cường hóa: `UpgradeStarWithItem` chỉ tăng `UpgradeNum`, không đọc `proplNum` của Nội Đơn nên `GrowRateAdd` luôn giữ nguyên.
+- Nguyên nhân tooltip: ô Pet gọi `gdc(39, petId)` nhưng server trả dữ liệu rỗng; `TipCre` còn cần năm trường `att*` ở root bên cạnh `skill1..skill15`.
+- Nguyên nhân Pasar: template 5351 đi vào generic type-550 item effect rồi trả `cannot use item`.
+- Sửa: validate Nội Đơn type 507/useType 4/propType 3 và cộng `proplNum/100`; nối `gdc` Pet với detail DTO có ownership; chặn template 5351 thành silent no-op trước generic dispatch, không tiêu hao.
+- Test: toàn bộ 10 Nội Đơn checked-in; DTO/`gdc` tooltip; application + handler Pasar; toàn bộ gamedata/item handler và domain Pet PASS. Đã bổ sung import/setter/wiring Buff Service cho combat handler; `go vet ./...` và build `bin/gameserver` PASS. Diff-check các file phạm vi PASS; `item/service.go` hiện còn trailing whitespace ở hunk encounter-book ngoài luồng.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không thay đổi dữ liệu production.

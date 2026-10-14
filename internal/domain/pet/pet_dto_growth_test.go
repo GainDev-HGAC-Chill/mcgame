@@ -32,3 +32,25 @@ func TestToDTOPreservesPetSettingsAtWrapperRoot(t *testing.T) {
 		t.Fatal("wrapper soulInfo missing")
 	}
 }
+
+func TestToDTOIncludesTooltipAttributesAndSkills(t *testing.T) {
+	pet := &Pet{
+		ID: 1,
+		CreatureData: map[string]interface{}{
+			"attStrength": "11", "attAgility": "12", "attStamina": "13", "attIntelligence": "14", "attEnergy": "15",
+		},
+		Property: map[string]interface{}{
+			"finalStrength": 21, "finalAgility": 22, "finalStamina": 23, "finalIntelligence": 24, "finalEnergy": 25,
+			"skill1": 7001, "skill2": 7002,
+		},
+	}
+	dto := pet.ToDTO()["data"].(map[string]interface{})
+	for key, want := range map[string]int{
+		"attStrength": 21, "attAgility": 22, "attStamina": 23, "attIntelligence": 24, "attEnergy": 25,
+		"skill1": 7001, "skill2": 7002,
+	} {
+		if got := dto[key]; got != want {
+			t.Fatalf("%s = %#v, want %d", key, got, want)
+		}
+	}
+}
