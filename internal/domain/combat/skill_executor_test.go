@@ -112,7 +112,7 @@ func TestOwnerResourceConversionPaysAndHealsOwner(t *testing.T) {
 	pet.CurrentMP = 600
 	battle.AddParticipant(owner)
 	battle.AddParticipant(pet)
-	plan := &SkillPlan{Family: "convert", Target: TargetSelfPlayer, TargetCount: 1, CostsOnTarget: true, Costs: []SkillCost{{Resource: ResourceMP, Percent: .2}}, Effects: []SkillEffect{{Kind: EffectRestoreHP, Coefficient: .2, ResourceBasis: ResourceMP, ApplyToTarget: true}}}
+	plan := &SkillPlan{Family: "convert", Target: TargetSelfPlayer, TargetCount: 1, CostsOnTarget: true, Costs: []SkillCost{{Resource: ResourceMP, Percent: .2}}, Effects: []SkillEffect{{Kind: EffectRestoreHP, Coefficient: .2, ResourceBasis: ResourceMP, ApplyToTarget: true}, {Kind: EffectStatus, Family: "convert", Duration: 5, Periodic: &PeriodicEffect{Resource: ResourceMP, Coefficient: .02}}}}
 	info := testPlanInfo(plan)
 	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
 	processor.executeSkill(pet, &BattleCommand{ActorID: pet.ID, ActionType: ClientActionSkill, SkillID: info.Template.ID})

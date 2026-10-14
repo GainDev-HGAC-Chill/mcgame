@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	domaincombat "mcgame-server/internal/domain/combat"
 )
 
 type catalogFixture struct {
@@ -68,6 +70,38 @@ func TestPetActiveSkillCatalogCoversAuditedTemplates(t *testing.T) {
 func TestPetActiveSkillCatalogRejectsUnknown(t *testing.T) {
 	if plan := petActiveSkillPlan("not a Pet skill", 1); plan != nil {
 		t.Fatalf("unknown skill returned plan: %#v", plan)
+	}
+}
+
+func TestPetActiveSkillProbabilityModifiersUsePercentagePoints(t *testing.T) {
+	tests := []struct {
+		family string
+		level  int
+		stat   domaincombat.CombatStat
+		want   int
+	}{
+		{family: "Duy Trì Tốc Độ", level: 3, stat: domaincombat.StatDodge, want: 30},
+		{family: "Tích Lực Sơ Cấp", level: 1, stat: domaincombat.StatCritical, want: 48},
+		{family: "Tích Lực Trung Cấp", level: 3, stat: domaincombat.StatCritical, want: 67},
+		{family: "Thuốc Kích Thích", level: 2, stat: domaincombat.StatCombo, want: 21},
+		{family: "Thuốc Kích Thích", level: 2, stat: domaincombat.StatCritical, want: 21},
+	}
+	for _, tc := range tests {
+		t.Run(tc.family+"/"+strconv.Itoa(tc.level)+"/"+strconv.Itoa(int(tc.stat)), func(t *testing.T) {
+			plan := petActiveSkillPlan(tc.family, tc.level)
+			if plan == nil || len(plan.Effects) != 1 {
+				t.Fatalf("plan = %#v", plan)
+			}
+			for _, modifier := range plan.Effects[0].Modifiers {
+				if modifier.Stat == tc.stat {
+					if modifier.Flat != tc.want || modifier.Percent != 0 {
+						t.Fatalf("modifier = %#v, want flat %d", modifier, tc.want)
+					}
+					return
+				}
+			}
+			t.Fatalf("missing stat modifier %d", tc.stat)
+		})
 	}
 }
 

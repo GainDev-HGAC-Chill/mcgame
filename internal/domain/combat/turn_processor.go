@@ -284,6 +284,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 			tp.battle.AddAction(dotAction)
 
 			if !currentActor.IsAlive {
+				tp.statusManager.ProcessTurnEnd(currentActor.ID)
 				if ended, winner := tp.battle.CheckVictory(); ended {
 					result.BattleEnded = true
 					result.Winner = winner
@@ -452,6 +453,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 			tp.battle.AddAction(dotAction)
 
 			if !currentActor.IsAlive {
+				tp.statusManager.ProcessTurnEnd(currentActor.ID)
 				if ended, winner := tp.battle.CheckVictory(); ended {
 					result.BattleEnded = true
 					result.Winner = winner

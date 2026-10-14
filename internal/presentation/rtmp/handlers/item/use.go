@@ -149,12 +149,20 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	} else {
 		if giftBox, ok := result["gift_box"].(*appitem.GiftBoxData); ok && giftBox != nil {
 			packItemList := map[string]interface{}{}
+
 			for i, choice := range giftBox.Choices {
+				displayQuality := choice.Quality
+
+				// Túi Cánh Xanh Dương: chất lượng hiển thị trên client
+				if usedItem.TemplateID == 3376 && choice.TableType == 19 {
+					displayQuality = 10
+				}
+
 				packItemList[fmt.Sprintf("%d", i)] = map[string]interface{}{
 					"ti": choice.TableType,
 					"ii": choice.ID,
 					"n":  choice.StackNum,
-					"q":  choice.Quality,
+					"q":  displayQuality,
 				}
 			}
 			data := map[string]interface{}{
@@ -413,13 +421,19 @@ func (h *Handler) sendEffectCallbacks(ctx *rtmp.RPCContext, result map[string]in
 	h.sendStructuredRewardCallbacks(ctx, result, char)
 }
 
+
 func (h *Handler) SelMultiItemByIdx(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	if len(args) < 2 {
 		return -1, pkgerrors.ErrInvalidArgs
 	}
 
+	itemID, ok := parseFlexibleInt64(args[0])
+	if !ok || itemID <= 0 {
+		return -1, pkgerrors.ErrInvalidArgs
+	}
+
 	selectedIdx, ok := parseFlexibleInt64(args[1])
-	if !ok {
+	if !ok || selectedIdx < 0 {
 		return -1, pkgerrors.ErrInvalidArgs
 	}
 
@@ -428,68 +442,214 @@ func (h *Handler) SelMultiItemByIdx(ctx *rtmp.RPCContext, args []interface{}) (i
 		return -1, pkgerrors.ErrUnauthorized
 	}
 
+	// Khóa toàn bộ quá trình để tránh nhận thưởng đồng thời.
 	h.pendingGiftBoxesMu.Lock()
-	pending, hasPending := h.pendingGiftBoxes[characterID]
-	h.pendingGiftBoxesMu.Unlock()
-	if !hasPending || pending == nil {
+	defer h.pendingGiftBoxesMu.Unlock()
+
+	pending := h.pendingGiftBoxes[characterID]
+	if pending == nil || pending.GetNum <= 0 {
 		return -1, nil
 	}
-	if int(selectedIdx) < 0 || int(selectedIdx) >= len(pending.Choices) {
+
+	if pending.ItemID != itemID {
+		return -1, nil
+	}
+
+	if selectedIdx >= int64(len(pending.Choices)) {
 		return -1, nil
 	}
 
 	choice := pending.Choices[int(selectedIdx)]
+	if choice == nil || choice.ID <= 0 {
+		return -1, nil
+	}
 
-	if choice.TableType == 12 {
+	// Kiểm tra túi vẫn tồn tại và thuộc nhân vật.
+	giftItem, err := h.itemService.GetItemByID(
+		ctx.Context,
+		characterID,
+		pending.ItemID,
+	)
+	if err != nil || giftItem == nil || giftItem.StackCount <= 0 {
+		return -1, nil
+	}
+
+	var callbackName string
+	var callbackData interface{}
+
+	switch choice.TableType {
+
+	case 12:
+		// Nhận Pet.
 		petSvc := h.itemService.GetPetService()
+		if petSvc == nil {
+			return -1, nil
+		}
+
 		var pets []*domainpet.Pet
 		var contractErr error
+
 		if choice.Quality > 0 {
-			pets, contractErr = petSvc.ContractPetsWithQuality(ctx.Context, characterID, []int{choice.ID}, choice.Quality)
+			pets, contractErr = petSvc.ContractPetsWithQuality(
+				ctx.Context,
+				characterID,
+				[]int{choice.ID},
+				choice.Quality,
+			)
 		} else {
-			pets, contractErr = petSvc.ContractPets(ctx.Context, characterID, []int{choice.ID})
+			pets, contractErr = petSvc.ContractPets(
+				ctx.Context,
+				characterID,
+				[]int{choice.ID},
+			)
 		}
+
 		if contractErr != nil || len(pets) == 0 {
 			return -1, nil
 		}
-		ctx.Connection.SendCallback("onAddPet", pets[0].ToDTO())
-} else if choice.TableType == 19 {
-    colorCode := domainitem.EquipmentColorCodeFromQuality(choice.Quality)
 
-    newItem, addErr := h.itemService.AddItemWithColor(
-        ctx.Context,
-        characterID,
-        choice.ID,
-        domainitem.ItemTypeEquipment,
-        1,
-        colorCode,
-    )
-    if addErr != nil || newItem == nil {
-        return -1, nil
-    }
+		callbackName = "onAddPet"
+		callbackData = pets[0].ToDTO()
 
-    newItem, addErr = h.itemService.ApplyEquipmentAwardAttributes(
-        ctx.Context,
-        newItem.ID,
-        choice.Quality,
-        0,
-    )
-    if addErr != nil {
-        return -1, nil
-    }
+	case 19:
+		// Nhận trang bị.
+		colorCode := domainitem.EquipmentColorCodeFromQuality(
+			choice.Quality,
+		)
 
-    ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(newItem))
-}
-	pending.GetNum--
-	pending.Choices = append(pending.Choices[:int(selectedIdx)], pending.Choices[int(selectedIdx)+1:]...)
+		if giftItem.TemplateID == 3376 {
+			colorCode = 3
+		}
 
-	if pending.GetNum <= 0 || len(pending.Choices) == 0 {
-		h.itemService.ConsumeItemByID(ctx.Context, characterID, pending.ItemID)
-		ctx.Connection.SendCallback("onDelCharactorSlot", pending.ItemID, pending.SlotSID)
-		h.pendingGiftBoxesMu.Lock()
-		delete(h.pendingGiftBoxes, characterID)
-		h.pendingGiftBoxesMu.Unlock()
-		return 0, nil
+		newItem, addErr := h.itemService.AddItemWithColor(
+			ctx.Context,
+			characterID,
+			choice.ID,
+			domainitem.ItemTypeEquipment,
+			1,
+			colorCode,
+		)
+		if addErr != nil || newItem == nil {
+			return -1, nil
+		}
+
+		newItem, addErr = h.itemService.ApplyEquipmentAwardAttributes(
+			ctx.Context,
+			newItem.ID,
+			choice.Quality,
+			0,
+		)
+		if addErr != nil || newItem == nil {
+			return -1, nil
+		}
+
+		// Chỉ ép màu xanh dương cho túi ID 3376.
+		if giftItem.TemplateID == 3376 {
+			if err := h.itemService.UpdateColorCode(
+				ctx.Context,
+				newItem.ID,
+				3,
+			); err != nil {
+				h.logger.Error(
+					"Failed to set blue wing color",
+					zap.Int64("item_id", newItem.ID),
+					zap.Error(err),
+				)
+				return -1, nil
+			}
+
+			// Tải lại bản ghi đã cập nhật màu.
+			newItem, addErr = h.itemService.GetItemByID(
+				ctx.Context,
+				characterID,
+				newItem.ID,
+			)
+			if addErr != nil || newItem == nil {
+				return -1, nil
+			}
+		}
+
+		callbackName = "onAddCharactorSlot"
+		callbackData = h.itemDTO(newItem)
+
+	case 29:
+		// Nhận vật phẩm tiêu hao thông thường.
+		if choice.StackNum <= 0 {
+			return -1, nil
+		}
+
+		newItem, addErr := h.itemService.AddItem(
+			ctx.Context,
+			characterID,
+			choice.ID,
+			domainitem.ItemTypeConsumable,
+			choice.StackNum,
+		)
+		if addErr != nil || newItem == nil {
+			return -1, nil
+		}
+
+		callbackName = "onAddCharactorSlot"
+		callbackData = h.itemDTO(newItem)
+
+	default:
+		// Không tiêu thụ túi nếu loại thưởng không được hỗ trợ.
+		return -1, nil
 	}
-	return pending.GetNum, nil
+
+	// Đánh dấu lựa chọn đã nhận, giữ nguyên index client.
+	pending.Choices[int(selectedIdx)] = nil
+	pending.GetNum--
+
+	ctx.Connection.SendCallback(callbackName, callbackData)
+
+	hasChoices := false
+	for _, remainingChoice := range pending.Choices {
+		if remainingChoice != nil {
+			hasChoices = true
+			break
+		}
+	}
+
+	if pending.GetNum > 0 && hasChoices {
+		return pending.GetNum, nil
+	}
+
+	// Hoàn tất nhận thưởng: tiêu thụ túi.
+	if err := h.itemService.ConsumeItemByID(
+		ctx.Context,
+		characterID,
+		pending.ItemID,
+	); err != nil {
+		h.logger.Error(
+			"Failed to consume gift box after granting reward",
+			zap.Int64("character_id", characterID),
+			zap.Int64("gift_item_id", pending.ItemID),
+			zap.Error(err),
+		)
+		return -1, nil
+	}
+
+	if giftItem.StackCount > 1 {
+		updatedItem, getErr := h.itemService.GetItemByID(
+			ctx.Context,
+			characterID,
+			pending.ItemID,
+		)
+		if getErr == nil && updatedItem != nil {
+			ctx.Connection.SendCallback(
+				"onAddCharactorSlot",
+				h.itemDTO(updatedItem),
+			)
+		}
+	} else {
+		ctx.Connection.SendCallback(
+			"onDelCharactorSlot",
+			pending.ItemID,
+			pending.SlotSID,
+		)
+	}
+
+	delete(h.pendingGiftBoxes, characterID)
+	return 0, nil
 }

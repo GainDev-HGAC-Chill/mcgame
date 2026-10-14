@@ -52,6 +52,9 @@ func (tp *TurnProcessor) buildDamageActionsPermille(
 	effectiveActor := tp.statusManager.EffectiveParticipant(actor)
 	effectiveTarget := tp.statusManager.EffectiveParticipant(target)
 	hits := ResolveHits(effectiveActor, effectiveTarget, sk, tp.rng)
+	if effectiveTarget.DeathImmuneUsed {
+		target.DeathImmuneUsed = true
+	}
 
 	for i, h := range hits {
 		if !target.IsAlive {

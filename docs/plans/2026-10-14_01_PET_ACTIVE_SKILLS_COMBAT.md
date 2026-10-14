@@ -1,6 +1,6 @@
 # Pet Active Skills Combat — Implementation Plan
 
-**Date**: 2026-10-14 · **Status**: Approved
+**Date**: 2026-10-14 · **Status**: Implemented (CODE_FIXED)
 **Goal**: Make all 144 audited templates in 52 active Pet skill families select the described targets, calculate damage/healing from Pet combat stats, and execute their described buffs, debuffs, controls, periodic effects, costs, and special mechanics.
 
 Research base (verified 2026-10-14):
@@ -174,4 +174,7 @@ Damage application must pass through one shared path so invulnerability and shie
 - Source-reality correction: the optional per-mille path does not need a separate plan implementation in `resolve.go`; the plan executor calls the existing `ResolveHits` pipeline with the planned multiplier and effective battle-local stats.
 - Source-reality correction: generalized runtime status helpers were split into `status_effect_runtime.go` to keep `status_effect.go` within the repository file-size limit.
 - Source-reality correction: the domain has no separate Energy field, so `Tàn Nhẫn Tư Liệt` snapshots `Participant.CurrentSP`, the battle participant's energy resource, for its periodic coefficient.
-- Focused application/domain tests and vet passed before concurrent unrelated item/combat-service edits made the full application package uncompilable. The final domain and isolated catalog/adapter reruns pass with vet; the gameserver build is blocked by unrelated `rewards.go` and `handlers/item/use.go` errors.
+- Registry verification now rejects extra family/level plans as well as missing templates; the registry exactly matches 144 unique checked-in templates in 52 families.
+- Probability stats use percentage-point additions (`Dodge`, `Combo`, `Critical`), while Attack, Defense, Speed, and transfer effects use relative percentages.
+- Pet direct damage starts from exactly `Attack/MagicAttack × multiplier`; it does not inherit the legacy character-skill level bonus before mitigation.
+- Final verification: focused application/domain tests PASS, full `go vet ./...` PASS, and `go build -o bin/gameserver ./cmd/gameserver` PASS. Broad `go test ./internal/...` has only the documented unrelated item/Pet/chat baseline failures. Flash smoke testing remains pending an independently approved deploy/restart.

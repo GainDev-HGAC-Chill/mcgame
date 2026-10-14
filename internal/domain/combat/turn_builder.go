@@ -191,14 +191,14 @@ func (tp *TurnProcessor) buildDamageActions(
 		})
 	}
 
-	if successfulHit && allowCombo && target.IsAlive && CheckCombo(actor) {
+	if successfulHit && allowCombo && target.IsAlive && CheckCombo(tp.statusManager.EffectiveParticipant(actor)) {
 		tp.logger.Debug("Combo triggered",
 			zap.String("actor_id", actor.ID))
 		comboActions := tp.buildComboActions(actor, target, sk, actionType, skillID, actorNewMP)
 		actions = append(actions, comboActions...)
 	}
 
-	if successfulHit && allowCounter && target.IsAlive && actor.IsAlive && CheckCounter(target) {
+	if successfulHit && allowCounter && target.IsAlive && actor.IsAlive && CheckCounter(tp.statusManager.EffectiveParticipant(target)) {
 		tp.logger.Debug("Counter triggered",
 			zap.String("target_id", target.ID))
 		counterActions := tp.buildCounterActions(target, actor)

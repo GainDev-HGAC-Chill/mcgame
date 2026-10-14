@@ -875,22 +875,22 @@ func (s *Service) countQualifyingPets(pets []*domainpet.Pet, obj *quest.Objectiv
 
 // petQualifiesForQuestSubmit mirrors the Flash checkPet eligibility test.
 func petQualifiesForQuestSubmit(
-    pet *domainpet.Pet,
-    obj *quest.Objective,
-    templateName string,
+	pet *domainpet.Pet,
+	obj *quest.Objective,
+	templateName string,
 ) bool {
-    if pet == nil || obj == nil {
-        return false
-    }
+	if pet == nil || obj == nil {
+		return false
+	}
 
-    if pet.TemplateID != obj.Target {
-        return false
-    }
+	if pet.TemplateID != obj.Target {
+		return false
+	}
 
-    return domainpet.PetGrowRateMeetsQuestQuality(
-        pet.GrowRate,
-        obj.Quality,
-    )
+	return domainpet.PetGrowRateMeetsQuestQuality(
+		pet.GrowRate,
+		obj.Quality,
+	)
 }
 
 func (s *Service) creatureTemplateName(creatureID int) string {
@@ -1608,7 +1608,7 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 		targetColor = 4
 	default:
 		return nil, nil, pkgerrors.ErrInvalidArgs
-	}	
+	}
 	// Check Limit
 	if !s.checkDailyRefreshLimit(charID) {
 		return nil, map[string]interface{}{
@@ -1616,7 +1616,6 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 			"t": 1, // Error type 1: Daily limit reached
 		}, nil
 	}
-
 
 	// Find Matching Quests from DB
 	if s.gameDataManager == nil {
@@ -1642,25 +1641,20 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 	}
 
 	for _, q := range allQuests {
-		// Chỉ lấy nhiệm vụ treo thưởng
 		if int(q.Type) != predef.QuestTypeCallboard {
 			continue
 		}
 
-		// Đúng cấp nhân vật
+		// Chỉ lấy nhiệm vụ phù hợp cấp nhân vật.
 		if char.Level < int(q.MinLevel) {
 			continue
 		}
+
 		if q.MaxLevel > 0 && char.Level > int(q.MaxLevel) {
 			continue
 		}
 
-		// Đúng màu được chọn
-		if int(q.Color) != targetColor {
-			continue
-		}
-
-		// Bỏ qua nhiệm vụ đang nhận
+		// Không đưa nhiệm vụ đang nhận vào bảng.
 		if activeIDs[int(q.ID)] {
 			continue
 		}
@@ -1709,7 +1703,6 @@ func (s *Service) RefreshCallBoard(ctx context.Context, charID int64, refreshTyp
 
 	questList := make([]map[string]interface{}, 0)
 	cachedIDs := make([]int, 0)
-
 
 	for i := 0; i < limit; i++ {
 		q := candidateQuests[i]

@@ -185,15 +185,21 @@ func (tp *TurnProcessor) applyPlannedDamage(actor, target *Participant, skillID 
 		before := target.CurrentHP
 		effectiveActor := tp.statusManager.EffectiveParticipant(actor)
 		effectiveTarget := tp.statusManager.EffectiveParticipant(target)
-		result := CalculatePetSkillDamageWithPosition(effectiveActor, effectiveTarget, &damageTemplate, tp.accuracyModifiers[actor.ID])
+		var result *DamageResult
 		if UsePermilleV2() {
 			damageTemplate.AttackCount = 1
 			hits := ResolveHits(effectiveActor, effectiveTarget, &SkillInfo{Template: &damageTemplate}, tp.rng)
+			result = &DamageResult{}
 			if len(hits) > 0 {
 				result.Damage = int(hits[0].Damage)
 				result.IsCritical = hits[0].IsCrit
 				result.IsMiss = hits[0].IsMiss
 			}
+			if effectiveTarget.DeathImmuneUsed {
+				target.DeathImmuneUsed = true
+			}
+		} else {
+			result = CalculatePetSkillDamageWithPosition(effectiveActor, effectiveTarget, &damageTemplate, tp.accuracyModifiers[actor.ID])
 		}
 		if !result.IsMiss && effect.BonusCurrentHPChance > 0 && tp.rng.Float64() < effect.BonusCurrentHPChance {
 			result.Damage += int(float64(before) * effect.BonusCurrentHPRatio)

@@ -128,5 +128,5 @@
 
 - Nguyên nhân: adapter dùng `expSkill`/`dexSkill` progression làm combat formula, buff ID ngoài 1..10 bị bỏ qua, skill support vẫn đi damage path và thiếu cơ chế battle-local cho stat/periodic/shield/control/special.
 - Sửa: thêm registry family+level phủ 144 template, domain `SkillPlan`/effect engine, effective-stat overlay, shared shield/invulnerability damage path, target override/dead ally/taunt và các cost/revive/dispel/transfer/rest/sacrifice đã duyệt.
-- Test: fixture catalog 144/52, focused application/domain tests và targeted vet PASS; domain cùng isolated catalog/adapter rerun cuối PASS cả test/vet. Build cuối bị chặn bởi lỗi ngoài phạm vi trong `internal/application/combat/rewards.go` và `internal/presentation/rtmp/handlers/item/use.go`.
-- Trạng thái: CODE_FIXED — chưa build gameserver ở trạng thái worktree hiện tại và chưa Flash smoke-test/deploy.
+- Test: registry khớp chính xác 144 template/52 family; focused application/domain PASS; `go vet ./...` PASS; build `bin/gameserver` PASS. Broad internal regression chỉ còn baseline ngoài phạm vi ở item/Pet/chat.
+- Trạng thái: CODE_FIXED — chưa Flash smoke-test/deploy; không restart server và không đổi dữ liệu production.

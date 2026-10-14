@@ -346,17 +346,17 @@ func (m *StatusEffectManager) GetAllEffectsDTO() map[string][]map[string]interfa
 }
 
 type TurnStartResult struct {
-	CanAct           bool
-	CanUseSkills     bool
-	DamageTaken      int
+	CanAct              bool
+	CanUseSkills        bool
+	DamageTaken         int
 	PhysicalDamageTaken int
 	MagicDamageTaken    int
-	Healing          int
-	MPRestored       int
-	WokeUp           bool
-	BlockingEffect   StatusEffectType
-	SpeedModifier    float64
-	AccuracyModifier float64
+	Healing             int
+	MPRestored          int
+	WokeUp              bool
+	BlockingEffect      StatusEffectType
+	SpeedModifier       float64
+	AccuracyModifier    float64
 }
 
 func NewTurnStartResult() *TurnStartResult {
