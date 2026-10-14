@@ -43,14 +43,19 @@ func TestPetActiveSkillCatalogCoversAuditedTemplates(t *testing.T) {
 		families[skill["name"]] = true
 		wantPlans[skill["name"]+"|"+skill["level"]] = true
 	}
+	for level := 1; level <= 3; level++ {
+		wantPlans["Hổ Khiếu Sơn Lâm|"+strconv.Itoa(level)] = true
+		wantPlans["Thợ Săn Sát Thủ|"+strconv.Itoa(level)] = true
+		wantPlans["Tứ Phương Khiếp Đảm|"+strconv.Itoa(level)] = true
+	}
 	if covered != 144 {
 		t.Fatalf("covered templates = %d, want 144", covered)
 	}
 	if len(families) != 52 {
 		t.Fatalf("covered families = %d, want 52", len(families))
 	}
-	if len(petActiveSkillCatalog) != 52 {
-		t.Fatalf("catalog families = %d, want 52", len(petActiveSkillCatalog))
+	if len(petActiveSkillCatalog) != 55 {
+		t.Fatalf("catalog families = %d, want 55", len(petActiveSkillCatalog))
 	}
 	registered := 0
 	for family, levels := range petActiveSkillCatalog {
@@ -62,9 +67,75 @@ func TestPetActiveSkillCatalogCoversAuditedTemplates(t *testing.T) {
 			}
 		}
 	}
-	if registered != 144 {
-		t.Fatalf("registered plans = %d, want 144", registered)
+	if registered != 153 {
+		t.Fatalf("registered plans = %d, want 153", registered)
 	}
+}
+
+func TestHoKhieuSonLamUsesAllEnemyTargetsAndPerTargetDispel(t *testing.T) {
+	damage := []float64{.8, 1, 1.2}
+	dispel := []float64{.3, .4, .5}
+	for level := 1; level <= 3; level++ {
+		plan := petActiveSkillPlan("Hổ Khiếu Sơn Lâm", level)
+		if plan == nil {
+			t.Fatalf("missing level %d", level)
+		}
+		if plan.Target != domaincombat.TargetAllEnemy || plan.TargetCount != 10 {
+			t.Fatalf("level %d target = %d/%d, want all enemies/10", level, plan.Target, plan.TargetCount)
+		}
+		if len(plan.Effects) != 2 || plan.Effects[0].Kind != domaincombat.EffectPhysicalDamage || plan.Effects[0].Coefficient != damage[level-1] {
+			t.Fatalf("level %d damage effect = %#v", level, plan.Effects)
+		}
+		if plan.Effects[1].Kind != domaincombat.EffectRemoveOne || plan.Effects[1].Chance != dispel[level-1] {
+			t.Fatalf("level %d dispel effect = %#v", level, plan.Effects[1])
+		}
+	}
+}
+
+func TestSpecialPetSupportSkillPlans(t *testing.T) {
+	for level, amount := range []int{10, 15, 20} {
+		plan := petActiveSkillPlan("Thợ Săn Sát Thủ", level+1)
+		if plan == nil || plan.Target != domaincombat.TargetAllTeam || plan.TargetCount != 10 || len(plan.Effects) != 1 {
+			t.Fatalf("Thợ Săn Sát Thủ level %d plan = %#v", level+1, plan)
+		}
+		effect := plan.Effects[0]
+		if effect.Duration != 5 || effect.Polarity != domaincombat.PolarityBeneficial {
+			t.Fatalf("Thợ Săn Sát Thủ level %d effect = %#v", level+1, effect)
+		}
+		assertPlanModifier(t, effect, domaincombat.StatSpeed, float64(amount)/100, 0)
+		assertPlanModifier(t, effect, domaincombat.StatAccuracy, 0, amount)
+	}
+	for level, amount := range []int{5, 8, 12} {
+		plan := petActiveSkillPlan("Tứ Phương Khiếp Đảm", level+1)
+		wantCount := []int{4, 6, 8}[level]
+		wantChance := []float64{.1, .2, .3}[level]
+		if plan == nil || plan.Target != domaincombat.TargetRandomEnemy || plan.TargetCount != wantCount || len(plan.Effects) != 2 {
+			t.Fatalf("Tứ Phương Khiếp Đảm level %d plan = %#v", level+1, plan)
+		}
+		status := plan.Effects[0]
+		if status.Duration != 1 || status.Polarity != domaincombat.PolarityHarmful {
+			t.Fatalf("Tứ Phương Khiếp Đảm level %d status = %#v", level+1, status)
+		}
+		for _, stat := range []domaincombat.CombatStat{domaincombat.StatAttack, domaincombat.StatMagicAttack, domaincombat.StatSpeed} {
+			assertPlanModifier(t, status, stat, -float64(amount)/100, 0)
+		}
+		if plan.Effects[1].Kind != domaincombat.EffectRemoveAll || plan.Effects[1].Chance != wantChance {
+			t.Fatalf("Tứ Phương Khiếp Đảm level %d dispel = %#v", level+1, plan.Effects[1])
+		}
+	}
+}
+
+func assertPlanModifier(t *testing.T, effect domaincombat.SkillEffect, stat domaincombat.CombatStat, percent float64, flat int) {
+	t.Helper()
+	for _, modifier := range effect.Modifiers {
+		if modifier.Stat == stat {
+			if modifier.Percent != percent || modifier.Flat != flat {
+				t.Fatalf("modifier %d = %#v, want percent %v flat %d", stat, modifier, percent, flat)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing modifier %d in %#v", stat, effect.Modifiers)
 }
 
 func TestPetActiveSkillCatalogRejectsUnknown(t *testing.T) {

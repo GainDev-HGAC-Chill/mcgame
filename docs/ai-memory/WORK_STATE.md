@@ -67,12 +67,14 @@
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 
-- Đã thêm domain `SkillPlan`, catalog registry phủ 144 template/52 family và effect engine battle-local cho damage/heal, stat/control, periodic, shield, revive, dispel, transfer, cost/rest/sacrifice.
+- Đã thêm domain `SkillPlan`, catalog registry phủ 153 template/55 family và effect engine battle-local cho damage/heal, stat/control, periodic, shield, revive, dispel, transfer, cost/rest/sacrifice. Chín template `Hổ Khiếu Sơn Lâm`, `Thợ Săn Sát Thủ`, `Tứ Phương Khiếp Đảm` được bổ sung sau audit vì thuộc nguồn Pet đặc thù, không nằm trong roster sách Pet ban đầu.
 - Đã nối adapter vào catalog trước legacy behavior và route skill plan qua shared damage/status handling; registry hiện khớp chính xác 144 family+level record, không nhận thừa level hoặc skill không active.
 - Không chạm ba file item/quest/EXP ngoài luồng; hunk resolve target đánh thường hiện có trong `turn_executor.go` được giữ nguyên.
 - Kiểm tra độc lập đã sửa thêm: bỏ level bonus khỏi base damage Pet, dùng percentage-point cho né/liên kích/bạo kích, sửa confusion redirect, Quang Hợp lấy max MP của người nhận, tách DoT vật lý/ma pháp cho shield, giữ death-immune state ở permille và áp buff Combo/Counter lên normal combat path.
 - Focused `application/combat` + `domain/combat` PASS; `go vet ./...` PASS; `go build -o bin/gameserver ./cmd/gameserver` PASS. Broad `go test ./internal/...` chỉ còn baseline ngoài phạm vi ở item (6), pet (4), chat handler (2).
 - Bước tiếp theo: Flash smoke-test sau khi được phê duyệt deploy/restart; chưa thay đổi dữ liệu production.
+- Sửa bổ sung `Hổ Khiếu Sơn Lâm`: override thành toàn bộ địch tối đa 10, physical 80/100/120%, giải một buff có lợi với xác suất độc lập 30/40/50% trên từng mục tiêu còn sống; focused test/vet PASS.
+- Sửa bổ sung `Thợ Săn Sát Thủ`: toàn đội 10, Speed/Accuracy +10/15/20% trong 5 lượt. `Tứ Phương Khiếp Đảm`: 4/6/8 địch ngẫu nhiên, cả hai Attack và Speed −5/8/12% trong 1 lượt, 10/20/30% xóa toàn bộ buff có lợi theo từng mục tiêu. Focused test/vet PASS.
 
 ## 2026-10-13 - Immediate Character Delete / 30 FPS Shared Link
 - Added immediate delete RPC using ownership-guarded SQL, secondary MD5 validation and cache invalidation.

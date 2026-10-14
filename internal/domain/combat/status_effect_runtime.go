@@ -32,6 +32,7 @@ func (m *StatusEffectManager) EffectiveParticipant(p *Participant) *Participant 
 		effective.EffStats.Set(stats.PropMagDef, int64(effective.MagicDefense))
 		effective.EffStats.Set(stats.PropSpeed, int64(effective.Speed))
 		effective.EffStats.Set(stats.PropDodge, int64(effective.Dodge))
+		effective.EffStats.Set(stats.PropAccuracy, int64(effective.Hit))
 		effective.EffStats.Set(stats.PropCritRate, int64(effective.Critical)*10)
 		effective.EffStats.Set(stats.PropCombo, int64(effective.Combo)*10)
 		effective.EffStats.Set(stats.PropPhysDmgCut, int64(effective.ReduceHurt1)*10)
@@ -57,6 +58,8 @@ func applyStatModifier(p *Participant, modifier StatModifier) {
 		p.Speed = apply(p.Speed)
 	case StatDodge:
 		p.Dodge = apply(p.Dodge)
+	case StatAccuracy:
+		p.Hit = apply(p.Hit)
 	case StatCombo:
 		p.Combo = apply(p.Combo)
 	case StatCritical:
@@ -123,6 +126,21 @@ func (m *StatusEffectManager) RemoveRandomEffect(participantID string, polarity 
 	index := eligible[rng.Intn(len(eligible))]
 	m.effects[participantID] = append(effects[:index], effects[index+1:]...)
 	return true
+}
+
+func (m *StatusEffectManager) RemoveAllEffects(participantID string, polarity EffectPolarity) int {
+	effects := m.effects[participantID]
+	remaining := make([]*StatusEffect, 0, len(effects))
+	removed := 0
+	for _, effect := range effects {
+		if effect.Removable && effect.Polarity == polarity {
+			removed++
+			continue
+		}
+		remaining = append(remaining, effect)
+	}
+	m.effects[participantID] = remaining
+	return removed
 }
 
 func (m *StatusEffectManager) TauntTarget(participantID string) string {

@@ -42,6 +42,7 @@ const (
 	EffectStatus
 	EffectRevive
 	EffectRemoveOne
+	EffectRemoveAll
 	EffectTransfer
 )
 
@@ -62,6 +63,7 @@ const (
 	StatMagicDefense
 	StatSpeed
 	StatDodge
+	StatAccuracy
 	StatCombo
 	StatCritical
 	StatReducePhysical

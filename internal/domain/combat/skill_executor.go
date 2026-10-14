@@ -12,7 +12,7 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 	if plan == nil {
 		return tp.executeAttack(actor, cmd)
 	}
-	resolver := NewTargetResolver(tp.battle)
+	resolver := NewTargetResolverWithRNG(tp.battle, tp.rng)
 	targetID := cmd.TargetID
 	targets := resolver.ResolveTargets(actor, targetID, plan.Target, plan.Area, plan.TargetCount)
 	if len(targets) == 1 && plan.Target == TargetEnemy && plan.Area == AreaNone {
@@ -157,6 +157,13 @@ func (tp *TurnProcessor) applyPlannedEffect(actor, target *Participant, skillID 
 		}
 		removed := tp.statusManager.RemoveRandomEffect(target.ID, polarity, tp.rng)
 		return []*BattleAction{tp.stateAction(actor, target, skillID, tpl, 0)}, removed
+	case EffectRemoveAll:
+		polarity := PolarityBeneficial
+		if target.Side == actor.Side {
+			polarity = PolarityHarmful
+		}
+		removed := tp.statusManager.RemoveAllEffects(target.ID, polarity)
+		return []*BattleAction{tp.stateAction(actor, target, skillID, tpl, 0)}, removed > 0
 	case EffectTransfer:
 		return []*BattleAction{tp.applyTransfer(actor, target, skillID, tpl, effect)}, true
 	default:

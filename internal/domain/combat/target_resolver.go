@@ -56,12 +56,17 @@ const (
 
 type TargetResolver struct {
 	battle *Battle
+	rng    *rand.Rand
 }
 
 type targetPredicate func(*Participant) bool
 
 func NewTargetResolver(battle *Battle) *TargetResolver {
 	return &TargetResolver{battle: battle}
+}
+
+func NewTargetResolverWithRNG(battle *Battle, rng *rand.Rand) *TargetResolver {
+	return &TargetResolver{battle: battle, rng: rng}
 }
 
 func (r *TargetResolver) ResolveTargets(
@@ -282,7 +287,7 @@ func (r *TargetResolver) randomMatchingTarget(predicate targetPredicate, aliveOn
 	if len(candidates) == 0 {
 		return nil
 	}
-	return candidates[rand.Intn(len(candidates))]
+	return candidates[r.randomIntn(len(candidates))]
 }
 
 func (r *TargetResolver) nearestMatchingTargetByPosition(selectedTargetID string, predicate targetPredicate, aliveOnly bool) *Participant {
@@ -556,7 +561,7 @@ func (r *TargetResolver) getRandomTargets(side Side, count int, aliveOnly bool) 
 
 	shuffled := make([]*Participant, len(candidates))
 	copy(shuffled, candidates)
-	rand.Shuffle(len(shuffled), func(i, j int) {
+	r.shuffle(len(shuffled), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	})
 
@@ -575,11 +580,26 @@ func (r *TargetResolver) getRandomFromAll(count int, aliveOnly bool) []*Particip
 
 	shuffled := make([]*Participant, len(candidates))
 	copy(shuffled, candidates)
-	rand.Shuffle(len(shuffled), func(i, j int) {
+	r.shuffle(len(shuffled), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	})
 
 	return shuffled[:count]
+}
+
+func (r *TargetResolver) randomIntn(n int) int {
+	if r.rng != nil {
+		return r.rng.Intn(n)
+	}
+	return rand.Intn(n)
+}
+
+func (r *TargetResolver) shuffle(n int, swap func(i, j int)) {
+	if r.rng != nil {
+		r.rng.Shuffle(n, swap)
+		return
+	}
+	rand.Shuffle(n, swap)
 }
 
 func (r *TargetResolver) GetValidTargets(actor *Participant, targetType TargetType, aliveOnly bool) []*Participant {

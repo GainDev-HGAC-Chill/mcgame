@@ -126,3 +126,10 @@ Ký hiệu target: `TT` = targetType, `N` = targetNum, `A` = areaAttack, `H` = a
 - `Ác Ma Chi Kích` và `Lời Ngọt Ngào` dùng multiplier 100/110/120% cho level 1/2/3.
 - `Hiệp Ước Tử Thần` level 1 tăng 50% công vật lý, công ma pháp và phòng thủ trong 3 lượt.
 - `Duy Trì Tốc Độ` tăng né tránh 10/20/30%; `Suy Yếu Linh Hồn` giảm miễn thương vật lý và ma pháp 10/20/30%.
+
+## Bổ sung sau audit: skill Pet đặc thù không thuộc roster sách
+
+- Audit 144 template ban đầu được suy ra từ item sách Pet `type=506,useType=2`, nên bỏ sót các skill gắn qua handbook/creature hoặc vật phẩm Pet đặc thù.
+- `Hổ Khiếu Sơn Lâm` 7026/7027/7028: toàn bộ địch tối đa 10; physical 80/100/120%; mỗi mục tiêu còn sống có 30/40/50% xóa một buff có lợi ngẫu nhiên.
+- `Thợ Săn Sát Thủ` 7014/7015/7016: toàn đội tối đa 10; Speed và Accuracy +10/15/20% trong 5 lượt. Mô tả level 2 bị lỗi ký tự “`5%”; `TBL_BUFF` 80119 và chuỗi level xác nhận 15%.
+- `Tứ Phương Khiếp Đảm` 7011/7012/7013: 4/6/8 địch ngẫu nhiên; physical Attack, MagicAttack và Speed −5/8/12% trong 1 lượt; mỗi mục tiêu có 10/20/30% xóa toàn bộ buff có lợi có thể giải.

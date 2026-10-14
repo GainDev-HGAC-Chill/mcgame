@@ -75,7 +75,7 @@ func (tp *TurnProcessor) executeAttack(actor *Participant, cmd *BattleCommand) [
 
 	targetID := cmd.TargetID
 
-	targets := NewTargetResolver(tp.battle).ResolveTargets(
+	targets := NewTargetResolverWithRNG(tp.battle, tp.rng).ResolveTargets(
 		actor,
 		targetID,
 		TargetEnemy,
@@ -140,7 +140,7 @@ func (tp *TurnProcessor) executeSkill(actor *Participant, cmd *BattleCommand) []
 		return tp.executeHealSkill(actor, cmd, info)
 	}
 
-	resolver := NewTargetResolver(tp.battle)
+	resolver := NewTargetResolverWithRNG(tp.battle, tp.rng)
 	targetID := cmd.TargetID
 	if info.CombatTarget == TargetEnemy && info.AreaType == AreaNone {
 		targetID = tp.statusManager.GetConfusionTarget(tp.battle, actor.ID, targetID, tp.rng)

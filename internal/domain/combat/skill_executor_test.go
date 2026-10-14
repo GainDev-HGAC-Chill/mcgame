@@ -3,6 +3,7 @@ package combat
 
 import (
 	"math/rand"
+	"strconv"
 	"testing"
 
 	"mcgame-server/internal/domain/skill"
@@ -138,6 +139,74 @@ func TestTurnStartSeparatesPhysicalAndMagicPeriodicDamage(t *testing.T) {
 	result := manager.ProcessTurnStart(participant.ID, participant)
 	if result.DamageTaken != 300 || result.PhysicalDamageTaken != 100 || result.MagicDamageTaken != 200 {
 		t.Fatalf("periodic split = total %d physical %d magic %d", result.DamageTaken, result.PhysicalDamageTaken, result.MagicDamageTaken)
+	}
+}
+
+func TestAllEnemyPlanDamagesAndDispelsEveryTarget(t *testing.T) {
+	battle, actor, first := planTestBattle()
+	second := NewParticipant("second", "second", SideEnemy, true)
+	second.Position = 2
+	second.MaxHP = 1000
+	second.CurrentHP = 1000
+	third := NewParticipant("third", "third", SideEnemy, true)
+	third.Position = 4
+	third.MaxHP = 1000
+	third.CurrentHP = 1000
+	battle.AddParticipant(second)
+	battle.AddParticipant(third)
+	for _, target := range []*Participant{first, second, third} {
+		battle.StatusManager.AddEffect(target.ID, &StatusEffect{Family: "beneficial:" + target.ID, Duration: 2, Polarity: PolarityBeneficial, Removable: true})
+	}
+	plan := &SkillPlan{Family: "all enemy dispel", Target: TargetAllEnemy, TargetCount: 10, Effects: []SkillEffect{{Kind: EffectPhysicalDamage, Coefficient: .8}, {Kind: EffectRemoveOne, Chance: 1}}}
+	info := testPlanInfo(plan)
+	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
+	processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: first.ID, ActionType: ClientActionSkill, SkillID: info.Template.ID})
+	for _, target := range []*Participant{first, second, third} {
+		if target.CurrentHP >= target.MaxHP {
+			t.Fatalf("target %s was not damaged", target.ID)
+		}
+		if len(battle.StatusManager.GetEffects(target.ID)) != 0 {
+			t.Fatalf("target %s buff was not removed", target.ID)
+		}
+	}
+}
+
+func TestRemoveAllEffectsRemovesOnlyEligiblePolarity(t *testing.T) {
+	manager := NewStatusEffectManager()
+	participantID := "target"
+	manager.AddEffect(participantID, &StatusEffect{Family: "good-1", Polarity: PolarityBeneficial, Removable: true})
+	manager.AddEffect(participantID, &StatusEffect{Family: "good-locked", Polarity: PolarityBeneficial, Removable: false})
+	manager.AddEffect(participantID, &StatusEffect{Family: "bad", Polarity: PolarityHarmful, Removable: true})
+	manager.AddEffect(participantID, &StatusEffect{Family: "good-2", Polarity: PolarityBeneficial, Removable: true})
+	if removed := manager.RemoveAllEffects(participantID, PolarityBeneficial); removed != 2 {
+		t.Fatalf("removed = %d, want 2", removed)
+	}
+	effects := manager.GetEffects(participantID)
+	if len(effects) != 2 || effects[0].Family != "good-locked" || effects[1].Family != "bad" {
+		t.Fatalf("remaining effects = %#v", effects)
+	}
+}
+
+func TestRandomEnemyPlanUsesConfiguredTargetCount(t *testing.T) {
+	battle, actor, _ := planTestBattle()
+	for i := 1; i < 10; i++ {
+		target := NewParticipant("enemy-"+strconv.Itoa(i), "enemy", SideEnemy, true)
+		target.Position = i
+		target.MaxHP = 1000
+		target.CurrentHP = 1000
+		battle.AddParticipant(target)
+	}
+	resolver := NewTargetResolverWithRNG(battle, rand.New(rand.NewSource(11)))
+	targets := resolver.ResolveTargets(actor, "", TargetRandomEnemy, AreaNone, 6)
+	if len(targets) != 6 {
+		t.Fatalf("target count = %d, want 6", len(targets))
+	}
+	seen := make(map[string]bool)
+	for _, target := range targets {
+		if target.Side != SideEnemy || seen[target.ID] {
+			t.Fatalf("invalid random targets = %#v", targets)
+		}
+		seen[target.ID] = true
 	}
 }
 

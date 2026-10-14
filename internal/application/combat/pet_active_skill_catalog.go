@@ -20,7 +20,7 @@ func petActiveSkillPlan(name string, level int) *domaincombat.SkillPlan {
 }
 
 func buildPetActiveSkillCatalog() map[string]petSkillLevels {
-	catalog := make(map[string]petSkillLevels, 52)
+	catalog := make(map[string]petSkillLevels, 55)
 	damage := func(kind domaincombat.EffectKind, coefficient float64) domaincombat.SkillEffect {
 		return domaincombat.SkillEffect{Kind: kind, Coefficient: coefficient}
 	}
@@ -62,6 +62,21 @@ func buildPetActiveSkillCatalog() map[string]petSkillLevels {
 	addDamage("Thích Nhĩ Hô Khiếu", physical, enemy, domaincombat.AreaNone, []int{1}, 1.1, 1.2, 1.3)
 	delete(catalog["Thích Nhĩ Hô Khiếu"], 1)
 	addDamage("Toái Băng Phong Bạo", magic, enemy, domaincombat.AreaNone, []int{1}, .8, .9, 1)
+	add("Hổ Khiếu Sơn Lâm", domaincombat.TargetAllEnemy, domaincombat.AreaNone, []int{10}, [][]domaincombat.SkillEffect{
+		{damage(physical, .8), {Kind: domaincombat.EffectRemoveOne, Chance: .3}},
+		{damage(physical, 1), {Kind: domaincombat.EffectRemoveOne, Chance: .4}},
+		{damage(physical, 1.2), {Kind: domaincombat.EffectRemoveOne, Chance: .5}},
+	})
+	add("Thợ Săn Sát Thủ", domaincombat.TargetAllTeam, domaincombat.AreaNone, []int{10}, [][]domaincombat.SkillEffect{
+		{status("Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .1, 0), modifier(domaincombat.StatAccuracy, 0, 10))},
+		{status("Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .15, 0), modifier(domaincombat.StatAccuracy, 0, 15))},
+		{status("Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .2, 0), modifier(domaincombat.StatAccuracy, 0, 20))},
+	})
+	add("Tứ Phương Khiếp Đảm", domaincombat.TargetRandomEnemy, domaincombat.AreaNone, []int{4, 6, 8}, [][]domaincombat.SkillEffect{
+		{status("Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.05, 0), modifier(domaincombat.StatMagicAttack, -.05, 0), modifier(domaincombat.StatSpeed, -.05, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .1}},
+		{status("Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.08, 0), modifier(domaincombat.StatMagicAttack, -.08, 0), modifier(domaincombat.StatSpeed, -.08, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .2}},
+		{status("Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.12, 0), modifier(domaincombat.StatMagicAttack, -.12, 0), modifier(domaincombat.StatSpeed, -.12, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .3}},
+	})
 
 	addDamageStatus := func(name string, kind domaincombat.EffectKind, area domaincombat.AreaType, counts []int, coefficients, chances []float64, durations []int, stat domaincombat.CombatStat, percents []float64) {
 		effects := make([][]domaincombat.SkillEffect, len(coefficients))

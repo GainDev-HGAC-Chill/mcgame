@@ -124,9 +124,9 @@
 - Kept GameLoaders30.swf public URL, using fresh internal main asset 32 to bypass old main cache.
 - Migration and cleanup are staged; live rollout must be independently verified.
 
-## FIX-2026-10-14-14 — 52 họ skill chủ động Pet dùng sai damage/effect
+## FIX-2026-10-14-14 — 55 họ skill chủ động Pet dùng sai damage/effect
 
 - Nguyên nhân: adapter dùng `expSkill`/`dexSkill` progression làm combat formula, buff ID ngoài 1..10 bị bỏ qua, skill support vẫn đi damage path và thiếu cơ chế battle-local cho stat/periodic/shield/control/special.
-- Sửa: thêm registry family+level phủ 144 template, domain `SkillPlan`/effect engine, effective-stat overlay, shared shield/invulnerability damage path, target override/dead ally/taunt và các cost/revive/dispel/transfer/rest/sacrifice đã duyệt.
-- Test: registry khớp chính xác 144 template/52 family; focused application/domain PASS; `go vet ./...` PASS; build `bin/gameserver` PASS. Broad internal regression chỉ còn baseline ngoài phạm vi ở item/Pet/chat.
+- Sửa: thêm registry family+level phủ 153 template/55 family, domain `SkillPlan`/effect engine và các primitive đã duyệt. Bổ sung chín template nguồn Pet đặc thù: `Hổ Khiếu Sơn Lâm`, `Thợ Săn Sát Thủ`, `Tứ Phương Khiếp Đảm`; thêm Accuracy modifier, random-target RNG battle-local và remove-all-beneficial effect.
+- Test: registry khớp chính xác 144 template sách Pet cộng 9 template đặc thù; focused application/domain PASS; `go vet ./...` PASS; build `bin/gameserver` PASS. Broad internal regression chỉ còn baseline ngoài phạm vi ở item/Pet/chat.
 - Trạng thái: CODE_FIXED — chưa Flash smoke-test/deploy; không restart server và không đổi dữ liệu production.

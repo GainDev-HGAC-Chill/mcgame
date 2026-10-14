@@ -1,7 +1,7 @@
 # Pet Active Skills Combat — Implementation Plan
 
 **Date**: 2026-10-14 · **Status**: Implemented (CODE_FIXED)
-**Goal**: Make all 144 audited templates in 52 active Pet skill families select the described targets, calculate damage/healing from Pet combat stats, and execute their described buffs, debuffs, controls, periodic effects, costs, and special mechanics.
+**Goal**: Make all audited and confirmed Pet active skill templates select the described targets, calculate damage/healing from Pet combat stats, and execute their described buffs, debuffs, controls, periodic effects, costs, and special mechanics.
 
 Research base (verified 2026-10-14):
 - `docs/research/2026-10-14_02_PET_ACTIVE_SKILL_AUDIT.md` — complete family audit, current defects, target shapes, and user-approved conflict resolutions.
@@ -178,3 +178,4 @@ Damage application must pass through one shared path so invulnerability and shie
 - Probability stats use percentage-point additions (`Dodge`, `Combo`, `Critical`), while Attack, Defense, Speed, and transfer effects use relative percentages.
 - Pet direct damage starts from exactly `Attack/MagicAttack × multiplier`; it does not inherit the legacy character-skill level bonus before mitigation.
 - Final verification: focused application/domain tests PASS, full `go vet ./...` PASS, and `go build -o bin/gameserver ./cmd/gameserver` PASS. Broad `go test ./internal/...` has only the documented unrelated item/Pet/chat baseline failures. Flash smoke testing remains pending an independently approved deploy/restart.
+- Post-audit correction: special Pet skills from handbook/creature/accessory sources were absent from the original skill-book-derived roster. The registry now covers 153 templates/55 families: `Hổ Khiếu Sơn Lâm` uses all-enemy 10, P80/100/120%, one-buff dispel 30/40/50%; `Thợ Săn Sát Thủ` buffs all allies' Speed/Accuracy 10/15/20% for 5 turns; `Tứ Phương Khiếp Đảm` affects 4/6/8 random enemies, reduces both Attack stats and Speed 5/8/12% for one turn, and independently removes all removable beneficial buffs at 10/20/30%.
