@@ -18,6 +18,14 @@ func (h *Handler) AddMxTempItemFromBag(ctx *rtmp.RPCContext, args []interface{})
 	return h.addItemFromBagToTemp(ctx, args, true)
 }
 
+func (h *Handler) TakeTempItemToBag(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.takeItemFromTempToBag(ctx, args, false)
+}
+
+func (h *Handler) TakeMxTempItemToBag(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.takeItemFromTempToBag(ctx, args, true)
+}
+
 func (h *Handler) addItemFromBagToTemp(ctx *rtmp.RPCContext, args []interface{}, mx bool) (interface{}, error) {
 	if len(args) < 2 {
 		return nil, pkgerrors.ErrInvalidArgs
@@ -81,6 +89,44 @@ func (h *Handler) addItemFromBagToTemp(ctx *rtmp.RPCContext, args []interface{},
 		return nil, err
 	}
 	payload = h.buildTBagData(char, items)
+	_ = ctx.Connection.SendCallback("updateTempBags", payload)
+	return map[string]interface{}{"success": true}, nil
+}
+
+func (h *Handler) takeItemFromTempToBag(ctx *rtmp.RPCContext, args []interface{}, mx bool) (interface{}, error) {
+	if len(args) < 1 {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
+	rawPosition, ok := parseFlexibleInt64(args[0])
+	if !ok {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
+	position, ok := decodeTempBagClientPosition(int(rawPosition))
+	if !ok {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
+	characterID, err := strconv.ParseInt(ctx.CharacterID, 10, 64)
+	if err != nil {
+		return nil, pkgerrors.ErrUnauthorized
+	}
+	char, err := h.charService.GetByID(ctx.Context, characterID)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
+	}
+	tempIndex := position
+	if mx {
+		tempIndex += 100
+	}
+	moved, err := h.itemService.MoveTempBagItemToBag(ctx.Context, characterID, tempIndex)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
+	}
+	_ = ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(moved))
+	items, err := h.itemService.GetAllItems(ctx.Context, characterID)
+	if err != nil {
+		return nil, err
+	}
+	payload := h.buildTBagData(char, items)
 	_ = ctx.Connection.SendCallback("updateTempBags", payload)
 	return map[string]interface{}{"success": true}, nil
 }

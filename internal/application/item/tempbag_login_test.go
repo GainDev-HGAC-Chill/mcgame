@@ -12,8 +12,8 @@ import (
 func TestBuildTBagPayload_SeparatesNormalAndMxAndIgnoresOtherBags(t *testing.T) {
 	char := &domainchar.Character{TempBagSlots: 2, MxTempBagSlots: 1}
 	items := []*domainitem.Item{
-		{ID: 1, ItemType: domainitem.ItemTypeMaterial, SlotType: domainitem.SlotTypeTempBag, SlotIndex: 1, TemplateID: 7, StackCount: 3},
-		{ID: 2, ItemType: domainitem.ItemTypeMaterial, SlotType: domainitem.SlotTypeTempBag, SlotIndex: 101, TemplateID: 5676, StackCount: 145},
+		{ID: 1, ItemType: domainitem.ItemTypeMaterial, SlotType: domainitem.SlotTypeTempBag, SlotIndex: 1, TemplateID: 7, StackCount: 3, IsBound: true, ColorCode: 4},
+		{ID: 2, ItemType: domainitem.ItemTypeMaterial, SlotType: domainitem.SlotTypeTempBag, SlotIndex: 101, TemplateID: 5676, StackCount: 145, ColorCode: 2},
 		{ID: 3, ItemType: domainitem.ItemTypeMaterial, SlotType: domainitem.SlotTypeBag, SlotIndex: 5, TemplateID: 99, StackCount: 1},
 	}
 
@@ -36,6 +36,13 @@ func TestBuildTBagPayload_SeparatesNormalAndMxAndIgnoresOtherBags(t *testing.T) 
 	if _, has := tempList["1"]; !has {
 		t.Fatalf("tempList missing normal slot 1")
 	}
+	normalItem, ok := tempList["1"].(map[string]interface{})
+	if !ok || normalItem["t"] != 7 || normalItem["n"] != 3 || normalItem["b"] != 1 || normalItem["c"] != 4 {
+		t.Fatalf("tempList[1] = %#v", tempList["1"])
+	}
+	if _, has := normalItem["tid"]; has {
+		t.Fatalf("tempList[1] uses inventory DTO instead of compact temp payload: %#v", normalItem)
+	}
 	if _, has := tempList["5"]; has {
 		t.Fatalf("tempList contains slot 5, but SlotTypeBag items must be excluded")
 	}
@@ -50,5 +57,9 @@ func TestBuildTBagPayload_SeparatesNormalAndMxAndIgnoresOtherBags(t *testing.T) 
 	mxList, ok := mx["tempList"].(map[string]interface{})
 	if !ok || mxList["1"] == nil {
 		t.Fatalf("mx.tempList missing slot 1: %v", mx["tempList"])
+	}
+	mxItem, ok := mxList["1"].(map[string]interface{})
+	if !ok || mxItem["t"] != 5676 || mxItem["n"] != 145 || mxItem["b"] != 0 || mxItem["c"] != 2 {
+		t.Fatalf("mx.tempList[1] = %#v", mxList["1"])
 	}
 }

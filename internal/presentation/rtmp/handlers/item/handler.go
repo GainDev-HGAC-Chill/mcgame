@@ -203,6 +203,8 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("oneKeyOpenAllMXTemp", h.OneKeyOpenAllMXTemp)
 	dispatcher.Register("addtItemFromBag", h.AddTempItemFromBag)
 	dispatcher.Register("addmxFromBag", h.AddMxTempItemFromBag)
+	dispatcher.Register("tempToBag", h.TakeTempItemToBag)
+	dispatcher.Register("mxtempToBag", h.TakeMxTempItemToBag)
 	dispatcher.Register("bindItem", h.BindItem)
 	dispatcher.Register("changeName", h.ChangeName)
 	dispatcher.Register("changePrefix", h.ChangePrefix)

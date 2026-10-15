@@ -32,10 +32,10 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 			continue
 		}
 		if it.SlotIndex >= 100 {
-			mxTempList[strconv.Itoa(it.SlotIndex-100)] = s.BuildClientItemDTO(it)
+			mxTempList[strconv.Itoa(it.SlotIndex-100)] = tempBagItemPayload(it)
 			mxItemCount++
 		} else {
-			tempList[strconv.Itoa(it.SlotIndex)] = s.BuildClientItemDTO(it)
+			tempList[strconv.Itoa(it.SlotIndex)] = tempBagItemPayload(it)
 			normalItemCount++
 		}
 	}
@@ -79,5 +79,18 @@ func (s *Service) BuildTBagPayload(char *domainchar.Character, items []*domainit
 			"tempBag":     map[string]interface{}{},
 			"tempList":    mxTempList,
 		},
+	}
+}
+
+func tempBagItemPayload(it *domainitem.Item) map[string]interface{} {
+	binded := 0
+	if it.IsBound {
+		binded = 1
+	}
+	return map[string]interface{}{
+		"t": it.TemplateID,
+		"n": it.StackCount,
+		"b": binded,
+		"c": it.ColorCode,
 	}
 }

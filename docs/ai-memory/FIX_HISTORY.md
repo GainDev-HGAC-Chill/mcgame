@@ -4,8 +4,8 @@
 
 - Hiện tượng: item từ Shop/sự kiện đôi khi chỉ hiện sau khi sắp xếp túi; kéo vật phẩm vào túi tiện dụng báo `Internal error: cannot equip item`.
 - Nguyên nhân: ba activity reward callback gửi raw Go `*Item` thay vì Flash slot DTO. `addtItemFromBag`/`addmxFromBag` bị đăng ký vào generic `MoveItem`, khiến target position 1..22 bị parse thành equipment SID.
-- Sửa: chuẩn hóa activity notice + `BuildClientItemDTO`; giữ shop changed-stack snapshot hiện có. Thêm handler riêng decode page 24 ô, map normal index 1-based/MX 101-based, validate capacity/type, xóa icon nguồn và refresh `updateTempBags`; temp sort giữ cùng index contract.
-- Test: item application, item/activity/shop handlers, targeted vet và gameserver build PASS. Broad internal có lỗi registry Quest 234-vs-227 từ thay đổi quest ngoài phạm vi và 2 chat-stat baseline; Pet suite hiện PASS.
+- Sửa: chuẩn hóa activity notice + `BuildClientItemDTO`; giữ shop changed-stack snapshot hiện có. Thêm handler riêng decode page 24 ô, map normal index 1-based/MX 101-based, validate capacity/type, xóa icon nguồn và refresh `updateTempBags`; temp sort giữ cùng index contract. Follow-up sửa `tempList` từ inventory DTO sang compact `{t,n,b,c}` để item đã chuyển render ngay thay vì trông như bị mất. Đăng ký `tempToBag`/`mxtempToBag`, chuyển item về ô trống đầu tiên và refresh hai túi.
+- Test: exact normal/MX compact payload, move-out normal/MX, item application, item/activity/shop handlers, targeted vet và gameserver build PASS. Broad internal có lỗi registry Quest 234-vs-227 từ thay đổi quest ngoài phạm vi và 2 chat-stat baseline; Pet suite hiện PASS.
 - Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
 
 ## FIX-2026-10-15-19 — Đồng bộ tỷ lệ và hệ số cường hóa Pet
