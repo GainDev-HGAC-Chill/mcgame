@@ -145,6 +145,10 @@ func (h *Handler) DelPopNum(ctx *rtmp.RPCContext, args []interface{}) (interface
 	return h.applyPopularityItem(ctx, args, eggTemplateID, -1, eggVerb, eggItemName)
 }
 
+func isPopularityTargetItem(templateID int) bool {
+	return templateID == flowerTemplateID || templateID == eggTemplateID
+}
+
 func (h *Handler) UseFootle(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	return h.applySocialPrank(ctx, args, []int{footleTemplateID}, func(src, target *domainchar.Character) string {
 		return fmt.Sprintf(footleMessageFormat,
@@ -279,6 +283,7 @@ func (h *Handler) applyPopularityItem(ctx *rtmp.RPCContext, args []interface{}, 
 	if err != nil || sourceItem == nil {
 		return nil, err
 	}
+	remaining := sourceItem.StackCount - quantity
 
 	consumed, err := h.itemService.ConsumeItemsByTemplateID(ctx.Context, characterID, templateID, quantity)
 	if err != nil {
@@ -288,7 +293,7 @@ func (h *Handler) applyPopularityItem(ctx *rtmp.RPCContext, args []interface{}, 
 		return nil, nil
 	}
 
-	h.sendStackDeltaCallback(ctx, sourceItem, sourceItem.StackCount-quantity)
+	h.sendStackDeltaCallback(ctx, sourceItem, remaining)
 
 	delta := int64(quantity) * direction
 	targetChar.Pop += delta
@@ -515,13 +520,17 @@ func buildPlayerLink(char *domainchar.Character) string {
 }
 
 func (h *Handler) findBagItemByTemplateID(ctx *rtmp.RPCContext, characterID int64, templateID int) (*domainitem.Item, error) {
+	return h.findBagItemStackByTemplateID(ctx, characterID, templateID, 1)
+}
+
+func (h *Handler) findBagItemStackByTemplateID(ctx *rtmp.RPCContext, characterID int64, templateID int, count int) (*domainitem.Item, error) {
 	items, err := h.itemService.GetAllItems(ctx.Context, characterID)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, item := range items {
-		if item.TemplateID == templateID && item.SlotType == domainitem.SlotTypeBag {
+		if item.TemplateID == templateID && item.SlotType == domainitem.SlotTypeBag && item.StackCount >= count {
 			return item, nil
 		}
 	}

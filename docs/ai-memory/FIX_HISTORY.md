@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-15-22 — Sách triệu hồi, Mật Đạo và vật phẩm xã hội
+
+- Hiện tượng: Sách Triệu Hồi bị tiêu hao nhưng không có Pet đi sau; Sách Dịch Chuyển Mật Đạo bị tiêu hao nhưng không đổi map; Hoa Hồng/Chocolate bị tiêu hao nhưng không tăng thân mật; người dùng nhấp đôi Trứng Gà nhưng không thấy tác dụng.
+- Nguyên nhân: type-500 chưa biết exact summon/secret-passage IDs nên chỉ trả message generic. Flash chỉ cho render follow Pet khi có long-buff 1709/1979. `useIntimacyItem` cũ chỉ consume stack. Trứng Gà dùng RPC mục tiêu `delPopNum`, không phải generic `useItem`; callback stack của `addPopNum`/`delPopNum` còn có thể trừ quantity hai lần trên cùng object đã mutate.
+- Sửa: 2514/2543 cấp buff 1709 trong 1 giờ/30 ngày và chỉ gọi Pet cam đã khóa; 2798 cấp buff 1979 trong 30 ngày và nhận Pet tím/cam đã khóa. Persist follow, gửi `onCancelPet`→`onCreatePet`; không có Pet hợp lệ thì không consume. 128/2137 preflight không group/battle rồi consume và vào map 140106. 1302/1303 tăng 60, 1315/32 tăng 660 thân mật; Hoa Hồng yêu cầu khác giới, chỉ áp dụng với bạn bè, cập nhật hai row chiều nếu tồn tại, refresh stack và phát lại `onInitViewImC`. Nhấp đôi 724/783 không consume và chỉ dẫn dùng nút mục tiêu; wire `addPopNum`/`delPopNum` vẫn là effect thật.
+- Test: exact summon buff/duration/quality, bound-quality eligibility, exact intimacy values/gender flags, bidirectional persistence/non-friend rejection, secret-passage/social target registry, item/social/handler/Pet packages, targeted vet và gameserver build PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không migration và không sửa dữ liệu người chơi.
+
 ## FIX-2026-10-15-21 — Thuốc Tăng Trưởng Pet không cộng EXP
 
 - Hiện tượng: dùng Thuốc Tăng Trưởng lên Pet không thay đổi kinh nghiệm/cấp Pet.

@@ -4,6 +4,8 @@
 package item
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -18,6 +20,10 @@ const (
 	renameCardTemplateID    = 2126
 	sexChangeCardTemplateID = 2844
 	goodCardTemplateID      = 122
+	largeRoseTemplateID     = 32
+	chocolateTemplateID     = 1302
+	roseTemplateID          = 1303
+	chocolateBoxTemplateID  = 1315
 )
 
 func (h *Handler) ChangeNameByCard(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -238,13 +244,16 @@ func (h *Handler) UseIntimacyItem(ctx *rtmp.RPCContext, args []interface{}) (int
 		return nil, pkgerrors.ErrInvalidArgs
 	}
 
-	_, ok := args[0].(string)
-	if !ok {
+	targetName, ok := args[0].(string)
+	if !ok || strings.TrimSpace(targetName) == "" {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
 
 	quantityRaw, ok := parseFlexibleInt64(args[1])
 	if !ok {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
+	if quantityRaw <= 0 || quantityRaw > int64(^uint(0)>>1) {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
 	quantity := int(quantityRaw)
@@ -254,10 +263,47 @@ func (h *Handler) UseIntimacyItem(ctx *rtmp.RPCContext, args []interface{}) (int
 		return nil, pkgerrors.ErrInvalidArgs
 	}
 	itemID := int(itemIDRaw)
+	intimacyPerItem, oppositeGenderOnly, ok := intimacyItemEffect(itemID)
+	if !ok || quantity > int(^uint(0)>>1)/intimacyPerItem {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
 
 	characterID, err := strconv.ParseInt(ctx.CharacterID, 10, 64)
 	if err != nil {
 		return nil, pkgerrors.ErrUnauthorized
+	}
+
+	if h.socialService == nil {
+		return nil, fmt.Errorf("intimacy service unavailable")
+	}
+	sourceChar, err := h.charService.GetByID(ctx.Context, characterID)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
+	}
+	targetChar, err := h.resolveTargetCharacter(ctx, targetName)
+	if err != nil || targetChar == nil || targetChar.ID == characterID {
+		_ = ctx.Connection.SendCallback("onSystemSay", "Không tìm thấy đối tượng tặng hợp lệ.")
+		return nil, nil
+	}
+	if oppositeGenderOnly && sourceChar.Gender == targetChar.Gender {
+		_ = ctx.Connection.SendCallback("onSystemSay", "Hoa Hồng chỉ có thể tặng cho người khác giới.")
+		return nil, nil
+	}
+
+	sourceItem, err := h.findBagItemStackByTemplateID(ctx, characterID, itemID, quantity)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
+	}
+	if sourceItem == nil {
+		_ = ctx.Connection.SendCallback("onSystemSay", "Không đủ vật phẩm.")
+		return nil, nil
+	}
+	remaining := sourceItem.StackCount - quantity
+
+	amount := quantity * intimacyPerItem
+	if _, err := h.socialService.PreviewFriendIntimacy(ctx.Context, characterID, targetChar.ID, amount); err != nil {
+		_ = ctx.Connection.SendCallback("onSystemSay", "Chỉ có thể tặng vật phẩm thân mật cho bạn bè.")
+		return nil, nil
 	}
 
 	consumed, err := h.itemService.ConsumeItemsByTemplateID(ctx.Context, characterID, itemID, quantity)
@@ -269,13 +315,82 @@ func (h *Handler) UseIntimacyItem(ctx *rtmp.RPCContext, args []interface{}) (int
 		ctx.Connection.SendCallback("onSystemSay", "Không đủ vật phẩm.")
 		return nil, nil
 	}
+	h.sendStackDeltaCallback(ctx, sourceItem, remaining)
 
-	ctx.Connection.SendCallback("onSystemSay", "Đã sử dụng vật phẩm thân mật.")
+	update, err := h.socialService.AddFriendIntimacy(ctx.Context, characterID, targetChar.ID, amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to persist intimacy after item consumption; item preservation is not guaranteed: %w", err)
+	}
+	h.sendRelationshipListRefresh(ctx.Context, ctx.Connection, characterID)
+	if h.rtmpServer != nil && update.TargetSaved {
+		if targetConn := h.rtmpServer.GetConnectionByCharacterID(strconv.FormatInt(targetChar.ID, 10)); targetConn != nil {
+			h.sendRelationshipListRefresh(ctx.Context, targetConn, targetChar.ID)
+		}
+	}
+	_ = ctx.Connection.SendCallback("onBlueMsg", fmt.Sprintf("Đã tặng %s %d %s, tăng %d điểm thân mật.", targetChar.Name, quantity, intimacyItemName(itemID), amount))
 
 	h.logger.Info("UseIntimacyItem: items consumed",
 		zap.Int64("character_id", characterID),
 		zap.Int("template_id", itemID),
-		zap.Int("quantity", quantity))
+		zap.Int("quantity", quantity),
+		zap.Int("intimacy_added", amount))
 
 	return map[string]interface{}{"success": true}, nil
+}
+
+func (h *Handler) sendRelationshipListRefresh(ctx context.Context, conn *rtmp.Connection, characterID int64) {
+	if h.socialService == nil || conn == nil {
+		return
+	}
+	relationships, err := h.socialService.GetRelationshipList(ctx, characterID)
+	if err != nil {
+		h.logger.Warn("Failed to refresh relationship list after intimacy gift", zap.Int64("character_id", characterID), zap.Error(err))
+		return
+	}
+	payload := make(map[string]interface{}, len(relationships))
+	for _, relationship := range relationships {
+		id, ok := relationship["id"].(int64)
+		if !ok {
+			continue
+		}
+		cloned := make(map[string]interface{}, len(relationship))
+		for key, value := range relationship {
+			cloned[key] = value
+		}
+		if relationshipType, ok := cloned["type"].(int); ok {
+			cloned["type"] = relationshipType + 1
+		}
+		payload[strconv.FormatInt(id, 10)] = cloned
+	}
+	_ = conn.SendCallback("onInitViewImC", payload)
+}
+
+func intimacyItemEffect(templateID int) (int, bool, bool) {
+	switch templateID {
+	case roseTemplateID:
+		return 60, true, true
+	case largeRoseTemplateID:
+		return 660, true, true
+	case chocolateTemplateID:
+		return 60, false, true
+	case chocolateBoxTemplateID:
+		return 660, false, true
+	default:
+		return 0, false, false
+	}
+}
+
+func intimacyItemName(templateID int) string {
+	switch templateID {
+	case roseTemplateID:
+		return "Hoa Hồng"
+	case largeRoseTemplateID:
+		return "Bó Hoa Hồng To"
+	case chocolateTemplateID:
+		return "Chocolate"
+	case chocolateBoxTemplateID:
+		return "Hộp Chocolate"
+	default:
+		return "vật phẩm"
+	}
 }

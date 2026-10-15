@@ -79,6 +79,10 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if appitem.IsDirectUseDisabledTemplate(it.TemplateID) {
 		return nil, nil
 	}
+	if isPopularityTargetItem(it.TemplateID) {
+		_ = ctx.Connection.SendCallback("onSystemMidMsgOrNote", "Hãy mở thông tin nhân vật mục tiêu rồi dùng nút Hoa hoặc Trứng Gà.")
+		return nil, nil
+	}
 
 	h.logger.Info("UseItem: calling service.UseItem",
 		zap.Int64("character_id", characterID),
@@ -98,6 +102,27 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if h.questService != nil {
 		if _, ok := h.questService.LoopBossItemQuest(it.TemplateID); ok {
 			return h.useLoopBossOrderItem(ctx, characterID, char, it)
+		}
+	}
+
+	var summonBookPet *domainpet.Pet
+	if _, ok := appitem.GetSummonBookConfig(it.TemplateID); ok {
+		summonBookPet, err = h.prepareSummonBookPet(ctx.Context, characterID, it.TemplateID)
+		if err != nil {
+			return rtmp.ErrorToResponse(err), nil
+		}
+		if summonBookPet == nil {
+			_ = ctx.Connection.SendCallback("onSystemMidMsgOrNote", "Không có Pet đã khóa đủ phẩm chất để triệu hồi.")
+			return nil, nil
+		}
+	}
+	if isSecretPassageBook(it.TemplateID) {
+		allowed, err := h.canUseSecretPassageBook(ctx, characterID)
+		if err != nil {
+			return rtmp.ErrorToResponse(err), nil
+		}
+		if !allowed {
+			return nil, nil
 		}
 	}
 
@@ -141,6 +166,14 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	}
 
 	h.finalizeBookUse(ctx, char, result, pendingBookUse)
+
+	var summonedFollowingPet *domainpet.Pet
+	if summonBookPet != nil {
+		summonedFollowingPet, err = h.activateSummonBookPet(ctx, characterID, summonBookPet)
+		if err != nil {
+			return nil, fmt.Errorf("failed to activate summoned pet after item consumption; item preservation is not guaranteed: %w", err)
+		}
+	}
 
 	if equipped, _ := result["equipped"].(bool); equipped {
 		oldSIDs := map[int64]int{it.ID: oldSID}
@@ -213,6 +246,14 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		}
 
 		h.sendEffectCallbacks(ctx, result, char)
+		if summonedFollowingPet != nil {
+			h.sendSummonBookPetCallbacks(ctx, summonedFollowingPet)
+		}
+		if isSecretPassageBook(it.TemplateID) {
+			if err := h.performTransport(ctx, characterID, secretPassageMapID, false, it.TemplateID); err != nil {
+				return nil, fmt.Errorf("failed to enter secret passage after item consumption; item preservation is not guaranteed: %w", err)
+			}
+		}
 	}
 
 	h.logger.Info("Item used successfully",

@@ -36,6 +36,10 @@ Migration: `supabase/migrations/20260505071855_add_relationship_type.sql`. Exist
 - `handlers/npc/npc_func_other.go:388` `handleNpcTutor` is still a stub. The full tutor request → accept → relationship create flow needs the Create path typed and an application service to mediate.
 - No backfill migration is needed because the column defaults to 0 and all pre-existing rows were friends.
 
+## Intimacy gift items
+
+`useIntimacyItem(targetName, quantity, templateID)` updates `player.friends.intimacy` through the existing `update_relationship_intimacy` function. Exact values from item descriptions are 60 for Chocolate 1302/Hoa Hồng 1303 and 660 for Hộp Chocolate 1315/Bó Hoa Hồng To 32. Rose variants require opposite genders. A source-side friend row is mandatory and is checked before consumption; if a reverse friend row exists, it receives the same delta so both players' lists remain aligned. Success refreshes the consumed stack and re-sends the confirmed `onInitViewImC` payload to each online side. Persistence failure after consumption is reported as non-replayable rather than granting duplicate intimacy.
+
 ## Blacklist → onChooseCharactor "black" wire shape (M7)
 
 Live shape: `[{id:"<rel_id>", name:"<name>", num:"0", otherId:"<other_char_id>", selfId:"<char_id>", type:"2"}]` — all fields are **strings**. The client-facing `type:"2"` is the IM blacklist enum (independent of Go's domain `RelationshipTypeBlack = 1`).

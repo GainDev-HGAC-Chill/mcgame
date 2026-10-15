@@ -18,6 +18,7 @@ import (
 	appquest "mcgame-server/internal/application/quest"
 	appscene "mcgame-server/internal/application/scene"
 	appskill "mcgame-server/internal/application/skill"
+	appsocial "mcgame-server/internal/application/social"
 	domainauth "mcgame-server/internal/domain/auth"
 	"mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/creature"
@@ -50,6 +51,7 @@ type Handler struct {
 	questService            *appquest.Service
 	skillService            *appskill.Service
 	buffService             *appbuff.Service
+	socialService           *appsocial.Service
 	accountRepo             domainauth.AccountRepository
 	settingsRepo            character.InterfaceSettingsRepository
 	sceneManager            *rtmp.SceneManager
@@ -139,6 +141,10 @@ func (h *Handler) SetMWSkillUpdatePusher(fn func(ctx context.Context, conn *rtmp
 
 func (h *Handler) SetPetService(petService *apppet.Service) {
 	h.petService = petService
+}
+
+func (h *Handler) SetSocialService(socialService *appsocial.Service) {
+	h.socialService = socialService
 }
 
 func (h *Handler) SetRTMPServer(server *rtmp.Server) {

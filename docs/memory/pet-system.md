@@ -87,6 +87,8 @@ The key for `onCancelPet` is the character id of the pet owner, because `ViewMan
 
 Login and scene-enter payloads also need `showPetObj` when `showPetId > 0`; sending only `showPetId` is not enough for client rendering after relogin or when another player enters the room.
 
+Summon books enter this same follow contract through item use. Flash additionally gates follow rendering on long-buff 1709 (standard orange summon) or 1979 (advanced purple/orange summon), so consuming a book without adding its timed buff is not sufficient. Exact item-to-buff durations are 2514→1709/1h, 2543→1709/30d, and 2798→1979/30d. Only bound Pets qualify; standard requires `qLevel >= 3`, advanced requires `qLevel >= 2`. The item handler preflights eligibility before consumption, persists follow state, then broadcasts the normal hide/create scene callbacks.
+
 ## Pet Skill Slot Opening Contract
 
 `petOpenSkill` is a direct pet-panel RPC. The Flash client calls `_core.remote.petOpenSkill(petId, index)` and expects callback-driven updates instead of a responder payload.

@@ -1,5 +1,13 @@
 # Item & Inventory System
 
+## Summon, secret-passage, and social target items (2026-10-15)
+
+The three summon-scroll templates are exact-ID type-500 effects, not generic message-only scrolls. Template 2514 grants timed long-buff 1709 for one hour, 2543 grants 1709 for 30 days, and advanced 2798 grants 1979 for 30 days. The handler preflights an owned locked Pet before consumption: standard books require orange `qLevel >= 3`, while the advanced book accepts purple/orange `qLevel >= 2`. It prefers an already active/following eligible Pet, otherwise the lowest Pet ID, persists follow state, then sends scene `onCancelPet(ownerCid)` followed by `onCreatePet({cid,petData})`. This buff is required because Flash `Core.createPlayer()` gates visible follow-Pet rendering on `SHOW_PET_BUFF=1709` or `SHOW_PET_BUFF2=1979`. No eligible Pet means no item consumption.
+
+Templates 128 and 2137 are the exact Sách Dịch Chuyển Mật Đạo routes. Before consumption they reject battle and any group membership, matching item info. Success consumes one and enters Mật Đạo 1 (`map 140106`) at its safe point via the normal scene-leave/reset/enter transport sequence. Copy-map `t=-1` is intentional and bypasses the ordinary transport-scroll public-map gate.
+
+`useIntimacyItem(targetName, quantity, templateID)` handles only 1302/1303/1315/32. Chocolate/Hoa Hồng grant 60 intimacy each; boxed Chocolate/large rose bouquet grant 660 each. Rose variants require opposite genders. The target must already be a friend, validation occurs before consumption, and both directional friend rows are updated when the reverse row exists. The owner stack callback uses a pre-consumption remaining-count snapshot, and online friend panels receive a confirmed `onInitViewImC` list refresh. Templates 724 and 783 are not double-click items: the real target flows remain `addPopNum(targetName,count)` and `delPopNum(targetName,count)`; generic `useItem` leaves them untouched and tells the player to use the target character's Hoa/Trứng Gà controls.
+
 ## Activity reward visibility and utility-bag movement (2026-10-15)
 
 Activity reward handlers must not pass a Go `*item.Item` struct directly to Flash callbacks. `TakeNewGift`, `TakeSPGift`, and `BuySendCombine` now build the popup `onAddItem` notice separately and send a normalized `BuildClientItemDTO` map to `onAddCharactorSlot`; otherwise the item is persisted but the bag can remain visually stale until `bagSort` rebuilds slots. Shop purchases already use before/after stack snapshots and send every changed slot DTO, so that path remains unchanged.

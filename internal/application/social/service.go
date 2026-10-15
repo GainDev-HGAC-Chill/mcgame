@@ -33,6 +33,16 @@ type Service struct {
 	logger       *zap.Logger
 }
 
+type intimacyRepository interface {
+	UpdateIntimacy(ctx context.Context, id int64, intimacy int) error
+}
+
+type IntimacyUpdate struct {
+	SourceTotal int
+	TargetTotal int
+	TargetSaved bool
+}
+
 func NewService(repo social.Repository, infoProvider CharacterInfoProvider, logger *zap.Logger) *Service {
 	return &Service{
 		repo:         repo,
@@ -150,6 +160,96 @@ func (s *Service) IsCharacterOnline(characterID int64) bool {
 
 func (s *Service) GetCharacterName(ctx context.Context, characterID int64) (string, error) {
 	return s.infoProvider.GetCharacterNameByID(ctx, characterID)
+}
+
+func (s *Service) AddFriendIntimacy(ctx context.Context, sourceID, targetID int64, amount int) (IntimacyUpdate, error) {
+	if sourceID <= 0 || targetID <= 0 || sourceID == targetID || amount <= 0 {
+		return IntimacyUpdate{}, pkgerrors.ErrInvalidInput
+	}
+	updater, ok := s.repo.(intimacyRepository)
+	if !ok {
+		return IntimacyUpdate{}, fmt.Errorf("relationship repository does not support intimacy updates")
+	}
+
+	sourceRelationships, err := s.repo.FindFriends(ctx, sourceID)
+	if err != nil {
+		return IntimacyUpdate{}, err
+	}
+	sourceRelationship := findFriendRelationship(sourceRelationships, targetID)
+	if sourceRelationship == nil {
+		return IntimacyUpdate{}, pkgerrors.ErrNotFound
+	}
+	sourceTotal := sourceRelationship.Intimacy + amount
+	if sourceTotal < sourceRelationship.Intimacy {
+		return IntimacyUpdate{}, pkgerrors.ErrInvalidInput
+	}
+	if err := updater.UpdateIntimacy(ctx, sourceRelationship.ID, sourceTotal); err != nil {
+		return IntimacyUpdate{}, err
+	}
+
+	result := IntimacyUpdate{SourceTotal: sourceTotal}
+	targetRelationships, err := s.repo.FindFriends(ctx, targetID)
+	if err != nil {
+		return result, err
+	}
+	targetRelationship := findFriendRelationship(targetRelationships, sourceID)
+	if targetRelationship == nil {
+		return result, nil
+	}
+	targetTotal := targetRelationship.Intimacy + amount
+	if targetTotal < targetRelationship.Intimacy {
+		return result, pkgerrors.ErrInvalidInput
+	}
+	if err := updater.UpdateIntimacy(ctx, targetRelationship.ID, targetTotal); err != nil {
+		return result, err
+	}
+	result.TargetTotal = targetTotal
+	result.TargetSaved = true
+	return result, nil
+}
+
+func (s *Service) PreviewFriendIntimacy(ctx context.Context, sourceID, targetID int64, amount int) (IntimacyUpdate, error) {
+	if sourceID <= 0 || targetID <= 0 || sourceID == targetID || amount <= 0 {
+		return IntimacyUpdate{}, pkgerrors.ErrInvalidInput
+	}
+	sourceRelationships, err := s.repo.FindFriends(ctx, sourceID)
+	if err != nil {
+		return IntimacyUpdate{}, err
+	}
+	sourceRelationship := findFriendRelationship(sourceRelationships, targetID)
+	if sourceRelationship == nil {
+		return IntimacyUpdate{}, pkgerrors.ErrNotFound
+	}
+	sourceTotal := sourceRelationship.Intimacy + amount
+	if sourceTotal < sourceRelationship.Intimacy {
+		return IntimacyUpdate{}, pkgerrors.ErrInvalidInput
+	}
+
+	result := IntimacyUpdate{SourceTotal: sourceTotal}
+	targetRelationships, err := s.repo.FindFriends(ctx, targetID)
+	if err != nil {
+		return IntimacyUpdate{}, err
+	}
+	targetRelationship := findFriendRelationship(targetRelationships, sourceID)
+	if targetRelationship == nil {
+		return result, nil
+	}
+	targetTotal := targetRelationship.Intimacy + amount
+	if targetTotal < targetRelationship.Intimacy {
+		return IntimacyUpdate{}, pkgerrors.ErrInvalidInput
+	}
+	result.TargetTotal = targetTotal
+	result.TargetSaved = true
+	return result, nil
+}
+
+func findFriendRelationship(relationships []*social.Relationship, otherID int64) *social.Relationship {
+	for _, relationship := range relationships {
+		if relationship != nil && relationship.Type == social.RelationshipTypeFriend && relationship.OtherID == otherID {
+			return relationship
+		}
+	}
+	return nil
 }
 
 func (s *Service) AddRelationshipByName(ctx context.Context, characterID int64, otherName string, relType int) (map[string]any, error) {
