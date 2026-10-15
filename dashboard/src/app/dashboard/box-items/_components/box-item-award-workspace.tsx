@@ -541,10 +541,11 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
     useEffect(() => {
         const requestId = ++availableRequestRef.current
 
-        if (
-            boxItemAwardUsesCurrencyOptions(selectedAvailableType) ||
-            boxItemAwardIsExperience(selectedAvailableType)
-        ) {
+		if (
+			boxItemAwardUsesCurrencyOptions(selectedAvailableType) ||
+			boxItemAwardUsesGameCurrencyOptions(selectedAvailableType) ||
+			boxItemAwardIsExperience(selectedAvailableType)
+		) {
             setAvailableLoading(false)
             setAvailableResults(
                 createStaticAvailableAwards(

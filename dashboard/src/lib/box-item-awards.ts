@@ -86,6 +86,7 @@ export const BOX_ITEM_GAME_CURRENCY_OPTIONS = [
     { value: "238", label: "Điểm PVE Pet (pvePoint)" },
     { value: "239", label: "Điểm Ấn Thạch (stoneSealPoint)" },
     { value: "240", label: "Điểm Tinh Cung (starPnt)" },
+    { value: "241", label: "Điểm Thần Tu / Linh Lực (spirituality)" },
 ] as const
 
 const BOX_ITEM_AWARD_QUALITY_COLOR_LABELS = [
