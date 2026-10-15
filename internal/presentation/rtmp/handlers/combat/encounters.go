@@ -115,7 +115,13 @@ func (h *Handler) CheckBattleOnMove(ctx *rtmp.RPCContext, args []interface{}) (i
 			}
 		}
 	}
-
+	if ctx.Method == "cb" && !hasStationaryEncounter {
+		return map[string]interface{}{
+			"success":     true,
+			"inBattle":    false,
+			"encountered": false,
+		}, nil
+	}
 	if hasNoEncounter {
 		return map[string]interface{}{
 			"success":     true,
@@ -139,7 +145,7 @@ func (h *Handler) CheckBattleOnMove(ctx *rtmp.RPCContext, args []interface{}) (i
 		}
 	}
 	if hasCrazyEncounter ||
-		(hasStationaryEncounter && ctx.Method == "stationaryEncounterTick") {
+    	(hasStationaryEncounter && ctx.Method == "cb") {
 		encounterRate = 1.0
 	}
 	if encounterRate <= 0 {
@@ -280,7 +286,15 @@ func (h *Handler) CheckBattleOnMove(ctx *rtmp.RPCContext, args []interface{}) (i
 		"encountered": false,
 	}, nil
 }
-
+func (h *Handler) CheckBattleAtStill(
+    ctx *rtmp.RPCContext,
+    args []interface{},
+) (interface{}, error) {
+    return h.CheckBattleOnMove(
+        ctx,
+        []interface{}{0, 0},
+    )
+}
 func normalizeEncounterRate(raw float64) float64 {
 	if raw <= 0 {
 		return 0

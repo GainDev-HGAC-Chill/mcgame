@@ -112,6 +112,7 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("clickBoss", h.HitNpc)
 	dispatcher.Register("clickNpc", h.HitNpc)
 	dispatcher.Register("cbom", h.CheckBattleOnMove)
+	dispatcher.Register("cb", h.CheckBattleAtStill)
 	dispatcher.Register("battleFieldGetInfo", h.GetBattleInfo)
 	dispatcher.Register("battlePlayEnd", h.EndBattle)
 	dispatcher.Register("battleReplayEnd", h.BattleReplayEnd)

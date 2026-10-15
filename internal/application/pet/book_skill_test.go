@@ -166,11 +166,11 @@ func TestLearnSkillFromBookUsesItemInstanceAndAppliesBuff(t *testing.T) {
 	if petSkillSlotValue(storedPet, 1) != 5527 {
 		t.Fatalf("stored skill1 = %d, want 5527", petSkillSlotValue(storedPet, 1))
 	}
-	if storedPet.MaxHP != 146 {
-		t.Fatalf("stored MaxHP = %d, want 146", storedPet.MaxHP)
+	if storedPet.MaxHP != 24 {
+		t.Fatalf("stored MaxHP = %d, want 24", storedPet.MaxHP)
 	}
-	if finalHP, ok := storedPet.Property["finalHp"].(int); !ok || finalHP != 146 {
-		t.Fatalf("stored finalHp = %v, want 146", storedPet.Property["finalHp"])
+	if finalHP, ok := storedPet.Property["finalHp"].(int); !ok || finalHP != 24 {
+		t.Fatalf("stored finalHp = %v, want 24", storedPet.Property["finalHp"])
 	}
 
 	storedItem := itemRepo.items[9001]

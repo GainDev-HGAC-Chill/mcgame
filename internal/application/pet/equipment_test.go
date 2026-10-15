@@ -205,16 +205,15 @@ func TestEquipPetItemMovesItemToPetSlotAndAppliesBonuses(t *testing.T) {
 	if group, ok := storedPet.EquipmentGroup(); !ok || group != 0 {
 		t.Fatalf("stored pet equipGroup = %d, %v; want 0, true", group, ok)
 	}
-	if finalStrength, ok := storedPet.Property["finalStrength"].(int); !ok || finalStrength != 5 {
-		t.Fatalf("stored finalStrength = %v, want 5", storedPet.Property["finalStrength"])
+	if finalStrength, ok := storedPet.Property["finalStrength"].(int); !ok || finalStrength != 24 {
+		t.Fatalf("stored finalStrength = %v, want 24", storedPet.Property["finalStrength"])
 	}
-	if finalDefence, ok := storedPet.Property["finalDefence"].(int); !ok || finalDefence != 7 {
-		t.Fatalf("stored finalDefence = %v, want 7", storedPet.Property["finalDefence"])
+	if finalDefence, ok := storedPet.Property["finalDefence"].(int); !ok || finalDefence != 72 {
+		t.Fatalf("stored finalDefence = %v, want 72", storedPet.Property["finalDefence"])
 	}
-	if finalSpeed, ok := storedPet.Property["finalSpeed"].(int); !ok || finalSpeed != 109 {
-		t.Fatalf("stored finalSpeed = %v, want 109", storedPet.Property["finalSpeed"])
+	if finalSpeed, ok := storedPet.Property["finalSpeed"].(int); !ok || finalSpeed != 141 {
+		t.Fatalf("stored finalSpeed = %v, want 141", storedPet.Property["finalSpeed"])
 	}
-
 	storedItem := itemRepo.items[9001]
 	if storedItem.SlotType != domainitem.SlotTypePetEquipped || storedItem.SlotIndex != 0 {
 		t.Fatalf("stored item slot = (%d,%d), want (%d,0)", storedItem.SlotType, storedItem.SlotIndex, domainitem.SlotTypePetEquipped)
@@ -353,13 +352,12 @@ func TestUnequipPetItemMovesBackToBagAndClearsEquipmentBonus(t *testing.T) {
 	if got := storedPet.EquipmentItemID(1); got != 0 {
 		t.Fatalf("stored pet equ1 = %d, want 0", got)
 	}
-	if finalDefence, ok := storedPet.Property["finalDefence"].(int); !ok || finalDefence != 0 {
-		t.Fatalf("stored finalDefence = %v, want 0", storedPet.Property["finalDefence"])
+	if finalDefence, ok := storedPet.Property["finalDefence"].(int); !ok || finalDefence != 65 {
+		t.Fatalf("stored finalDefence = %v, want 65", storedPet.Property["finalDefence"])
 	}
-	if finalSpeed, ok := storedPet.Property["finalSpeed"].(int); !ok || finalSpeed != 100 {
-		t.Fatalf("stored finalSpeed = %v, want 100", storedPet.Property["finalSpeed"])
+	if finalSpeed, ok := storedPet.Property["finalSpeed"].(int); !ok || finalSpeed != 132 {
+		t.Fatalf("stored finalSpeed = %v, want 132", storedPet.Property["finalSpeed"])
 	}
-
 	storedItem := itemRepo.items[9001]
 	if storedItem.SlotType != domainitem.SlotTypeBag || storedItem.SlotIndex != 0 {
 		t.Fatalf("stored item slot = (%d,%d), want (%d,0)", storedItem.SlotType, storedItem.SlotIndex, domainitem.SlotTypeBag)

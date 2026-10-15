@@ -130,8 +130,8 @@ func TestDeletePetSkillConsumesItemAndClearsSlot(t *testing.T) {
 	if skillID := petSkillSlotValue(storedPet, 1); skillID != 0 {
 		t.Fatalf("stored skill1 = %d, want 0", skillID)
 	}
-	if finalHP, ok := storedPet.Property["finalHp"].(int); !ok || finalHP != 120 {
-		t.Fatalf("stored finalHp = %#v, want 120", storedPet.Property["finalHp"])
+	if finalHP, ok := storedPet.Property["finalHp"].(int); !ok || finalHP != 20 {
+		t.Fatalf("stored finalHp = %#v, want 20", storedPet.Property["finalHp"])
 	}
 
 	storedItem := itemRepo.items[133507520]

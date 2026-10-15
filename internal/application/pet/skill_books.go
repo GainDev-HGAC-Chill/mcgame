@@ -50,6 +50,8 @@ type PetSkillBookResult struct {
 	SlotKey        string
 	SkillID        int
 	RemainingStack int
+	ConsumedItemID  int64
+	ConsumedItemSID int
 }
 
 type petSkillRequirements struct {
@@ -109,7 +111,7 @@ func (s *Service) LearnSkillFromBook(ctx context.Context, charID int64, petID in
 	if err := s.petRepo.Save(ctx, p); err != nil {
 		return nil, err
 	}
-
+	consumedItemSID := bookItem.CalculateSID()
 	remainingStack, err = s.consumePetSkillBookItem(ctx, bookItem)
 	if err != nil {
 		if rollbackErr := s.petRepo.Save(ctx, originalPet); rollbackErr != nil && s.logger != nil {
@@ -135,6 +137,8 @@ func (s *Service) LearnSkillFromBook(ctx context.Context, charID int64, petID in
 		SlotKey:        petSkillSlotKey(slot),
 		SkillID:        skillTemplate.GetID(),
 		RemainingStack: remainingStack,
+		ConsumedItemID:  bookItem.ID,
+		ConsumedItemSID: consumedItemSID,
 	}, nil
 }
 

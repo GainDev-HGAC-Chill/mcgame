@@ -247,9 +247,28 @@ func (h *Handler) PetBook(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		return rtmp.ErrorToResponse(err), nil
 	}
 
-	_ = ctx.Connection.SendCallback("onUpdatePet", float64(result.Pet.ID), result.SlotKey, float64(result.SkillID))
-	sendPetPropRefresh(ctx, result.Pet)
+	if result.RemainingStack == 0 {
+		_ = ctx.Connection.SendCallback(
+			"onDelCharactorSlot",
+			float64(result.ConsumedItemID),
+			float64(result.ConsumedItemSID),
+		)
+	} else {
+		_ = ctx.Connection.SendCallback(
+			"onUpChaSlotStackNum",
+			float64(result.ConsumedItemID),
+			float64(result.RemainingStack),
+			float64(result.ConsumedItemSID),
+		)
+	}
 
+	_ = ctx.Connection.SendCallback(
+		"onUpdatePet",
+		float64(result.Pet.ID),
+		result.SlotKey,
+		float64(result.SkillID),
+	)
+	sendPetPropRefresh(ctx, result.Pet)
 	h.logger.Info("Pet learned skill from book",
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID),
