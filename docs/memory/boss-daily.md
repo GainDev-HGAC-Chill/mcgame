@@ -55,12 +55,9 @@ Each daily boss in `BossDailyConfigs` (`internal/domain/activity/boss_config.go`
   `bossDailyBattle(<daily_id>)`.
 - **World row** (e.g. id 706): `type=10` (`NPCTypeBattle`), `pos_map_id` is a real map,
   spawns the un-suffixed world creature template via `data_tbl_npc_creature.nid=<world_id>`.
-  Fought by clicking the NPC on the live map — but only when an active quest matches it;
-  otherwise `ClickNpc` falls through to `npcFuncInit state=-1`.
+  Fought by clicking the NPC on the live map through the schedule-boss path.
 
-Click-to-fight without a quest is **not implemented** today: world bosses with wired
-`data_tbl_npc_creature` rows (NPC 706 → cid 348, etc.) cannot trigger their encounter from
-a plain click. See `docs/research/2026-05-14_01_BOSS_DAILY_NPC_MAPPING_RESEARCH.md` for the
-full 58-row table and the four daily-only entries (2218 Thủy Tinh Bào lv55, 2275 Mehdi
-Urboss, 2567 Buli, 2568 Bula) that have no world counterpart, plus the `WildList` cluster
-whose world rows also live on `pos_map_id=200`.
+The server registry currently contains all 79 handbook IDs. Every ID has a valid five-row
+`TBL_NPC_CREATURE` encounter and resolves to a canonical `schedule_boss.nid`. Victory uses
+the shared curated loot seed. Handbook normal `num=2` entries use the ground reward profile,
+normal `num=4` entries use flying, and `isSuper=1` entries use mythic.

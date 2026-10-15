@@ -2,7 +2,7 @@
 
 // Boss loot rolling at battle end.
 // Two trigger paths feed the same calculator:
-//   schedule path - enemy.EntityID matches a schedule_boss row (tier read from config)
+//   schedule path - battle.BossCtx preserves the canonical schedule NID
 //   daily path    - battle.BossCtx populated by the daily handler (tier nil)
 // Rate scale and quest-gating semantics mirror calculateCreatureLootDrops in rewards.go.
 package combat

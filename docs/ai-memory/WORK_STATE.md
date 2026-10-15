@@ -2,6 +2,7 @@
 
 ## Mục tiêu phiên
 
+- Triển khai kế hoạch đã duyệt sửa toàn bộ boss bản đồ, phần thưởng Sổ Tay Ma Thú và boss loot theo mô tả/cấp boss.
 - Hoàn tất bộ nhớ AI và bốn lỗi: găng thu thập, túi cứu thương HP/MP, timed transport disconnect, Pet fusion quality/tooltip/random.
 - Tiếp tục nhóm lỗi mới: callback/fusion Pet, nâng skill Pet, auto-skill, ranking, Quest Admin, xóa nhân vật và túi chế tạo.
 - Kiểm tra toàn bộ skill chủ động Pet theo target count, damage/heal và effect so với mô tả.
@@ -12,6 +13,9 @@
 
 ## Đã hoàn thành
 
+- Boss map implementation bước 1: schedule chỉ quản lý `ground/flying` normal, có validate map/channel/alive; scene có thể inject boss registry bị thiếu khỏi static map; `clickNpc` được chuyển sang shared combat path cho schedule boss, dựng toàn roster `TBL_NPC_CREATURE`, gắn `BossCtx` schedule và kill hook ưu tiên NID canonical.
+- Boss reward bước 2: đã thêm generator `cmd/seed-boss-loot` và sinh `supabase/seeds/data_tbl_schedule_boss_loot.sql` gồm 862 reward row phủ 150 registry boss theo profile ground/flying/mythic và sáu dải level. Generator đã validate item/equipment ID với local catalog. Chưa apply seed vào local DB tại checkpoint này.
+- Boss reward bước 3: đã apply seed vào compose DB local sau checkpoint; xác minh 150/150 boss có 3–7 loot row, tổng 862 và 0 reference item/equipment lỗi. Không chạm player data, chưa restart/deploy.
 - Tạo và xác minh `docs/ai-memory/`; bổ sung workflow vào `CLAUDE.md`/`AGENTS.md` symlink.
 - `clickShop(275)` tra NPC và mở shop 32; không mua/phát item trực tiếp.
 - `buyBloodBag` validate `{bt,bn}`, cap/giá Gold, transaction DB chung Gold + reserve, callback và login `ep`.
@@ -32,6 +36,10 @@
 
 ## Kiểm tra đã chạy
 
+- Sau bước battle routing boss: domain/application scheduleboss, application combat, scene/NPC/combat handler packages đều PASS.
+- `go test ./cmd/seed-boss-loot` PASS; generator chạy thành công với local compose catalog và sinh 862 row.
+- Targeted boss packages + generator PASS; targeted `go vet` PASS; `go build -o bin/seed-boss-loot.exe ./cmd/seed-boss-loot` và `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; scoped/full `git diff --check` sạch (chỉ có cảnh báo line-ending).
+- Broad `go test ./internal/... -count=1` không có lỗi boss; còn lỗi ngoài phạm vi ở item award quality, Quest registry 234-vs-227, 2 chat-stat, và một center timing test đã PASS ngay khi chạy riêng.
 - Focused bloodbag/shop/statfeature/item/transport/equip/pet/fusion/domain/cache/postgres tests PASS.
 - Full shop và item/pet handler packages PASS.
 - Targeted `go vet` PASS.
@@ -63,12 +71,15 @@
 ## Runtime/database
 
 - `bin/gameserver` đã build bản mới; container `mcgame-server` chưa restart và vẫn cần deploy được cho phép.
+- Compose DB local có 862 row `data.data_tbl_boss_loot` từ seed mới; gameserver đang chạy chưa reload cache nên chưa dùng các row này. Không thay đổi bảng dữ liệu người chơi.
 - Không có migration mới: blood bag dùng bảng wallet/stat-feature hiện có.
 - Không live-test và không thay đổi dữ liệu người chơi.
 - Nhóm voucher/Quest Admin mới không có migration hoặc thay đổi dữ liệu; chưa deploy/restart/smoke-test.
 
 ## Rủi ro/chưa xác minh
 
+- Audit boss 2026-10-16 xác nhận 71 boss bản đồ và 79 boss Sổ Tay đều có roster hợp lệ, nhưng `data_tbl_boss_loot` có 0 dòng. `clickNpc` bị NPC handler ghi đè nên boss type 10 không bắt đầu trận khi click; 13 boss mythic map dùng `pos_map_id=200` nên không xuất hiện; roster map boss và định danh kill/loot hiện cũng sai. Research tại `docs/research/2026-10-16_01_MAP_BOSS_HANDBOOK_REWARD_AUDIT.md`; plan `docs/plans/2026-10-16_01_MAP_BOSS_HANDBOOK_REWARDS.md` đã được operator duyệt, chưa sửa code hoặc áp seed.
+- Audit boss 2026-10-16 xác nhận 71 boss bản đồ và 79 boss Sổ Tay đều có roster hợp lệ. Research tại `docs/research/2026-10-16_01_MAP_BOSS_HANDBOOK_REWARD_AUDIT.md`; plan `docs/plans/2026-10-16_01_MAP_BOSS_HANDBOOK_REWARDS.md` đã triển khai. Code battle/spawn và reward seed hoàn tất, local DB đã apply; chưa restart/deploy hoặc Flash smoke-test nên runtime hiện tại vẫn có thể đang dùng binary/cache loot cũ.
 - Cần Flash smoke-test cả bốn luồng; riêng transport log cũ chứng minh client disconnect nhưng không có stack trace Flash nên exception cụ thể vẫn UNKNOWN.
 - Chưa kiểm chứng tự động tiêu hao reserve blood bag sau battle; RPC `useBloodBag` cũ ngoài phạm vi mua và cần contract riêng trước khi đổi.
 - Shop purchase chung vẫn chưa atomic xuyên DB giữa ví và inventory; không liên quan transaction blood-bag mới.
@@ -84,12 +95,13 @@
 
 ## Bước tiếp theo
 
-1. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
-2. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
-3. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
-4. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
-5. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
-6. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
+1. Khi được operator cho phép deploy/restart: restart riêng gameserver để load binary và cache 862 loot row, rồi Flash smoke-test đại diện ground normal, flying normal, mythic Kênh 1 và Sổ Tay normal/mythic; không dùng Quest 166, Pet Nấm Lục hoặc item/người chơi thật.
+2. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
+3. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
+4. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
+5. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
+6. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
+7. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 

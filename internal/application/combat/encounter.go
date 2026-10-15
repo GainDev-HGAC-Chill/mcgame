@@ -253,6 +253,85 @@ func (s *Service) BuildNPCTemplateForCharacter(ctx context.Context, charID int64
 	return npcTemplate, nil
 }
 
+func (s *Service) IsScheduleBoss(npcID int) bool {
+	if s.scheduleBoss == nil {
+		return false
+	}
+	_, ok := s.scheduleBoss.LookupMapBoss(npcID)
+	return ok
+}
+
+func (s *Service) BuildNPCEncounterTemplates(npcID int) ([]NPCTemplateData, error) {
+	gm := s.getGameDataManager()
+	if gm == nil {
+		return nil, pkgerrors.ErrNotFound
+	}
+	rows := gm.GetNpcCreaturesByNid(npcID)
+	if len(rows) == 0 {
+		return nil, pkgerrors.ErrNotFound
+	}
+	templates := make([]NPCTemplateData, 0, len(rows))
+	for _, row := range rows {
+		cid := int(row.Cid)
+		creature := gm.GetCreature(cid)
+		if creature == nil {
+			return nil, pkgerrors.ErrNotFound
+		}
+		level := int(row.Level)
+		if level <= 0 {
+			level = int(creature.UseLv)
+		}
+		if level <= 0 {
+			return nil, pkgerrors.ErrInvalidInput
+		}
+		template := CalculateCreatureStats(creature, level)
+		template.ID = cid
+		template.Exp = int(row.Exp)
+		template.ExpMulti = row.ExpMulti
+		template.BossFlag = int(row.BossFlag)
+		templates = append(templates, template)
+	}
+	return templates, nil
+}
+
+func (s *Service) StartScheduleBossBattleWithRoster(ctx context.Context, charIDs []int64, npcID, mapID, channelID int, playerInFront bool) (*combat.Battle, error) {
+	if s.scheduleBoss == nil || len(charIDs) == 0 {
+		return nil, pkgerrors.ErrNotFound
+	}
+	if mapID <= 0 {
+		char, err := s.charRepo.FindByID(ctx, charIDs[0])
+		if err != nil {
+			return nil, err
+		}
+		mapID = char.MapID
+	}
+	allowed, err := s.scheduleBoss.CanEngage(ctx, npcID, mapID, channelID)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, pkgerrors.ErrNotFound
+	}
+	config, ok := s.scheduleBoss.LookupMapBoss(npcID)
+	if !ok {
+		return nil, pkgerrors.ErrNotFound
+	}
+	templates, err := s.BuildNPCEncounterTemplates(npcID)
+	if err != nil {
+		return nil, err
+	}
+	battle, err := s.StartPVEBattleWithRoster(ctx, charIDs, mapID, channelID, templates, playerInFront)
+	if err != nil {
+		return nil, err
+	}
+	battle.BossCtx = &combat.BossContext{
+		BossNID: npcID,
+		Source:  "schedule",
+		Tier:    string(config.Tier),
+	}
+	return battle, nil
+}
+
 func (s *Service) BuildCreatureTemplateForCharacter(ctx context.Context, charID int64, creatureID int) (NPCTemplateData, error) {
 	char, err := s.charRepo.FindByID(ctx, charID)
 	if err != nil {

@@ -144,11 +144,24 @@ func (s *Service) dispatchScheduleBossKills(battle *combat.Battle) {
 		nid int
 	}
 	targets := make([]killTarget, 0)
+	seen := make(map[int]struct{})
+	if battle.BossCtx != nil && battle.BossCtx.Source == "schedule" && battle.BossCtx.BossNID > 0 {
+		targets = append(targets, killTarget{nid: battle.BossCtx.BossNID})
+		seen[battle.BossCtx.BossNID] = struct{}{}
+	}
 	for _, e := range battle.GetParticipantsBySide(combat.SideEnemy) {
 		if e == nil || e.EntityType != combat.ParticipantTypeCreature {
 			continue
 		}
-		targets = append(targets, killTarget{nid: int(e.EntityID)})
+		nid := int(e.EntityID)
+		if _, ok := seen[nid]; ok {
+			continue
+		}
+		if _, ok := s.scheduleBoss.LookupMapBoss(nid); !ok {
+			continue
+		}
+		targets = append(targets, killTarget{nid: nid})
+		seen[nid] = struct{}{}
 	}
 	if len(targets) == 0 {
 		return

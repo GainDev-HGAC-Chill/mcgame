@@ -1,12 +1,12 @@
 # Schedule Boss System
 
-Per-channel respawn loop for the 35 "Các kênh" ground bosses (NPC 706–1556 from `frontend/s/sv/profile/activity.xml`). Distinct from `bossDailyBattle` (the handbook system documented at `memory/boss-daily.md`).
+Per-channel respawn loop and map engagement path for 71 world bosses: 48 ground entries from `activity.xml` and 23 flying entries from the NPC catalog. Distinct from `bossDailyBattle` (the handbook system documented at `memory/boss-daily.md`).
 
 Loot drops for schedule kills go through the shared `data_tbl_boss_loot` registry — see `memory/boss-loot.md`. `data_tbl_schedule_boss` is now the canonical boss key for that system: a nullable `daily_boss_id` column was added, and `kind='daily_only'` rows can be inserted for daily IDs that have no world-map twin.
 
 ## Tables
 
-- `data.data_tbl_schedule_boss` — static config seeded by `cmd/seed-schedule-bosses` from `frontend/s/sv/profile/activity.xml`. 48 rows on a fresh seed: 35 normal-tier (`LINE="Các kênh"`) + 13 mythic-tier (`LINE="Kênh 1"`). Mythic / special tier rows are present but not subject to respawn — the scheduler and the kill hook both filter on `tier = 'normal'`.
+- `data.data_tbl_schedule_boss` — canonical registry seeded by `cmd/seed-schedule-bosses`. Current seed has 150 rows: 71 map bosses and 79 handbook-only rows. The 58 normal map bosses participate in persisted respawn; 13 mythic map bosses are permanent channel-scoped encounters; `daily_only` never bootstraps or respawns.
 - `player.schedule_boss_state` — runtime state keyed by `(nid, channel_id)`. `is_alive=false` + `next_spawn_at` are the two fields the scheduler watches; a partial index `schedule_boss_state_due_idx` covers `next_spawn_at where not is_alive`.
 
 ## DB access (functions, not raw SQL)
@@ -51,7 +51,7 @@ Layer-3 daily-encounter rows (`type=19, pos_map_id=200`: 2221, 2223, 2226, …, 
 
 ## Kill hook
 
-`internal/application/combat/service.go:EndBattle` — on PVE victory with `battle.ChannelID > 0` and `s.scheduleBoss != nil`, iterates enemy participants; for each `ParticipantTypeCreature` whose `EntityID` is a schedule boss, calls `Service.OnBossKilled`. `OnBossKilled` is idempotent (only `MarkKilled`s alive rows). Non-schedule-boss creature kills are no-ops at the service layer (the tier check rejects them).
+`internal/application/combat/service.go:EndBattle` — map-boss battles carry `BossCtx{BossNID, Source:"schedule", Tier}` because enemy `EntityID` is the creature CID, not the NPC NID. On player victory the kill hook prefers this canonical context, deduplicates it, and calls `Service.OnBossKilled`. `OnBossKilled` remains idempotent and applies only to respawning normal map bosses.
 
 ## Channel propagation
 
@@ -64,7 +64,9 @@ Reuses existing client hooks in `CallBack.as`:
 - `onBossOn(Object)` — sprite appears on scene.
 - `onBossOff(int nid)` — sprite vanishes.
 
-No new RPC was added. Initial scene join continues to flow through `onCreateNpcs`. The scene handler (`internal/presentation/rtmp/handlers/scene/world.go`) filters out dead schedule bosses via `Service.IsAlive` before emitting the NPC list.
+No new RPC was added. Initial scene join continues through `onCreateNpcs`. The scene handler filters dead normal bosses and injects registry-backed mythic bosses whose static NPC row uses sentinel `pos_map_id=200`; `channel_scope` is enforced before emit. Current catalogs use `all` and `channel:1`.
+
+All map bosses currently use Flash NPC type 10. Flash therefore sends `clickNpc` for direct clicks and `hitNpc` after approach. The NPC handler delegates schedule NIDs to the combat handler so both wires share the same fail-closed path. The combat service validates map/channel/alive state, builds the complete `TBL_NPC_CREATURE` roster, and never falls back to a generic level-10 enemy for a recognized schedule boss.
 
 ## Config
 
@@ -72,12 +74,10 @@ No new RPC was added. Initial scene join continues to flow through `onCreateNpcs
 
 ## Bootstrap
 
-`internal/application/scheduleboss/bootstrap.go:Bootstrap(ctx, state, configs, channelIDs, clock)` — runs once on server start. Iterates the explicit `channelIDs` slice (built in `cmd/gameserver/main.go` from `cfg.Gateway.Lines[].ID`). For every (TierNormal config × channelID) pair, if no state row exists, inserts `is_alive=false, next_spawn_at = boot_time + Cooldown(level, kind)`. Existing rows are left alone (idempotent across restarts). With a 3-line gateway and 35 normal bosses, expect 35 × 3 = 105 state rows; with 7 lines, 35 × 7 = 245.
+`internal/application/scheduleboss/bootstrap.go:Bootstrap(ctx, state, configs, channelIDs, clock)` — runs once on server start. Iterates the explicit `channelIDs` slice and inserts missing state only for active normal `ground|flying` configs. Existing rows are left alone. Current expected state count is `58 × channel_count`; stale historical `daily_only` rows may remain in the table but are ignored by bootstrap, scheduler, scene visibility, engagement, and kill handling.
 
 ## Open follow-ups
 
-- Flying-boss reclassification (SQL update on `kind`).
 - Anti-zerg / damage attribution (only the first character participant currently gets `last_killer_id`).
-- Drop overrides for schedule bosses (currently inherits whatever `data_tbl_npc_creature` provides).
 - Admin RPC to force-spawn / force-kill a boss.
 - Optional Info-level log in `Scheduler.tickOnce` per spawn for ops observability.

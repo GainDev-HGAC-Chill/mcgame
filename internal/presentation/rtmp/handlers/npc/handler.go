@@ -52,6 +52,7 @@ type Handler struct {
 	herbTaskMu          sync.Mutex
 	herbTasks           map[uint32]*herbTask
 	groupStateRefresher func(ctx context.Context, groupID int64)
+	scheduleBossClick   rtmp.HandlerFunc
 	logger              *zap.Logger
 }
 
@@ -116,6 +117,10 @@ func (h *Handler) SetRTMPServer(rtmpServer *rtmp.Server) {
 
 func (h *Handler) SetPresenceStore(store *redisstore.SocialPresenceStore) {
 	h.presenceStore = store
+}
+
+func (h *Handler) SetScheduleBossClickHandler(handler rtmp.HandlerFunc) {
+	h.scheduleBossClick = handler
 }
 
 func (h *Handler) sendSceneResetCallbacks(conn *rtmp.Connection) error {

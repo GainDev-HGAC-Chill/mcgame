@@ -37,7 +37,13 @@ func newMemStateRepo() *memStateRepo {
 
 func (m *memStateRepo) Upsert(context.Context, domain.BossState) error { return nil }
 
-func (m *memStateRepo) Get(context.Context, int, int) (*domain.BossState, error) { return nil, nil }
+func (m *memStateRepo) Get(_ context.Context, nid, ch int) (*domain.BossState, error) {
+	alive, ok := m.alive[domain.BossKey{NID: nid, ChannelID: ch}]
+	if !ok {
+		return nil, nil
+	}
+	return &domain.BossState{NID: nid, ChannelID: ch, IsAlive: alive}, nil
+}
 
 func (m *memStateRepo) FetchDueSpawns(context.Context, time.Time) ([]domain.BossState, error) {
 	return m.due, nil
@@ -94,5 +100,62 @@ func TestOnBossKilled_AppliesCooldown(t *testing.T) {
 	}
 	if !got.NextSpawnAt.Equal(now.Add(8 * time.Hour)) {
 		t.Fatalf("next_spawn_at = %s; want now+8h", got.NextSpawnAt)
+	}
+}
+
+func TestCanEngageRequiresMapChannelAndAliveState(t *testing.T) {
+	cfg := domain.BossConfig{NID: 706, MapID: 3, Kind: domain.Ground, Tier: domain.TierNormal, ChannelScope: "all", IsActive: true}
+	state := newMemStateRepo()
+	state.alive[domain.BossKey{NID: 706, ChannelID: 2}] = true
+	svc := New(state, NewConfigCache([]domain.BossConfig{cfg}), nil, nil, nil)
+
+	tests := []struct {
+		name    string
+		mapID   int
+		channel int
+		want    bool
+	}{
+		{"valid", 3, 2, true},
+		{"wrong map", 4, 2, false},
+		{"dead channel", 3, 3, false},
+		{"invalid channel", 3, 0, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := svc.CanEngage(context.Background(), 706, test.mapID, test.channel)
+			if err != nil {
+				t.Fatalf("CanEngage: %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("CanEngage() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestVisibleBossesForSceneIncludesScopedMythicAndAliveNormal(t *testing.T) {
+	configs := []domain.BossConfig{
+		{NID: 706, MapID: 3, Kind: domain.Ground, Tier: domain.TierNormal, ChannelScope: "all", IsActive: true},
+		{NID: 169, MapID: 3, Kind: domain.Ground, Tier: domain.TierMythic, ChannelScope: "channel:1", IsActive: true},
+		{NID: 2204, MapID: 3, Kind: domain.Kind("daily_only"), Tier: domain.TierNormal, ChannelScope: "all", IsActive: true},
+	}
+	state := newMemStateRepo()
+	state.aliveList[1] = []domain.BossState{{NID: 706, ChannelID: 1, IsAlive: true}}
+	svc := New(state, NewConfigCache(configs), nil, nil, nil)
+
+	visible, err := svc.VisibleBossesForScene(context.Background(), 3, 1)
+	if err != nil {
+		t.Fatalf("VisibleBossesForScene: %v", err)
+	}
+	if len(visible) != 2 || visible[0].NID != 706 || visible[1].NID != 169 {
+		t.Fatalf("visible = %+v, want normal 706 and mythic 169", visible)
+	}
+
+	visible, err = svc.VisibleBossesForScene(context.Background(), 3, 2)
+	if err != nil {
+		t.Fatalf("VisibleBossesForScene channel 2: %v", err)
+	}
+	if len(visible) != 0 {
+		t.Fatalf("channel 2 visible = %+v, want none", visible)
 	}
 }

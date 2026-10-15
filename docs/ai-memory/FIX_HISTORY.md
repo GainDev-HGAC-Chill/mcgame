@@ -1,5 +1,14 @@
 # MCGame Fix History
 
+## FIX-2026-10-16-23 — Boss bản đồ và thưởng Sổ Tay Ma Thú
+
+- Hiện tượng: boss bản đồ click trực tiếp không bắt đầu trận; 13 boss Kênh 1 không xuất hiện; boss map có thể dựng sai quái/level; toàn bộ boss map và Sổ Tay không có loot riêng.
+- Nguyên nhân: NPC boss hiện dùng type 10 nên Flash gửi `clickNpc`, nhưng NPC handler đăng ký sau đã ghi đè combat route. Static row của 13 mythic boss dùng sentinel map 200. Battle cũ tra `cid == npcID` thay vì roster `TBL_NPC_CREATURE.nid`, đồng thời mất schedule NID khi enemy giữ creature CID. `data_tbl_boss_loot` trống hoàn toàn và `daily_only` normal còn bị bootstrap thành schedule state.
+- Sửa: route `clickNpc`/`hitNpc` vào shared schedule-boss path; validate map/channel/alive fail-closed; dựng đủ roster catalog và gắn canonical `BossCtx`; inject mythic boss theo registry/channel scope; loại `daily_only` khỏi scheduler. Thêm generator/seed thưởng theo ground/flying/mythic và sáu dải level.
+- Dữ liệu local: đã apply 862 loot row vào compose DB; phủ 150/150 registry boss, 3–7 row/boss, 0 item/equipment reference lỗi. Không thay đổi player data.
+- Test: focused scheduleboss/combat/scene/NPC/generator PASS; targeted vet và build gameserver/generator PASS. Broad internal không có lỗi boss; còn baseline ngoài phạm vi ở item award quality, Quest registry, chat stat và một flaky center test đã PASS khi chạy riêng.
+- Trạng thái: CODE_FIXED/LOCAL_DATA_APPLIED — chưa restart/deploy hoặc Flash smoke-test.
+
 ## FIX-2026-10-15-22 — Sách triệu hồi, Mật Đạo và vật phẩm xã hội
 
 - Hiện tượng: Sách Triệu Hồi bị tiêu hao nhưng không có Pet đi sau; Sách Dịch Chuyển Mật Đạo bị tiêu hao nhưng không đổi map; Hoa Hồng/Chocolate bị tiêu hao nhưng không tăng thân mật; người dùng nhấp đôi Trứng Gà nhưng không thấy tác dụng.

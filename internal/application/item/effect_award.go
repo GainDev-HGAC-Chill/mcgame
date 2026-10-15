@@ -455,7 +455,7 @@ func normalizePetAwardQuality(quality float64) float64 {
 	if quality <= 0 {
 		return 0
 	}
-	return quality
+	return quality / 10
 }
 
 func (h *awardEffectHandler) grantTitleAward(ctx context.Context, charID int64, titleID int) (*GrantedTitleResult, error) {
@@ -540,10 +540,22 @@ func (h *awardEffectHandler) grantBuffAward(ctx context.Context, charID int64, b
 }
 
 func (h *awardEffectHandler) grantGameCurrencyAward(char *character.Character, currencyType int, amount int) error {
-	if char == nil {
-		return fmt.Errorf("character not available")
-	}
-	return char.AddCurrency(currencyType, amount)
+    if char == nil {
+        return fmt.Errorf("character not available")
+    }
+
+    if currencyType == character.CurrencySpirituality {
+        accessor, ok := character.LookupGameKVAccessor(currencyType)
+        if !ok {
+            return fmt.Errorf("unsupported currency type: %d", currencyType)
+        }
+
+        current := accessor.Get(char)
+        accessor.Set(char, current+int64(amount))
+        return nil
+    }
+
+    return char.AddCurrency(currencyType, amount)
 }
 
 func (h *awardEffectHandler) grantMedalAward(ctx context.Context, charID int64, tid, count int) (bool, int, int, error) {

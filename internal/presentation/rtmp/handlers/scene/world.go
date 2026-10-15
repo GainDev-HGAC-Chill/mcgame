@@ -55,6 +55,35 @@ func (h *Handler) buildNPCList(ctx context.Context, _ int64, mapID, channelID in
 	if err != nil {
 		return nil, err
 	}
+	if h.scheduleBoss != nil && h.gameData != nil {
+		visible, visibleErr := h.scheduleBoss.VisibleBossesForScene(ctx, mapID, channelID)
+		if visibleErr != nil {
+			return nil, visibleErr
+		}
+		existing := make(map[int]struct{}, len(npcs))
+		for _, npc := range npcs {
+			existing[npc.NID] = struct{}{}
+		}
+		for _, cfg := range visible {
+			if _, ok := existing[cfg.NID]; ok {
+				continue
+			}
+			tpl := h.gameData.GetNPC(cfg.NID)
+			if tpl == nil {
+				continue
+			}
+			npcs = append(npcs, appscene.NPCClientData{
+				InstanceID: cfg.NID,
+				NID:        cfg.NID,
+				X:          int(tpl.PosX),
+				Y:          int(tpl.PosY),
+				Name:       cfg.Name,
+				ResCode:    int64(tpl.ResCode),
+				Type:       int(tpl.Type),
+			})
+			existing[cfg.NID] = struct{}{}
+		}
+	}
 
 	var hidden map[int]struct{}
 	if h.scheduleBoss != nil {

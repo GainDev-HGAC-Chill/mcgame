@@ -124,6 +124,9 @@ func (h *Handler) ClickNpc(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	if err != nil {
 		return nil, pkgerrors.ErrUnauthorized
 	}
+	if h.combatService != nil && h.scheduleBossClick != nil && h.combatService.IsScheduleBoss(npcID) {
+		return h.scheduleBossClick(ctx, args)
+	}
 
 	if handled, err := h.tryHandleFarmNPCClick(ctx, characterID, npcID); handled || err != nil {
 		return nil, err

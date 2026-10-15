@@ -53,7 +53,9 @@ func (h *Handler) HitNpc(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 	roster := h.eligibleBattleRoster(ctx.Context, characterID, currentMapID)
 
 	var battle *combatdomain.Battle
-	if len(roster) > 1 {
+	if h.combatService.IsScheduleBoss(npcID) {
+		battle, err = h.combatService.StartScheduleBossBattleWithRoster(ctx.Context, roster, npcID, currentMapID, channelID, playerInFront)
+	} else if len(roster) > 1 {
 		npcTemplate, templateErr := h.combatService.BuildNPCTemplateForCharacter(ctx.Context, characterID, npcID)
 		if templateErr != nil {
 			return rtmp.ErrorToResponse(templateErr), nil
