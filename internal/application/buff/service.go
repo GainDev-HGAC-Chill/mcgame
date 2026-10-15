@@ -3,12 +3,12 @@
 // Buff application service: persistence, aggregation, and Flash payload helpers.
 //
 // Buffs live in player.character_buffs. They feed two sinks:
-//   1. AggregateCharacterStatBonuses contributes to the character bonus pipeline
-//      consumed by item.Service.AggregateEquipmentStats so heal MaxHP/MaxMP and
-//      stat refresh stay correct.
-//   2. BuildLongBuffPayload / BuildInitLongBuffPayload produce the AMF objects
-//      expected by the Flash LongBuffCanvas (initLongBuff, onAddLongBuff,
-//      upLongBuff, delBuff).
+//  1. AggregateCharacterStatBonuses contributes to the character bonus pipeline
+//     consumed by item.Service.AggregateEquipmentStats so heal MaxHP/MaxMP and
+//     stat refresh stay correct.
+//  2. BuildLongBuffPayload / BuildInitLongBuffPayload produce the AMF objects
+//     expected by the Flash LongBuffCanvas (initLongBuff, onAddLongBuff,
+//     upLongBuff, delBuff).
 package buff
 
 import (
@@ -16,19 +16,25 @@ import (
 	"errors"
 	"time"
 
+	statfeatureapp "mcgame-server/internal/application/statfeature"
 	domainbuff "mcgame-server/internal/domain/buff"
 	domainchar "mcgame-server/internal/domain/character"
 	"mcgame-server/internal/gamedata"
-	statfeatureapp "mcgame-server/internal/application/statfeature"
 
 	"go.uber.org/zap"
 )
 
+const (
+	CatchBallBuffID = 990790
+	CatchBallBonus  = 3
+	CatchBallRounds = 10
+)
+
 var (
-	ErrBuffNotFound      = errors.New("buff: not found")
-	ErrBuffNotRemovable  = errors.New("buff: not user-removable")
-	ErrBuffWrongOwner    = errors.New("buff: not owned by character")
-	ErrUnknownBuffID     = errors.New("buff: unknown template id")
+	ErrBuffNotFound     = errors.New("buff: not found")
+	ErrBuffNotRemovable = errors.New("buff: not user-removable")
+	ErrBuffWrongOwner   = errors.New("buff: not owned by character")
+	ErrUnknownBuffID    = errors.New("buff: unknown template id")
 )
 
 type Service struct {
@@ -45,13 +51,13 @@ func NewService(repo domainbuff.Repository, gameData *gamedata.Manager, logger *
 }
 
 type AddRequest struct {
-	BuffID        int
-	BuffType      int
-	Source        string
-	Duration      time.Duration
-	BattlesLeft   *int
-	RoundsLeft    *int
-	StackCount    int
+	BuffID      int
+	BuffType    int
+	Source      string
+	Duration    time.Duration
+	BattlesLeft *int
+	RoundsLeft  *int
+	StackCount  int
 }
 
 func (s *Service) AddOrRefresh(ctx context.Context, characterID int64, req AddRequest) (*domainbuff.Buff, error) {
@@ -61,7 +67,9 @@ func (s *Service) AddOrRefresh(ctx context.Context, characterID int64, req AddRe
 	if req.BuffID <= 0 {
 		return nil, ErrUnknownBuffID
 	}
-	if s.gameData != nil && s.gameData.GetBuff(req.BuffID) == nil {
+	if req.BuffID != CatchBallBuffID &&
+		s.gameData != nil &&
+		s.gameData.GetBuff(req.BuffID) == nil {
 		return nil, ErrUnknownBuffID
 	}
 	if req.BuffType <= 0 {
@@ -112,7 +120,9 @@ func (s *Service) ListActive(ctx context.Context, characterID int64) ([]*domainb
 		if b.IsExpired(now) {
 			continue
 		}
-		if s.gameData != nil && s.gameData.GetBuff(b.BuffID) == nil {
+		if b.BuffID != CatchBallBuffID &&
+			s.gameData != nil &&
+			s.gameData.GetBuff(b.BuffID) == nil {
 			continue
 		}
 		out = append(out, b)
@@ -243,4 +253,57 @@ func encodeBuffKey(id int64) string {
 		return "-" + string(buf)
 	}
 	return string(buf)
+}
+
+// GetCatchBonus trả về điểm cộng bắt thú đang có hiệu lực.
+func (s *Service) GetCatchBonus(
+	ctx context.Context,
+	characterID int64,
+) (int, error) {
+	buffs, err := s.ListActive(ctx, characterID)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, b := range buffs {
+		if b.BuffID != CatchBallBuffID {
+			continue
+		}
+
+		if b.RoundsLeft == nil || *b.RoundsLeft <= 0 {
+			return 0, nil
+		}
+
+		return CatchBallBonus, nil
+	}
+
+	return 0, nil
+}
+
+type catchRoundConsumer interface {
+	ConsumeCatchBallRound(
+		ctx context.Context,
+		characterID int64,
+		buffID int,
+	) (int, error)
+}
+
+func (s *Service) ConsumeCatchRound(
+	ctx context.Context,
+	characterID int64,
+) (int, error) {
+	if s == nil || s.repo == nil {
+		return 0, errors.New("buff repository unavailable")
+	}
+
+	consumer, ok := s.repo.(catchRoundConsumer)
+	if !ok {
+		return 0, errors.New("buff repository does not support catch rounds")
+	}
+
+	return consumer.ConsumeCatchBallRound(
+		ctx,
+		characterID,
+		CatchBallBuffID,
+	)
 }

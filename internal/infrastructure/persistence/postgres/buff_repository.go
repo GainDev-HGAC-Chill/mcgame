@@ -126,3 +126,23 @@ func (r *BuffRepository) DeleteExpired(ctx context.Context, characterID int64, n
 	}
 	return count, nil
 }
+func (r *BuffRepository) ConsumeCatchBallRound(
+	ctx context.Context,
+	characterID int64,
+	buffID int,
+) (int, error) {
+	var remaining int
+
+	err := r.db.pool.QueryRow(
+		ctx,
+		"SELECT player.consume_catch_ball_round($1, $2)",
+		characterID,
+		buffID,
+	).Scan(&remaining)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return remaining, nil
+}

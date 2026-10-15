@@ -146,7 +146,7 @@ func (s *Service) initEffectHandlers() {
 
 	s.typeHandlers = map[int]ItemEffectHandler{
 		500: &scrollEffectHandler{service: s},
-		501: &potionEffectHandler{},
+		501: &petGrowthOrPotionEffectHandler{itemService: s},
 		502: &foodEffectHandler{},
 		503: &gemSocketHandler{itemService: s},
 		504: &starStoneEffectHandler{itemService: s},
@@ -1187,7 +1187,7 @@ func (s *Service) UseItem(ctx context.Context, char *character.Character, itemID
 	} else {
 		// strict check based on template
 		// Check Level Requirement
-		if char.Level < int(tpl.ReqLevel) {
+		if !isPetGrowthMedicine(it.TemplateID) && char.Level < int(tpl.ReqLevel) {
 			return nil, nil, pkgerrors.ErrInsufficientLevel
 		}
 	}
@@ -1292,6 +1292,9 @@ func (s *Service) effectResultToMap(r *ItemEffectResult) map[string]interface{} 
 	if len(r.UpdatedPets) > 0 {
 		result["updated_pets"] = r.UpdatedPets
 	}
+	if len(r.PetProgress) > 0 {
+		result["pet_progress"] = r.PetProgress
+	}
 	if len(r.GrantedItems) > 0 {
 		result["granted_items"] = r.GrantedItems
 	}
@@ -1327,6 +1330,9 @@ func (s *Service) effectResultToMap(r *ItemEffectResult) map[string]interface{} 
 
 // UseMultiItem uses multiple instances of a stackable item
 func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, slotID int64, count int, targetType int, petID int64) (map[string]interface{}, error) {
+	if count <= 0 {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
 	// Find item by slot ID (could be item ID or slot index)
 	it, err := s.itemRepo.FindByID(ctx, slotID)
 	if err != nil {
@@ -1422,6 +1428,31 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	}
 	if isCapacityBook(it.TemplateID) {
 		return s.useCapacityBooks(ctx, char, it, tpl, count, targetType)
+	}
+	if tpl != nil && isPetGrowthMedicine(it.TemplateID) {
+		effectResult, err := s.applyItemEffect(ctx, &UseContext{
+			TargetType: targetType,
+			TargetID:   petID,
+			PetID:      petID,
+			Quantity:   count,
+		}, char, it, tpl)
+		if err != nil {
+			return nil, err
+		}
+		it.StackCount -= count
+		if it.StackCount <= 0 {
+			if err := s.itemRepo.Delete(ctx, it.ID); err != nil {
+				return nil, err
+			}
+		} else if err := s.itemRepo.UpdateStack(ctx, it.ID, it.StackCount); err != nil {
+			return nil, err
+		}
+		result := s.effectResultToMap(effectResult)
+		result["consumed"] = count
+		result["remaining"] = it.StackCount
+		result["item_id"] = it.ID
+		result["used_item"] = it
+		return result, nil
 	}
 
 	totalHPHealed := 0

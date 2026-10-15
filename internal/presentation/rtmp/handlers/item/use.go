@@ -79,7 +79,7 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if appitem.IsDirectUseDisabledTemplate(it.TemplateID) {
 		return nil, nil
 	}
-	
+
 	h.logger.Info("UseItem: calling service.UseItem",
 		zap.Int64("character_id", characterID),
 		zap.Int64("item_id", it.ID),
@@ -112,8 +112,8 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		TargetType: targetType,
 		TargetID:   targetID,
 	}
-	if targetID > 0 && h.gameData != nil {
-		if tpl := h.gameData.GetItem(it.TemplateID); tpl != nil && int(tpl.Type) == 507 {
+	if targetID > 0 && targetType == 2 && h.gameData != nil {
+		if tpl := h.gameData.GetItem(it.TemplateID); tpl != nil && (int(tpl.UseType) == 2 || int(tpl.Type) == 507) {
 			uctx.PetID = targetID
 		}
 	}
@@ -418,6 +418,9 @@ func (h *Handler) sendEffectCallbacks(ctx *rtmp.RPCContext, result map[string]in
 	}
 	if updatedPets, ok := result["updated_pets"].([]*domainpet.Pet); ok && len(updatedPets) > 0 {
 		sendUpdatedPetCallbacks(ctx.Connection, updatedPets)
+	}
+	if progress, ok := result["pet_progress"].([]appitem.PetProgressResult); ok {
+		sendPetProgressCallbacks(ctx.Connection, progress)
 	}
 	if tempItems, ok := result["temp_bag_items"].([]*appitem.TempBagItemData); ok && len(tempItems) > 0 {
 		items := make([]map[string]interface{}, 0, len(tempItems))

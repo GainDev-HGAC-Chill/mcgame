@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 
+	appbuff "mcgame-server/internal/application/buff"
+	domainbuff "mcgame-server/internal/domain/buff"
 	"mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
 	domainpet "mcgame-server/internal/domain/pet"
@@ -28,6 +30,35 @@ func (h *questItemEffectHandler) CanHandle(tpl *models.ItemTemplateTemplate) boo
 }
 
 func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *character.Character, it *domainitem.Item, tpl *models.ItemTemplateTemplate) (*ItemEffectResult, error) {
+
+	// Tinh Linh Cáº§u: cá»™ng 3 nÄƒng lá»±c báº¯t thÃº trong 10 lÆ°á»£t.
+	if tpl.ID == 790 || tpl.ID == 1480 {
+		if h.service == nil || h.service.buffService == nil {
+			return nil, pkgerrors.ErrCannotUseItem
+		}
+
+		rounds := appbuff.CatchBallRounds
+
+		_, err := h.service.buffService.AddOrRefresh(
+			ctx,
+			char.ID,
+			appbuff.AddRequest{
+				BuffID:     appbuff.CatchBallBuffID,
+				BuffType:   domainbuff.TypeBattle,
+				Source:     "capture_ball",
+				RoundsLeft: &rounds,
+				StackCount: 1,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		result := NewEffectResult()
+		result.Message = "Tinh Linh Cáº§u: tÄƒng 3 nÄƒng lá»±c báº¯t thÃº trong 10 lÆ°á»£t Ä‘Ã¡nh."
+		return result, nil
+	}
+
 	if h.awardHandler != nil && h.awardHandler.CanHandle(tpl) {
 		return h.awardHandler.Apply(ctx, uctx, char, it, tpl)
 	}
@@ -48,9 +79,9 @@ func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, ch
 				result.GiftBox = nil
 				result.Pets = autoPets
 				if len(autoPets) == 1 {
-					result.Message = fmt.Sprintf("Bạn nhận được pet %s.", autoPets[0].Name)
+					result.Message = fmt.Sprintf("Báº¡n nháº­n Ä‘Æ°á»£c pet %s.", autoPets[0].Name)
 				} else {
-					result.Message = fmt.Sprintf("Bạn nhận được %d pet.", len(autoPets))
+					result.Message = fmt.Sprintf("Báº¡n nháº­n Ä‘Æ°á»£c %d pet.", len(autoPets))
 				}
 			}
 		}

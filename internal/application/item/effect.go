@@ -35,6 +35,7 @@ type ItemEffectResult struct {
 	GrantedItems         []*GrantedItemResult
 	Pets                 []*domainpet.Pet
 	UpdatedPets          []*domainpet.Pet
+	PetProgress          []PetProgressResult
 	GiftBox              *GiftBoxData
 	TempBagItems         []*TempBagItemData
 	GrantedTitles        []GrantedTitleResult
@@ -45,6 +46,11 @@ type ItemEffectResult struct {
 	Message              string
 	ConsumeItem          bool
 	RefreshCharacterView bool
+}
+
+type PetProgressResult struct {
+	Pet       *domainpet.Pet
+	LeveledUp bool
 }
 
 type GrantedMedalResult struct {

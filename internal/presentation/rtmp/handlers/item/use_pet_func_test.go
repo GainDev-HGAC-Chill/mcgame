@@ -15,8 +15,9 @@ import (
 )
 
 type petFuncHandlerPetService struct {
-	pets  map[int64]*domainpet.Pet
-	saved []*domainpet.Pet
+	pets   map[int64]*domainpet.Pet
+	saved  []*domainpet.Pet
+	gained int64
 }
 
 func (s *petFuncHandlerPetService) ContractPets(_ context.Context, _ int64, _ []int) ([]*domainpet.Pet, error) {
@@ -41,6 +42,18 @@ func (s *petFuncHandlerPetService) Save(_ context.Context, pet *domainpet.Pet) e
 	s.pets[pet.ID] = &cp
 	s.saved = append(s.saved, &cp)
 	return nil
+}
+
+func (s *petFuncHandlerPetService) GainExperience(_ context.Context, charID int64, petID int64, amount int64) (*domainpet.Pet, bool, error) {
+	pet, ok := s.pets[petID]
+	if !ok || pet.CharacterID != charID {
+		return nil, false, pkgerrors.ErrNotFound
+	}
+	s.gained += amount
+	copyPet := *pet
+	copyPet.Experience += amount
+	s.pets[petID] = &copyPet
+	return &copyPet, false, nil
 }
 
 func loadPetFuncTemplate(t *testing.T, handler *Handler, tpl models.ItemTemplateTemplate) {
@@ -175,5 +188,43 @@ func TestItemHandler_UseItem_PetFuncItem_LifeCapAt10000(t *testing.T) {
 	}
 	if petSvc.saved[0].Life != 10000 {
 		t.Fatalf("expected Life capped at 10000, got %d", petSvc.saved[0].Life)
+	}
+}
+
+func TestItemHandler_UseItem_PetGrowthMedicineAddsExperience(t *testing.T) {
+	char := &domainchar.Character{ID: 1, Name: "tester", Level: 1}
+	medicine := &domainitem.Item{
+		ID:          204,
+		CharacterID: char.ID,
+		TemplateID:  1586,
+		ItemType:    domainitem.ItemTypeConsumable,
+		SlotType:    domainitem.SlotTypeBag,
+		SlotIndex:   0,
+		StackCount:  1,
+	}
+	repo := newItemTestRepo(medicine)
+	handler, ctx := buildItemTestHandlerWithRepo(t, char, repo)
+	loadPetFuncTemplate(t, handler, models.ItemTemplateTemplate{
+		ID: 1586, Type: 501, UseType: 2, Name: "Thuốc Tăng Trưởng Pet Siêu Cấp Loại B", ReqLevel: 30,
+	})
+	petID := int64(88)
+	petSvc := &petFuncHandlerPetService{pets: map[int64]*domainpet.Pet{
+		petID: {ID: petID, CharacterID: char.ID, Level: 30, Life: domainpet.MaxLife, Property: map[string]interface{}{}},
+	}}
+	handler.itemService.SetPetService(petSvc)
+
+	resp, err := handler.UseItem(ctx, []interface{}{float64(2), float64(petID), float64(medicine.ID)})
+	if err != nil {
+		t.Fatalf("UseItem() error = %v", err)
+	}
+	result, ok := resp.(map[string]interface{})
+	if !ok || result["success"] != true {
+		t.Fatalf("response = %#v", resp)
+	}
+	if petSvc.gained != 2000000 {
+		t.Fatalf("gained experience = %d, want 2000000", petSvc.gained)
+	}
+	if _, err := repo.FindByID(context.Background(), medicine.ID); !pkgerrors.Is(err, pkgerrors.ErrItemNotFound) {
+		t.Fatalf("medicine still exists or unexpected error: %v", err)
 	}
 }

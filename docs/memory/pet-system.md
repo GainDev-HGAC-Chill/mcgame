@@ -8,6 +8,8 @@ Properties: petList, activePetObject, contractPet, evolutionPetObject, petMaxNum
 
 Pet leveling now follows the Flash client `GamePredef.PET_LEVEL_EXP` table instead of the old quadratic formula. Server-side pet `Experience` remains the in-level remainder, while client-facing pet `exp` callbacks/DTOs add the cumulative base from `PetLogic.lvToExp(level)` so Flash progress and level-up thresholds stay aligned.
 
+Pet growth medicines are pet-target `type=501`, `useType=2` items handled before ordinary HP/MP potion behavior. The exact `GamePredef.PET_GROW_ITEM_NUM` mapping is `961=30000`, `962=150000`, `964=300000`, `1585=300000`, `1586=2000000`, `1587=6400000`, `1836=12500000`, and `3339=100000000` EXP. `useItem(2, petId, itemInstanceId)` and multi-use must propagate the Pet ID, validate ownership and the template's required level against the Pet rather than the character, reject a max-level Pet without consuming, persist through `pet.Service.GainExperience`, then emit cumulative client `exp`, changed `level`, and `onRefreshPetProp({id,s})`. Only these eight checked IDs use this rule; other type-501 items retain normal potion behavior.
+
 ## Pet Attribute Points
 
 Pet attribute-point flow now mirrors the character path: each pet level grants `5` distributable points, `Pet.RecalculateStats()` mirrors the remaining pool into `property.lastPoint`, and `changePetProperty(petId, {addStrength, addAgility, addStamina, addIntelligence, addEnergy})` spends those points into `Apt*Ex` plus `onUpdatePet`/`onRefreshPetProp` callbacks for the Flash pet panel.

@@ -5,6 +5,7 @@ package item
 import (
 	"testing"
 
+	appitem "mcgame-server/internal/application/item"
 	domainpet "mcgame-server/internal/domain/pet"
 )
 
@@ -111,5 +112,25 @@ func TestSendUpdatedPetCallbacks_MultipleUpdatedPets(t *testing.T) {
 	}
 	if recorder.calls[1].args[0] != float64(22) {
 		t.Fatalf("second pet arg[0] = %#v, want float64(22)", recorder.calls[1].args[0])
+	}
+}
+
+func TestSendPetProgressCallbacksRefreshesExperienceLevelAndProperty(t *testing.T) {
+	pet := &domainpet.Pet{ID: 42, Level: 2, Experience: 5, Life: domainpet.MaxLife, Property: map[string]interface{}{}}
+	recorder := &handlerCallbackRecorder{}
+
+	sendPetProgressCallbacks(recorder, []appitem.PetProgressResult{{Pet: pet, LeveledUp: true}})
+
+	if len(recorder.calls) != 3 {
+		t.Fatalf("callback count = %d, want 3", len(recorder.calls))
+	}
+	if recorder.calls[0].method != "onUpdatePet" || recorder.calls[0].args[1] != "exp" {
+		t.Fatalf("exp callback = %#v", recorder.calls[0])
+	}
+	if recorder.calls[1].method != "onUpdatePet" || recorder.calls[1].args[1] != "level" {
+		t.Fatalf("level callback = %#v", recorder.calls[1])
+	}
+	if recorder.calls[2].method != "onRefreshPetProp" {
+		t.Fatalf("property callback = %#v", recorder.calls[2])
 	}
 }

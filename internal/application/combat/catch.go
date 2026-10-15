@@ -67,6 +67,33 @@ func (h *combatCatchHandler) AttemptCatch(actorID string, creatureEntityID int64
 	}
 
 	rate := calculateCatchRate(char.Level, creatureLevel, currentHP, maxHP)
+
+	// Đọc điểm cộng bắt thú từ Tinh Linh Cầu.
+	if h.service.buffService != nil {
+		bonus, err := h.service.buffService.GetCatchBonus(
+			context.Background(),
+			charID,
+		)
+
+		if err != nil {
+			if h.service.logger != nil {
+				h.service.logger.Warn(
+					"Failed to get catch bonus",
+					zap.Int64("character_id", charID),
+					zap.Error(err),
+				)
+			}
+		} else {
+			// Tạm quy ước 1 điểm năng lực = 1 điểm phần trăm.
+			// Đây là quy tắc mới, chưa xác nhận từ game gốc.
+			rate += bonus
+		}
+	}
+
+	if rate > 95 {
+		rate = 95
+	}
+
 	baseResult.Rate = rate
 	if rate <= 0 {
 		return baseResult

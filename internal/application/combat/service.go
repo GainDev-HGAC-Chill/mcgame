@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/zap"
 	appbossloot "mcgame-server/internal/application/bossloot"
+	appbuff "mcgame-server/internal/application/buff"
 	appitem "mcgame-server/internal/application/item"
 	apppet "mcgame-server/internal/application/pet"
 	appquest "mcgame-server/internal/application/quest"
@@ -24,8 +26,6 @@ import (
 	"mcgame-server/internal/domain/skill"
 	"mcgame-server/internal/gamedata"
 	pkgerrors "mcgame-server/pkg/errors"
-
-	"go.uber.org/zap"
 )
 
 type EquipmentStatsProvider interface {
@@ -52,7 +52,8 @@ type Service struct {
 	gamedataManagerMu  sync.RWMutex
 	endedBattleMu      sync.RWMutex
 	endedBattles       map[string]*endedBattleCacheEntry
-	expBuffProvider 	ExpBuffProvider
+	expBuffProvider    ExpBuffProvider
+	buffService        *appbuff.Service
 }
 
 type endedBattleCacheEntry struct {
@@ -94,6 +95,10 @@ func (s *Service) SetEquipmentStatsProvider(provider EquipmentStatsProvider) {
 
 func (s *Service) SetItemService(itemService *appitem.Service) {
 	s.itemService = itemService
+}
+
+func (s *Service) SetBuffService(buffService *appbuff.Service) {
+	s.buffService = buffService
 }
 
 func (s *Service) SetPetService(petService *apppet.Service) {

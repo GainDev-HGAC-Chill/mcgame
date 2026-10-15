@@ -166,6 +166,60 @@ func (h *Handler) BattleUpdateCmd(ctx *rtmp.RPCContext, args []interface{}) (int
 
 	petRewardCount := caughtPetRewardCountForCharacter(battle.GetPendingPetRewards(), characterID)
 	result := processor.ProcessRound()
+	// Giảm lượt hiệu ứng Tinh Linh Cầu sau hành động hợp lệ.
+	// Chỉ tính hành động của nhân vật, không tính Pet.
+	if h.buffService != nil {
+		for _, cmd := range pendingCmds {
+			if cmd.ActorID != ctx.CharacterID {
+				continue
+			}
+
+			switch cmd.ActionType {
+			case combatdomain.ClientActionAttack,
+				combatdomain.ClientActionAuto,
+				combatdomain.ClientActionSkill,
+				combatdomain.ClientActionCatch:
+
+				// Xác minh nhân vật thực sự đã hành động.
+				executed := false
+
+				for _, action := range result.Actions {
+					if action == nil || action.ActorID != cmd.ActorID {
+						continue
+					}
+
+					if action.ActionType == combatdomain.ActionTypeAttack ||
+						action.ActionType == combatdomain.ActionTypeSkill {
+						executed = true
+						break
+					}
+				}
+
+				if !executed {
+					continue
+				}
+
+				remaining, err := h.buffService.ConsumeCatchRound(
+					ctx.Context,
+					characterID,
+				)
+
+				if err != nil {
+					h.logger.Warn(
+						"Failed to consume catch ball round",
+						zap.Int64("character_id", characterID),
+						zap.Error(err),
+					)
+				} else {
+					h.logger.Debug(
+						"Catch ball round processed",
+						zap.Int64("character_id", characterID),
+						zap.Int("remaining", remaining),
+					)
+				}
+			}
+		}
+	}
 	if h.questNotify != nil && caughtPetRewardCountForCharacter(battle.GetPendingPetRewards(), characterID) > petRewardCount {
 		h.questNotify.PushQuestProgress(ctx, characterID)
 	}

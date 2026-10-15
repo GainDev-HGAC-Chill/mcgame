@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-15-21 — Thuốc Tăng Trưởng Pet không cộng EXP
+
+- Hiện tượng: dùng Thuốc Tăng Trưởng lên Pet không thay đổi kinh nghiệm/cấp Pet.
+- Nguyên nhân: cả tám template là `type=501`, `useType=2` nhưng server route vào HP/MP potion; RTMP handler chỉ truyền `PetID` cho type507. Lượng EXP không nằm ở `i1/i2`, mà ở exact Flash registry `PET_GROW_ITEM_NUM`.
+- Sửa: exact-ID growth effect cho 961/962/964/1585/1586/1587/1836/3339 với 30k/150k/300k/300k/2m/6.4m/12.5m/100m EXP; validate Pet target/ownership/Pet level/max level, persist qua `pet.Service.GainExperience`, hỗ trợ single/multi count và phát `exp`, changed `level`, `onRefreshPetProp`.
+- Test: exact registry, quantity, Pet-vs-character level gate, wrong target, requested handler flow/item consumption và progress callbacks PASS; item/Pet packages, targeted vet và gameserver build PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không thay đổi dữ liệu Pet/người chơi thật.
+
 ## FIX-2026-10-15-20 — Item sự kiện ẩn và túi tiện dụng route nhầm
 
 - Hiện tượng: item từ Shop/sự kiện đôi khi chỉ hiện sau khi sắp xếp túi; kéo vật phẩm vào túi tiện dụng báo `Internal error: cannot equip item`.
