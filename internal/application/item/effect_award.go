@@ -97,6 +97,23 @@ func (h *awardEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *
 			if !ok {
 				return nil, fmt.Errorf("unsupported basic currency id: %d", award.AwardID)
 			}
+			bound, _ := award.Payload["bound"].(bool)
+			if bound && (award.AwardID == 0 || award.AwardID == 1) {
+				var newTotal int64
+				var key, label string
+				if award.AwardID == 0 {
+					char.MoneyBind += int64(award.Count)
+					newTotal, key, label = char.MoneyBind, "moneyBind", "Bạc khóa"
+				} else {
+					char.GoldBind += int64(award.Count)
+					newTotal, key, label = char.GoldBind, "goldBind", "Vàng khóa"
+				}
+				result.GrantedCurrencies = append(result.GrantedCurrencies, GrantedCurrencyResult{
+					ClientKey: key, Delta: int64(award.Count), Total: float64(newTotal), Label: label,
+				})
+				result.RefreshCharacterView = true
+				break
+			}
 			newTotal, applied := char.AddBasicCurrency(award.AwardID, int64(award.Count))
 			if !applied {
 				return nil, fmt.Errorf("failed to add basic currency %d", award.AwardID)
@@ -176,6 +193,27 @@ func (h *awardEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *
 				Label:     descriptor.Label,
 			})
 			result.RefreshCharacterView = true
+		case 37:
+			if award.Count != 1 || h.itemService == nil || h.itemService.mountRewardGranter == nil {
+				return nil, fmt.Errorf("mount reward requires count=1 and configured mount service")
+			}
+			if h.itemService.mountRewardGranter.DressResCode(award.AwardID) <= 0 {
+				return nil, fmt.Errorf("invalid mount dress ID %d", award.AwardID)
+			}
+			if err := h.itemService.mountRewardGranter.GrantDress(ctx, char.ID, award.AwardID, 1); err != nil {
+				return nil, err
+			}
+			result.RefreshCharacterView = true
+			result.Message = fmt.Sprintf("Đã mở khóa skin thú cưỡi %d. Đăng nhập lại để đồng bộ danh sách.", award.AwardID)
+		case 38:
+			if award.Count != 1 || h.itemService == nil || h.itemService.fairyRewardGranter == nil {
+				return nil, fmt.Errorf("fairy reward requires count=1 and configured fairy service")
+			}
+			if _, err := h.itemService.fairyRewardGranter.GrantReward(ctx, char.ID, award.AwardID); err != nil {
+				return nil, err
+			}
+			result.RefreshCharacterView = true
+			result.Message = fmt.Sprintf("Đã nhận tinh linh %d. Đăng nhập lại để đồng bộ danh sách.", award.AwardID)
 		case awardTypeMedal:
 			granted, slot, total, err := h.grantMedalAward(ctx, char.ID, award.AwardID, award.Count)
 			if err != nil {
@@ -204,6 +242,20 @@ func (h *awardEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *
 	return result, nil
 }
 
+// Fixed-count unlocks are not stackable; do not randomize their quantity.
+func boxAwardFixedQuantity(awardType int) bool {
+	return awardType == 33 || awardType == 34 || awardType == 37 || awardType == 38
+}
+
+func resolveAwardQuantityRange(payload map[string]interface{}) (int, int, bool) {
+	minQty, minOK := awardPayloadInt(payload, "countMin")
+	maxQty, maxOK := awardPayloadInt(payload, "countMax")
+	if !minOK || !maxOK || minQty < 1 || maxQty < minQty || maxQty > 100000000 {
+		return 0, 0, false
+	}
+	return minQty, maxQty, true
+}
+
 func (h *awardEffectHandler) resolveAwards(itemID int, awards []*models.ItemAwardTemplate) []resolvedItemAward {
 	var rng func(minValue, maxValue int) int
 	var log *zap.Logger
@@ -218,6 +270,16 @@ func (h *awardEffectHandler) resolveAwards(itemID int, awards []*models.ItemAwar
 		count := int(award.Count)
 		if count <= 0 {
 			count = 1
+		}
+		// Roll once per box open, after choosing the reward.
+		if !boxAwardFixedQuantity(int(award.Type)) {
+			if minQty, maxQty, hasRange := resolveAwardQuantityRange(award.Payload); hasRange {
+				if rng != nil {
+					count = rng(minQty, maxQty)
+				} else {
+					count = minQty // defensive fallback if service RNG is unavailable
+				}
+			}
 		}
 
 		selectedAwards = append(selectedAwards, resolvedItemAward{
@@ -245,7 +307,7 @@ func (h *awardEffectHandler) ensureAwardCapacity(ctx context.Context, charID int
 		switch award.AwardType {
 		case 12:
 			petCount += award.Count
-		case 30, 31, 32, 33, 34, 35, awardTypeMedal:
+		case 30, 31, 32, 33, 34, 35, 37, 38, awardTypeMedal:
 			continue
 		case 19:
 			colorCode := 0

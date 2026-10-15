@@ -1,4 +1,4 @@
-export type BoxItemAwardType = 12 | 19 | 29 | 30 | 31 | 32 | 33 | 34 | 35
+export type BoxItemAwardType = 12 | 19 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 37 | 38
 
 export type BoxItemAwardPayload = Record<string, unknown>
 
@@ -9,6 +9,8 @@ export const BOX_ITEM_AWARD_TYPE_OPTIONS = [
     { value: "19", label: "Trang bị" },
     { value: "12", label: "Thú cưng" },
     { value: "30", label: "Bạc / vàng / danh vọng" },
+    { value: "37", label: "Skin thú cưỡi" },
+    { value: "38", label: "Tinh linh" },
     { value: "35", label: "Điểm / tiền tệ game" },
     { value: "31", label: "Kinh nghiệm" },
     { value: "32", label: "Hiệu ứng" },
@@ -20,6 +22,52 @@ export const BOX_ITEM_CURRENCY_OPTIONS = [
     { value: "0", label: "Bạc" },
     { value: "1", label: "Vàng" },
     { value: "2", label: "Danh vọng" },
+] as const
+
+export const BOX_ITEM_BOUND_CURRENCY_OPTIONS = [
+    { value: "0", label: "Bạc khóa", payload: { bound: true } },
+    { value: "1", label: "Vàng khóa", payload: { bound: true } },
+] as const
+
+export const BOX_ITEM_MOUNT_OPTIONS = [
+    { value: "1", label: "Bích Hổ" },
+    { value: "2", label: "U Linh Hổ" },
+    { value: "3", label: "Hổ Vàng Răng Kiếm" },
+    { value: "6", label: "Bông Gòn" },
+    { value: "7", label: "Viêm Lang" },
+    { value: "8", label: "Cửu Vĩ Hồ" },
+    { value: "9", label: "Hồng Liên Bôn Lôi" },
+    { value: "10", label: "Hàn Sương Thiểm Điện" },
+    { value: "11", label: "Viễn Cổ Chiến Hùng" },
+    { value: "12", label: "Hàn Băng Nha" },
+    { value: "13", label: "Thương Lam Nha" },
+    { value: "14", label: "Hấp Huyết Nha" },
+    { value: "15", label: "Cơ Giáp Ma Long" },
+    { value: "16", label: "Tê Giác Thiết Giáp" },
+    { value: "17", label: "Chiến Hoàng Bá Thiên Hổ" },
+    { value: "18", label: "Kim Khôi Chiến Tướng" },
+    { value: "19", label: "Niên Thú" },
+    { value: "20", label: "Burin" },
+] as const
+
+export const BOX_ITEM_FAIRY_OPTIONS = [
+    { value: "1", label: "Thiên Sứ Poli" },
+    { value: "2", label: "Rocky" },
+    { value: "3", label: "Băng Nữ Koura" },
+    { value: "4", label: "Puca" },
+    { value: "5", label: "Rồng Xanh Abu" },
+    { value: "6", label: "Yêu Tinh Nicole" },
+    { value: "7", label: "Tuần Lộc Miya" },
+    { value: "8", label: "Thiên Sứ Bọt" },
+    { value: "9", label: "Minions" },
+    { value: "10", label: "Casper" },
+    { value: "11", label: "Thần Chết" },
+    { value: "12", label: "Hàn Sương Băng Long" },
+    { value: "13", label: "U Độc Minh Phượng" },
+    { value: "14", label: "Thánh Quang Thiên Sứ" },
+    { value: "15", label: "Bông Ú Ú" },
+    { value: "16", label: "Thỏ Nắng Nịnh" },
+    { value: "17", label: "Cặp Ma Lực" },
 ] as const
 
 export const BOX_ITEM_GAME_CURRENCY_OPTIONS = [
@@ -124,6 +172,8 @@ export function normalizeBoxItemAwardType(
         case 33:
         case 34:
         case 35:
+        case 37:
+        case 38:
             return numeric
         default:
             return fallback
@@ -162,6 +212,10 @@ export function boxItemAwardTypeName(type: number): string {
             return "Kỹ năng"
         case 35:
             return "Điểm game"
+        case 37:
+            return "Skin thú cưỡi"
+        case 38:
+            return "Tinh linh"
         default:
             return "Vật phẩm"
     }
@@ -193,7 +247,7 @@ export function boxItemAwardIsExperience(type: number): boolean {
 
 export function boxItemAwardUsesFixedCount(type: number): boolean {
     const normalized = normalizeBoxItemAwardType(type)
-    return normalized === 33 || normalized === 34
+    return normalized === 33 || normalized === 34 || normalized === 37 || normalized === 38
 }
 
 export function boxItemAwardSupportsQuality(type: number): boolean {
@@ -256,6 +310,10 @@ export function boxItemAwardFallbackName(
             return awardId > 0 ? `Kỹ năng #${awardId}` : "Kỹ năng"
         case 35:
             return boxItemGameCurrencyName(awardId)
+        case 37:
+            return BOX_ITEM_MOUNT_OPTIONS.find(x => Number(x.value) === awardId)?.label || `Skin thú cưỡi #${awardId}`
+        case 38:
+            return BOX_ITEM_FAIRY_OPTIONS.find(x => Number(x.value) === awardId)?.label || `Tinh linh #${awardId}`
         default:
             return awardId > 0 ? `Vật phẩm #${awardId}` : "Vật phẩm"
     }

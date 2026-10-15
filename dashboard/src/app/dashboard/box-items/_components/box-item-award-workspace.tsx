@@ -45,6 +45,9 @@ import { cn } from "@/lib/utils"
 import {
     BOX_ITEM_AWARD_GUARANTEED_KEY,
     BOX_ITEM_AWARD_TYPE_OPTIONS,
+    BOX_ITEM_BOUND_CURRENCY_OPTIONS,
+    BOX_ITEM_MOUNT_OPTIONS,
+    BOX_ITEM_FAIRY_OPTIONS,
     BOX_ITEM_CURRENCY_OPTIONS,
     BOX_ITEM_GAME_CURRENCY_OPTIONS,
     boxItemAwardFallbackName,
@@ -79,6 +82,7 @@ type DraftAward = Omit<ItemAwardInput, "payload"> & {
     iconId?: number
     iconDataUrl?: string
     payloadText: string
+    countText?: string
     guaranteed: boolean
 }
 
@@ -152,7 +156,7 @@ function createStaticAvailableAwards(
     const normalizedSearch = search.trim().toLowerCase()
 
     if (boxItemAwardUsesCurrencyOptions(type)) {
-        return BOX_ITEM_CURRENCY_OPTIONS.map(option => ({
+        const basicItems = BOX_ITEM_CURRENCY_OPTIONS.map(option => ({
             key: `${type}:${option.value}`,
             awardId: Number(option.value),
             type,
@@ -165,11 +169,30 @@ function createStaticAvailableAwards(
             quality: 0,
             preNameType: 0,
             payloadText: "",
-        })).filter(
-            item =>
-                !normalizedSearch ||
-                item.name.toLowerCase().includes(normalizedSearch)
+        }))
+        const boundItems = BOX_ITEM_BOUND_CURRENCY_OPTIONS.map(option => ({
+            key: `${type}:bound:${option.value}`,
+            awardId: Number(option.value), type, name: option.label,
+            subtitle: `Thêm phần thưởng ${option.label.toLowerCase()}`,
+            iconId: 0, iconDataUrl: "", count: 1, rate: 100,
+            quality: 0, preNameType: 0,
+            payloadText: JSON.stringify(option.payload),
+        }))
+        return [...basicItems, ...boundItems].filter(item =>
+            !normalizedSearch || item.name.toLowerCase().includes(normalizedSearch)
         )
+    }
+
+    if (type === 37 || type === 38) {
+        const options = type === 37 ? BOX_ITEM_MOUNT_OPTIONS : BOX_ITEM_FAIRY_OPTIONS
+        return options.map(option => ({
+            key: `${type}:${option.value}`, awardId: Number(option.value),
+            type, name: option.label, subtitle: type === 37 ? 'Mở khóa vĩnh viễn' : 'Nhận tinh linh',
+            iconId: 0, iconDataUrl: "", count: 1, rate: 100,
+            quality: 0, preNameType: 0, payloadText: "",
+        })).filter(item => !normalizedSearch ||
+            item.name.toLowerCase().includes(normalizedSearch) ||
+            String(item.awardId).includes(normalizedSearch))
     }
 
     if (boxItemAwardUsesGameCurrencyOptions(type)) {
@@ -235,6 +258,8 @@ function rowToDraft(row: ItemAwardRow): DraftAward {
         type: row.type,
         typeName: row.typeName || boxItemAwardTypeName(row.type),
         count: row.count,
+        countText: (typeof payload.countMin === "number" && typeof payload.countMax === "number")
+            ? `${payload.countMin}-${payload.countMax}` : String(row.count),
         rate: row.rate,
         quality: row.quality,
         preNameType: row.preNameType,
@@ -280,6 +305,7 @@ function draftFromAvailable(item: AvailableAward): DraftAward {
         type: item.type,
         typeName: boxItemAwardTypeName(item.type),
         count: item.count,
+        countText: String(item.count),
         rate: item.rate,
         quality: item.quality,
         preNameType: item.preNameType,
@@ -443,6 +469,7 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                     iconDataUrl,
                     guaranteed,
                     payloadText,
+                    countText,
                     ...draft
                 }) => {
                     const trimmedPayloadText = payloadText.trim()
@@ -467,6 +494,30 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                 `Payload JSON của ${awardName} phải là object.`
                             )
                         }
+                    }
+
+                    // Range is stored in payload; DB count stays an integer.
+                    const countInput = (countText ?? String(draft.count)).trim()
+                    if (!boxItemAwardUsesFixedCount(draft.type)) {
+                        const match = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(countInput)
+                        if (!match) throw new Error(`Số lượng của ${awardName} không hợp lệ: ${countInput}`)
+                        const min = Number(match[1])
+                        const max = Number(match[2] ?? match[1])
+                        if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) ||
+                            min < 1 || max < min || max > 100000000) {
+                            throw new Error(`Khoảng số lượng không hợp lệ cho ${awardName}.`)
+                        }
+                        if (min === max) {
+                            delete normalizedPayload.countMin
+                            delete normalizedPayload.countMax
+                        } else {
+                            normalizedPayload.countMin = min
+                            normalizedPayload.countMax = max
+                        }
+                        draft.count = min
+                    } else {
+                        delete normalizedPayload.countMin
+                        delete normalizedPayload.countMax
                     }
 
                     if (guaranteed) {
@@ -544,6 +595,8 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
 		if (
 			boxItemAwardUsesCurrencyOptions(selectedAvailableType) ||
 			boxItemAwardUsesGameCurrencyOptions(selectedAvailableType) ||
+            selectedAvailableType === 37 ||
+            selectedAvailableType === 38 ||
 			boxItemAwardIsExperience(selectedAvailableType)
 		) {
             setAvailableLoading(false)
@@ -942,25 +995,17 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                                     {countLabel(draft.type)}
                                                 </p>
                                                 <Input
-                                                    type="number"
-                                                    min={1}
-                                                    value={draft.count}
-                                                    disabled={boxItemAwardUsesFixedCount(
-                                                        draft.type
-                                                    )}
-                                                    onChange={event =>
-                                                        updateDraft(
-                                                            draft._key,
-                                                            "count",
-                                                            Math.max(
-                                                                1,
-                                                                Number(
-                                                                    event.target
-                                                                        .value
-                                                                ) || 1
-                                                            )
-                                                        )
-                                                    }
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    placeholder="10 hoặc 1-100"
+                                                    value={draft.countText ?? String(draft.count)}
+                                                    disabled={boxItemAwardUsesFixedCount(draft.type)}
+                                                    onChange={event => {
+                                                        const value = event.target.value
+                                                        setDrafts(prev => prev.map(d =>
+                                                            d._key === draft._key ? { ...d, countText: value } : d
+                                                        ))
+                                                    }}
                                                 />
                                             </div>
 

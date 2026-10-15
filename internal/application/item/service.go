@@ -58,6 +58,14 @@ type BuffAwardService interface {
 	AddOrRefresh(ctx context.Context, characterID int64, req appbuff.AddRequest) (*domainbuff.Buff, error)
 }
 
+type MountRewardGranter interface {
+	GrantDress(ctx context.Context, charID int64, dressID int, expiryMs int64) error
+	DressResCode(dressID int) int64
+}
+type FairyRewardGranter interface {
+	GrantReward(ctx context.Context, charID int64, tid int) (map[string]interface{}, error)
+}
+
 type Service struct {
 	itemRepo            item.Repository
 	charRepo            character.Repository
@@ -73,12 +81,17 @@ type Service struct {
 	logger              *zap.Logger
 	effectHandlers      []ItemEffectHandler
 	typeHandlers        map[int]ItemEffectHandler
+	mountRewardGranter  MountRewardGranter
+	fairyRewardGranter  FairyRewardGranter
 	awardHandler        *awardEffectHandler
 	fallbackHandlers    []ItemEffectHandler
 	bloodBag            *appbloodbag.Service
 }
 
 const pasarFragmentTemplateID = 5351
+
+func (s *Service) SetMountRewardGranter(v MountRewardGranter) { s.mountRewardGranter = v }
+func (s *Service) SetFairyRewardGranter(v FairyRewardGranter) { s.fairyRewardGranter = v }
 
 func (s *Service) SetBloodBagService(service *appbloodbag.Service) {
 	s.bloodBag = service

@@ -28,6 +28,14 @@ const FreeFairyTid = 1
 
 var ErrFairyAlreadyOwned = errors.New("tinh linh: đã sở hữu tinh linh này")
 
+// GrantReward is the award-only path; it validates a real template before granting.
+func (s *Service) GrantReward(ctx context.Context, charID int64, tid int) (map[string]interface{}, error) {
+	if s == nil || s.gameData == nil || s.gameData.GetFairyTempalte(tid) == nil {
+		return nil, ErrFairyMissing
+	}
+	return s.Adopt(ctx, charID, tid)
+}
+
 func (s *Service) Adopt(ctx context.Context, charID int64, tid int) (map[string]interface{}, error) {
 	if tid <= 0 {
 		return nil, ErrFairyMissing
