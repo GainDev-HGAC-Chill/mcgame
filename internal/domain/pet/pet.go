@@ -938,6 +938,13 @@ func (p *Pet) ClearStars() {
 	p.UpdatedAt = time.Now()
 }
 
+func (p *Pet) ResetStarEnhancement() {
+	p.UpgradeNum = 0
+	p.GrowRateAdd = 0
+	p.RecalculateStats()
+	p.UpdatedAt = time.Now()
+}
+
 func (p *Pet) GetFeatherLevel() int {
 	if fl, ok := p.Property["featherLevel"].(float64); ok {
 		return int(fl)

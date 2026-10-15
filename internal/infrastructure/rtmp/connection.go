@@ -152,7 +152,13 @@ func (c *Connection) SetCharacter(characterID string) {
 	c.session.CharacterID = characterID
 	c.session.State = 2
 }
+func (c *Connection) ClearCharacter() {
+    c.mutex.Lock()
+    defer c.mutex.Unlock()
 
+    c.session.CharacterID = ""
+    c.session.State = 1
+}
 func (c *Connection) GetSession() *SessionContext {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()

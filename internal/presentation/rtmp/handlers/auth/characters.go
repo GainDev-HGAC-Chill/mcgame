@@ -144,6 +144,10 @@ func (h *Handler) BackToCharSelect(ctx *rtmp.RPCContext, args []interface{}) (in
 		}
 	}
 
+	if ctx.Connection != nil {
+    ctx.Connection.ClearCharacter()
+	}
+
 	ctx.CharacterID = ""
 
 	accountIDStr := ctx.AccountID

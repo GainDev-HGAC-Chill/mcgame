@@ -97,7 +97,7 @@ func (s *Service) UpgradeStarWithItem(ctx context.Context, charID, petID, itemID
 		p.AddStar()
 		p.AddGrowthRate(tpl.ProplNum / 100)
 	} else if p.UpgradeNum >= 8 && safeItem == nil {
-		p.ClearStars()
+		p.ResetStarEnhancement()
 	}
 	result, err := s.finishPetItemUse(ctx, original, p, it)
 	if err != nil {

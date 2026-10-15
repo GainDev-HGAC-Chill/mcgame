@@ -55,7 +55,7 @@ func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, ch
 		}
 
 		result := NewEffectResult()
-		result.Message = "Tinh Linh Cáº§u: tÄƒng 3 nÄƒng lá»±c báº¯t thÃº trong 10 lÆ°á»£t Ä‘Ã¡nh."
+		result.Message = "Tinh Linh Cầu: tăng 3 năng lực bắt thú trong 10 lượt đánh."
 		return result, nil
 	}
 

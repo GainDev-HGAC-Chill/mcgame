@@ -103,7 +103,7 @@ func TestUpgradeStarWithItemFailureKeepsStarsBelowEight(t *testing.T) {
 	}
 }
 
-func TestUpgradeStarWithItemFailureAtEightResetsStarsWithoutProtection(t *testing.T) {
+func TestUpgradeStarWithItemFailureAtEightResetsStarsAndGrowthWithoutProtection(t *testing.T) {
 	service, petRepo, _ := petEnhancementAttemptService(t, 8, 0, 2)
 	service.starRoll = func(int) bool { return false }
 
@@ -111,11 +111,11 @@ func TestUpgradeStarWithItemFailureAtEightResetsStarsWithoutProtection(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Success || result.Pet.UpgradeNum != 0 || result.Pet.GrowRateAdd != 0.20 {
+	if result.Success || result.Pet.UpgradeNum != 0 || result.Pet.GrowRateAdd != 0 {
 		t.Fatalf("result = %+v", result)
 	}
-	if petRepo.pets[1].UpgradeNum != 0 {
-		t.Fatalf("stored stars = %d, want 0", petRepo.pets[1].UpgradeNum)
+	if petRepo.pets[1].UpgradeNum != 0 || petRepo.pets[1].GrowRateAdd != 0 {
+		t.Fatalf("stored enhancement = stars %d/growth %.2f, want 0/0", petRepo.pets[1].UpgradeNum, petRepo.pets[1].GrowRateAdd)
 	}
 }
 
@@ -127,7 +127,7 @@ func TestUpgradeStarWithItemFailureAtEightConsumesProtectionAndKeepsStars(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Success || result.Pet.UpgradeNum != 8 || result.SafeItemID != 11 || result.SafeRemaining != 1 {
+	if result.Success || result.Pet.UpgradeNum != 8 || result.Pet.GrowRateAdd != 0.20 || result.SafeItemID != 11 || result.SafeRemaining != 1 {
 		t.Fatalf("result = %+v", result)
 	}
 	if petRepo.pets[1].UpgradeNum != 8 || itemRepo.items[10].StackCount != 1 || itemRepo.items[11].StackCount != 1 {
