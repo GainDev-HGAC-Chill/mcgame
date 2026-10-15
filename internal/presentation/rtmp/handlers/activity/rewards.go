@@ -170,8 +170,7 @@ func (h *Handler) TakeNewGift(ctx *rtmp.RPCContext, args []interface{}) (interfa
 		return nil, nil
 	}
 
-	_ = ctx.Connection.SendCallback("onAddItem", addedItem)
-	_ = ctx.Connection.SendCallback("onAddCharactorSlot", addedItem)
+	h.sendActivityItemRewardCallbacks(ctx, addedItem)
 	_ = ctx.Connection.SendCallback("onBlueMsg", "Nhận thưởng online thành công!")
 	rtmputils.CheckBagCapacityWarning(ctx.Context, ctx.Connection, h.itemService, characterID)
 
@@ -196,8 +195,7 @@ func (h *Handler) TakeSPGift(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		return nil, nil
 	}
 
-	_ = ctx.Connection.SendCallback("onAddItem", addedItem)
-	_ = ctx.Connection.SendCallback("onAddCharactorSlot", addedItem)
+	h.sendActivityItemRewardCallbacks(ctx, addedItem)
 	_ = ctx.Connection.SendCallback("onBlueMsg", "Nhận Quà Đặc Biệt thành công!")
 	rtmputils.CheckBagCapacityWarning(ctx.Context, ctx.Connection, h.itemService, characterID)
 

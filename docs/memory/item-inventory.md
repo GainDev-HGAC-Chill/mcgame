@@ -1,5 +1,11 @@
 # Item & Inventory System
 
+## Activity reward visibility and utility-bag movement (2026-10-15)
+
+Activity reward handlers must not pass a Go `*item.Item` struct directly to Flash callbacks. `TakeNewGift`, `TakeSPGift`, and `BuySendCombine` now build the popup `onAddItem` notice separately and send a normalized `BuildClientItemDTO` map to `onAddCharactorSlot`; otherwise the item is persisted but the bag can remain visually stale until `bagSort` rebuilds slots. Shop purchases already use before/after stack snapshots and send every changed slot DTO, so that path remains unchanged.
+
+Flash `addtItemFromBag(sourceSID, targetPosition)` and `addmxFromBag(sourceSID, targetPosition)` do not use the generic global SID contract for their second argument. They now have dedicated handlers: paged positions encoded as `page*100+position` are decoded using the client's 24-slot page size, normal utility-bag contents persist at 1-based indexes, and MX contents at 101-based indexes. Routing these RPCs to generic `MoveItem` interprets targets `1..22` as equipment slots and returns `cannot equip item`. Successful moves delete the regular-bag icon and refresh the complete `updateTempBags` payload. Temp-bag sort must preserve the same 1/101-based indexing.
+
 Latest voucher1132 follow-up deployed17:34:09 (2026-10-12), game running/restart_count0; scoped tests/vet/build PASS. Flash validation NOT TESTED; crafting sale-bag null remains unresolved, not covered by voucher or quest-sort repairs. No item/player repair or reward replay. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
 
 ## Gift currency vouchers (2026-10-14)

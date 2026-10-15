@@ -1705,10 +1705,11 @@ func (s *Service) SortTempBag(ctx context.Context, charID int64) ([]*item.Item, 
 
 	// 3. Move Back
 	for i, it := range items {
-		if err := s.itemRepo.MoveItem(ctx, it.ID, item.SlotTypeTempBag, i); err != nil {
+		newIndex := i + 1
+		if err := s.itemRepo.MoveItem(ctx, it.ID, item.SlotTypeTempBag, newIndex); err != nil {
 			return nil, err
 		}
-		it.SlotIndex = i
+		it.SlotIndex = newIndex
 	}
 
 	s.logger.Debug("Temp bag sorted",
@@ -1751,7 +1752,7 @@ func (s *Service) SortMxTempBag(ctx context.Context, charID int64) ([]*item.Item
 	// 3. Move Back
 	// Reassign slot indices starting from 100
 	for i, it := range items {
-		newIndex := 100 + i
+		newIndex := 101 + i
 		if err := s.itemRepo.MoveItem(ctx, it.ID, item.SlotTypeTempBag, newIndex); err != nil {
 			return nil, err
 		}

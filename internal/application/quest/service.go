@@ -1444,10 +1444,18 @@ func (s *Service) applyRewards(ctx context.Context, charID int64, questID int, c
 
 	oldClassRank := char.ClassRank
 	char.QuestN++
-	if isClassQuest && char.ClassRank < classRankMax {
+
+	// Quest 686-691: Hoàn thành thực tập, trở thành Sơ cấp nghề.
+	// Chỉ nâng từ Kiến tập (0) lên Sơ cấp (1).
+	isProfessionIntroQuest := questID >= 686 && questID <= 691
+
+	if isProfessionIntroQuest {
+		if char.ClassRank == 0 {
+			char.ClassRank = 1
+		}
+	} else if isClassQuest && char.ClassRank < classRankMax {
 		char.ClassRank++
 	}
-
 	if err := s.charRepo.Update(ctx, char); err != nil {
 		return nil, err
 	}

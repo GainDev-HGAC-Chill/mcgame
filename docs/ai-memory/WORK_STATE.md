@@ -8,6 +8,7 @@
 - Hoàn tất đúng nhóm voucher `Ngân Phiếu Lễ`/`Hoàng Kim Lễ`/`Thẻ Kim Phiếu` và mở trực tiếp giao diện Quest Admin dashboard không cần phiên đăng nhập; không mở rộng sang item hay trang quản trị khác.
 - Đã triển khai completion policy cho registry fingerprint 227 nhiệm vụ đối thoại đã duyệt (67 type 1, 67 type 2, 93 type 4); chưa thay đổi dữ liệu nhiệm vụ hoặc tiến độ người chơi.
 - Đã sửa đồng bộ cường hóa Pet: `petStar` roll đúng bảng Flash 100/100/90/80/70/60/50/30/30/30/30/20% cho sao đích 1→12, hỗ trợ Nội Đơn Chúc Phúc giữ sao khi thất bại từ 8+, và phát refresh nested `property` để bảng Pet dùng cùng `GrowRate + GrowRateAdd`; chưa deploy/Flash smoke-test.
+- Đã sửa inventory: `addtItemFromBag`/`addmxFromBag` dùng handler riêng để decode vị trí túi tiện dụng thay vì parse thành equipment SID; sort temp/MX giữ index 1-based. Reward sự kiện không còn gửi raw Go `*Item` vào `onAddCharactorSlot`, mà gửi Flash slot DTO đầy đủ; shop path đã có changed-stack DTO snapshot đúng.
 
 ## Đã hoàn thành
 
@@ -50,6 +51,8 @@
 - Independent verification sửa test `cmd/questaudit` từng phụ thuộc artifact `.local/research` bị Git ignore; test registry nay chỉ đọc ba catalog checked-in `TBL_QUEST`, `TBL_QUEST_REQUIRE`, `TBL_NPC` và PASS trên focused run. Full `go vet ./...` vẫn chỉ bị thư mục backup ngoài source `backup_bloodbag_before_atomic`; targeted vet của toàn bộ package sửa PASS.
 - Pet enhancement live refresh: thêm `onRefreshPetProp` sau nâng/xóa sao và regression payload `1.56 + 0.40 = 1.96`; Pet handler/domain, targeted enhancement, targeted vet và gameserver build PASS; broad internal còn đúng baseline 4 Pet + 2 chat-stat ngoài phạm vi.
 - Pet star probability: bỏ hành vi thành công 100% đến 12 sao; server dùng exact base table mà Flash hiển thị. Failure giữ sao dưới 8, từ 8 trở lên về 0 nếu không có protection; Nội Đơn Chúc Phúc 2276 được validate/consume và trả `flag/starSafeNum`. Focused probability/failure/protection tests, targeted vet và gameserver build PASS; broad internal giữ nguyên baseline 4 Pet + 2 chat-stat.
+- Inventory/temp bag follow-up: event rewards (`TakeNewGift`, `TakeSPGift`, `BuySendCombine`) trước đây callback raw struct nên DB có item nhưng Flash slot có thể không render tới khi sort. Đã chuẩn hóa notice + `BuildClientItemDTO`; shop snapshot path đã đúng. `addtItemFromBag`/`addmxFromBag` nay map client page 24 ô thành normal 1-based/MX 101-based, validate capacity/type, xóa source icon rồi refresh `updateTempBags`; focused item/activity/shop tests, targeted vet và gameserver build PASS.
+- Broad internal sau nhóm inventory: Pet suite PASS; còn 2 chat-stat baseline và Quest registry count `234 want 227` do thay đổi Quest ngoài phạm vi đang có trong working tree (`internal/application/quest/service.go` cũng có thay đổi người dùng). Không sửa/revert nhóm Quest đó.
 
 ## Runtime/database
 

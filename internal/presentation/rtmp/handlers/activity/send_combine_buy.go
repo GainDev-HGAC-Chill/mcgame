@@ -69,7 +69,7 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 		return currentBuyNum, nil
 	}
 
-	addedItems := make([]interface{}, 0, len(selectedAwards))
+	addedItems := make([]*domainitem.Item, 0, len(selectedAwards))
 	for _, award := range selectedAwards {
 		templateID, parseErr := strconv.Atoi(award.ItemID)
 		if parseErr != nil || templateID <= 0 {
@@ -107,8 +107,7 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 
 	if ctx.Connection != nil {
 		for _, added := range addedItems {
-			_ = ctx.Connection.SendCallback("onAddItem", added)
-			_ = ctx.Connection.SendCallback("onAddCharactorSlot", added)
+			h.sendActivityItemRewardCallbacks(ctx, added)
 		}
 		_ = ctx.Connection.SendCallback("onAddMoney", float64(characterID), currencyKey, float64(-totalCost), currencyTotalFloat)
 		_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: currencyTotal})

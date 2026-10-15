@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-15-20 — Item sự kiện ẩn và túi tiện dụng route nhầm
+
+- Hiện tượng: item từ Shop/sự kiện đôi khi chỉ hiện sau khi sắp xếp túi; kéo vật phẩm vào túi tiện dụng báo `Internal error: cannot equip item`.
+- Nguyên nhân: ba activity reward callback gửi raw Go `*Item` thay vì Flash slot DTO. `addtItemFromBag`/`addmxFromBag` bị đăng ký vào generic `MoveItem`, khiến target position 1..22 bị parse thành equipment SID.
+- Sửa: chuẩn hóa activity notice + `BuildClientItemDTO`; giữ shop changed-stack snapshot hiện có. Thêm handler riêng decode page 24 ô, map normal index 1-based/MX 101-based, validate capacity/type, xóa icon nguồn và refresh `updateTempBags`; temp sort giữ cùng index contract.
+- Test: item application, item/activity/shop handlers, targeted vet và gameserver build PASS. Broad internal có lỗi registry Quest 234-vs-227 từ thay đổi quest ngoài phạm vi và 2 chat-stat baseline; Pet suite hiện PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+
 ## FIX-2026-10-15-19 — Đồng bộ tỷ lệ và hệ số cường hóa Pet
 
 - Hiện tượng: server luôn nâng thành công tới 12 sao dù Flash hiển thị tỷ lệ giảm dần; tổng hệ số đã lưu đúng, ví dụ `1.56 + 0.40 = 1.96`, nhưng bảng Pet vẫn có thể hiện `1.56`.
