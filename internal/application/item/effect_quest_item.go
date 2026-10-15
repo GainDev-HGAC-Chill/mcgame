@@ -39,7 +39,7 @@ func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, ch
 
 		rounds := appbuff.CatchBallRounds
 
-		_, err := h.service.buffService.AddOrRefresh(
+		storedBuff, err := h.service.buffService.AddOrRefresh(
 			ctx,
 			char.ID,
 			appbuff.AddRequest{
@@ -55,7 +55,8 @@ func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, ch
 		}
 
 		result := NewEffectResult()
-		result.Message = "Tinh Linh Cầu: tăng 3 năng lực bắt thú trong 10 lượt đánh."
+		result.Message = "Tinh Linh Cau: +3 nang luc bat thu trong 10 luot danh."
+		result.GrantedBuffs = []*domainbuff.Buff{storedBuff}
 		return result, nil
 	}
 

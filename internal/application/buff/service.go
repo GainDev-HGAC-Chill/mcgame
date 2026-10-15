@@ -204,6 +204,12 @@ func (s *Service) BuildLongBuffPayload(b *domainbuff.Buff) map[string]interface{
 	if b.BattlesLeft != nil {
 		payload["battleLeft"] = *b.BattlesLeft
 	}
+	if b.RoundsLeft != nil {
+		payload["roundsLeft"] = *b.RoundsLeft
+		if b.BuffID == CatchBallBuffID {
+			payload["battleLeft"] = *b.RoundsLeft
+		}
+	}
 	if b.ExpiresAt != nil {
 		now := time.Now()
 		left := b.ExpiresAt.Sub(now)
