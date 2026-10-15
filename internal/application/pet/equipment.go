@@ -62,7 +62,7 @@ func (s *Service) EquipPetItem(ctx context.Context, charID int64, petID int64, i
 	}
 
 	template := s.gameDataManager.GetEquipment(item.TemplateID)
-	if !isPetEquipmentTemplate(template) || !petCanEquipTemplate(p, template, s.petSkillClassID(p)) {
+	if !isPetEquipmentTemplate(template) || !petCanEquipTemplate(p, template, s.petEquipmentClassID(p)) {
 		return nil, pkgerrors.ErrCannotEquip
 	}
 

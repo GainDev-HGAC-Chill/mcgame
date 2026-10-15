@@ -248,18 +248,44 @@ func (s *Service) petSkillQualityLevel(p *domainpet.Pet) int {
 }
 
 func (s *Service) petSkillClassID(p *domainpet.Pet) int {
-	if p != nil && p.CreatureData != nil {
+	if p == nil {
+		return 0
+	}
+
+	if p.CreatureData != nil {
+		if classID, ok := parsePetSkillSlotNumber(p.CreatureData["classId"]); ok && classID > 0 {
+			return classID
+		}
+		if classID, ok := parsePetSkillSlotNumber(p.CreatureData["class_id"]); ok && classID > 0 {
+			return classID
+		}
+	}
+
+	if s.gameDataManager != nil {
+		if template := s.gameDataManager.GetCreature(p.TemplateID); template != nil {
+			return int(template.ClassID)
+		}
+	}
+
+	return 0
+}
+
+func (s *Service) petEquipmentClassID(p *domainpet.Pet) int {
+	if p == nil {
+		return 0
+	}
+
+	if p.CreatureData != nil {
 		if classID, ok := parsePetSkillSlotNumber(p.CreatureData["classIds"]); ok && classID > 0 {
 			return classID
 		}
 	}
-	if p != nil && s.gameDataManager != nil {
+
+	if s.gameDataManager != nil {
 		if template := s.gameDataManager.GetCreature(int(p.TemplateID)); template != nil {
-			classID := int(template.ClassIds)
-			if classID > 0 {
-				return classID
-			}
+			return int(template.ClassIds)
 		}
 	}
+
 	return 0
 }

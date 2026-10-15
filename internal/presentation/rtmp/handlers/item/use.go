@@ -79,13 +79,22 @@ func (h *Handler) UseItem(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if appitem.IsDirectUseDisabledTemplate(it.TemplateID) {
 		return nil, nil
 	}
-
+	
 	h.logger.Info("UseItem: calling service.UseItem",
 		zap.Int64("character_id", characterID),
 		zap.Int64("item_id", it.ID),
 		zap.Int("template_id", it.TemplateID),
 		zap.String("char_name", char.Name))
 
+	// Sách kỹ năng Pet được học qua RPC petBook.
+	// Không xử lý lại bằng useItem như vật phẩm triệu hồi Pet.
+	if h.gameData != nil {
+		if tpl := h.gameData.GetItem(it.TemplateID); tpl != nil {
+			if int(tpl.Type) == 506 && int(tpl.UseType) == 2 {
+				return nil, nil
+			}
+		}
+	}
 	if h.questService != nil {
 		if _, ok := h.questService.LoopBossItemQuest(it.TemplateID); ok {
 			return h.useLoopBossOrderItem(ctx, characterID, char, it)

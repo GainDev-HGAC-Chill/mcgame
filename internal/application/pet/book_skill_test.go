@@ -126,8 +126,8 @@ func TestLearnSkillFromBookUsesItemInstanceAndAppliesBuff(t *testing.T) {
 				AptEnergy:       10,
 				GrowRate:        1,
 				CreatureData: map[string]interface{}{
-					"classIds": 3,
-					"qLevel":   3,
+					"classId": 3,
+					"qLevel":  3,
 				},
 				Property: map[string]interface{}{},
 			},
@@ -194,8 +194,8 @@ func TestLearnSkillFromBookRejectsDuplicateSkillFamily(t *testing.T) {
 				AptEnergy:       10,
 				GrowRate:        1,
 				CreatureData: map[string]interface{}{
-					"classIds": 3,
-					"qLevel":   3,
+					"classId": 3,
+					"qLevel":  3,
 				},
 				Property: map[string]interface{}{
 					"skill1": 5528,
@@ -249,8 +249,8 @@ func TestLearnSkillFromBookRejectsInvalidBookTemplate(t *testing.T) {
 				AptEnergy:       10,
 				GrowRate:        1,
 				CreatureData: map[string]interface{}{
-					"classIds": 3,
-					"qLevel":   3,
+					"classId": 3,
+					"qLevel":  3,
 				},
 				Property: map[string]interface{}{},
 			},
@@ -300,8 +300,8 @@ func TestLearnSkillFromBookRejectsWhenNoOpenSkillSlot(t *testing.T) {
 				AptEnergy:       10,
 				GrowRate:        1,
 				CreatureData: map[string]interface{}{
-					"classIds": 3,
-					"qLevel":   3,
+					"classId": 3,
+					"qLevel":  3,
 				},
 				Property: map[string]interface{}{
 					"skill1":  5001,
@@ -367,8 +367,8 @@ func TestLearnSkillFromBookRejectsMismatchedPetClassID(t *testing.T) {
 				AptEnergy:       10,
 				GrowRate:        1,
 				CreatureData: map[string]interface{}{
-					"classIds": 2,
-					"qLevel":   3,
+					"classId": 2,
+					"qLevel":  3,
 				},
 				Property: map[string]interface{}{},
 			},
@@ -418,8 +418,8 @@ func TestLearnSkillFromBookAllowsUniversalPetSkill(t *testing.T) {
 				AptEnergy:       10,
 				GrowRate:        1,
 				CreatureData: map[string]interface{}{
-					"classIds": 2,
-					"qLevel":   3,
+					"classId": 2,
+					"qLevel":  3,
 				},
 				Property: map[string]interface{}{},
 			},
@@ -470,8 +470,8 @@ func newPetSkillBookGameData(t *testing.T) *gamedata.Manager {
 
 	loadTable(models.TableCreature, `{"id":1001,"name":"Test Pet","apt_strength":10,"apt_agility":10,"apt_stamina":10,"apt_intelligence":10,"apt_energy":10,"grow_base":1,"element":1,"q_level":3}`)
 	loadTable(models.TableCreature,
-		`{"id":1001,"name":"Test Pet","apt_strength":10,"apt_agility":10,"apt_stamina":10,"apt_intelligence":10,"apt_energy":10,"grow_base":1,"element":1,"q_level":3,"class_ids":3}`,
-		`{"id":1002,"name":"Other Test Pet","apt_strength":10,"apt_agility":10,"apt_stamina":10,"apt_intelligence":10,"apt_energy":10,"grow_base":1,"element":1,"q_level":3,"class_ids":2}`,
+		`{"id":1001,"name":"Test Pet","apt_strength":10,"apt_agility":10,"apt_stamina":10,"apt_intelligence":10,"apt_energy":10,"grow_base":1,"element":1,"q_level":3,"class_id":3}`,
+		`{"id":1002,"name":"Other Test Pet","apt_strength":10,"apt_agility":10,"apt_stamina":10,"apt_intelligence":10,"apt_energy":10,"grow_base":1,"element":1,"q_level":3,"class_id":2}`,
 	)
 	loadTable(models.TableItemTemplate,
 		`{"id":3216,"name":"Thụ Bì Ngoại Sáo Siêu Cấp","kind":5,"type":506,"use_type":2,"prop_type":237,"skill_id":0}`,
