@@ -45,6 +45,7 @@ var reviewedConversationQuests = map[int]conversationQuestSpec{
 	44:    {QuestType: 1, StartNPC: 280, FinishNPC: 280, Name: "Học Kỹ Năng Pet"},
 	45:    {QuestType: 1, StartNPC: 280, FinishNPC: 343, Name: "Gặp Đông Huyền Sứ"},
 	46:    {QuestType: 1, StartNPC: 430, FinishNPC: 430, Name: "Chế Tạo Huy Hiệu"},
+	52:    {QuestType: 1, StartNPC: 456, FinishNPC: 456, Name: "Răng Cửa Náo Động"},
 	54:    {QuestType: 1, StartNPC: 456, FinishNPC: 433, Name: "Âm Mưu Răng Cửa"},
 	58:    {QuestType: 1, StartNPC: 434, FinishNPC: 434, Name: "Hỏa Kê Đáng Thương"},
 	71:    {QuestType: 4, StartNPC: 436, FinishNPC: 435, Name: "Đại Địa Than Khóc 10-10"},
