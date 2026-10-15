@@ -69,6 +69,12 @@ var reviewedConversationQuests = map[int]conversationQuestSpec{
 	384:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Khảm Nạm Bảo Thạch"},
 	385:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Đục Lỗ Trang Bị"},
 	386:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Thăng Tinh Thạch"},
+	686:   {QuestType: 1, StartNPC: 339, FinishNPC: 339, Name: "Phổ Cập Nghề Nghiệp"}, // Chiến Binh
+	687:   {QuestType: 1, StartNPC: 341, FinishNPC: 341, Name: "Phổ Cập Nghề Nghiệp"}, // Nhạc Công
+	688:   {QuestType: 1, StartNPC: 342, FinishNPC: 342, Name: "Phổ Cập Nghề Nghiệp"}, // Danh Y
+	689:   {QuestType: 1, StartNPC: 426, FinishNPC: 426, Name: "Phổ Cập Nghề Nghiệp"}, // Thợ Săn
+	690:   {QuestType: 1, StartNPC: 490, FinishNPC: 490, Name: "Phổ Cập Nghề Nghiệp"}, // Xạ Thủ
+	691:   {QuestType: 1, StartNPC: 640, FinishNPC: 640, Name: "Phổ Cập Nghề Nghiệp"}, // Hiệp Sĩ
 	1030:  {QuestType: 4, StartNPC: 498, FinishNPC: 447, Name: "Đao Của Kẻ Báo Thù 17-2"},
 	1046:  {QuestType: 2, StartNPC: 457, FinishNPC: 462, Name: "Tin Tức Sơn Quái"},
 	1126:  {QuestType: 2, StartNPC: 425, FinishNPC: 613, Name: "Sao Lại Là Tảng Đá"},
