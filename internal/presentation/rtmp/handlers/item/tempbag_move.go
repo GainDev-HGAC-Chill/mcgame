@@ -26,6 +26,14 @@ func (h *Handler) TakeMxTempItemToBag(ctx *rtmp.RPCContext, args []interface{}) 
 	return h.takeItemFromTempToBag(ctx, args, true)
 }
 
+func (h *Handler) AddItemFromTemp(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.addItemFromTemp(ctx, args, false)
+}
+
+func (h *Handler) AddMxItemFromTemp(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.addItemFromTemp(ctx, args, true)
+}
+
 func (h *Handler) addItemFromBagToTemp(ctx *rtmp.RPCContext, args []interface{}, mx bool) (interface{}, error) {
 	if len(args) < 2 {
 		return nil, pkgerrors.ErrInvalidArgs
@@ -129,6 +137,62 @@ func (h *Handler) takeItemFromTempToBag(ctx *rtmp.RPCContext, args []interface{}
 	payload := h.buildTBagData(char, items)
 	_ = ctx.Connection.SendCallback("updateTempBags", payload)
 	return map[string]interface{}{"success": true}, nil
+}
+
+func (h *Handler) addItemFromTemp(ctx *rtmp.RPCContext, args []interface{}, mx bool) (interface{}, error) {
+	position, targetType, targetIndex, count, ok := parseAddItemFromTempArgs(args)
+	if !ok {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
+	characterID, err := strconv.ParseInt(ctx.CharacterID, 10, 64)
+	if err != nil {
+		return nil, pkgerrors.ErrUnauthorized
+	}
+	char, err := h.charService.GetByID(ctx.Context, characterID)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
+	}
+	tempIndex := position
+	if mx {
+		tempIndex += 100
+	}
+	moved, err := h.itemService.MoveTempBagItemToSlot(ctx.Context, characterID, tempIndex, targetType, targetIndex, count)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
+	}
+	_ = ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(moved))
+	items, err := h.itemService.GetAllItems(ctx.Context, characterID)
+	if err != nil {
+		return nil, err
+	}
+	_ = ctx.Connection.SendCallback("updateTempBags", h.buildTBagData(char, items))
+	return map[string]interface{}{"success": true}, nil
+}
+
+func parseAddItemFromTempArgs(args []interface{}) (int, domainitem.SlotType, int, int, bool) {
+	const invalidSlotType = domainitem.SlotType(-1)
+	if len(args) < 2 {
+		return 0, invalidSlotType, 0, 0, false
+	}
+	rawPosition, positionOK := parseFlexibleInt64(args[0])
+	targetSID, targetOK := parseFlexibleInt64(args[1])
+	position, decoded := decodeTempBagClientPosition(int(rawPosition))
+	if !positionOK || !targetOK || !decoded {
+		return 0, invalidSlotType, 0, 0, false
+	}
+	targetType, targetIndex := domainitem.ParseSID(int(targetSID))
+	if targetType != domainitem.SlotTypeBag && targetType != domainitem.SlotTypeQuestBag && targetType != domainitem.SlotTypePetItemBag {
+		return 0, invalidSlotType, 0, 0, false
+	}
+	count := 0
+	if len(args) >= 3 {
+		rawCount, countOK := parseFlexibleInt64(args[2])
+		if !countOK || rawCount <= 0 {
+			return 0, invalidSlotType, 0, 0, false
+		}
+		count = int(rawCount)
+	}
+	return position, targetType, targetIndex, count, true
 }
 
 func decodeTempBagClientPosition(raw int) (int, bool) {

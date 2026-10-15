@@ -1,6 +1,10 @@
 package item
 
-import "testing"
+import (
+	"testing"
+
+	domainitem "mcgame-server/internal/domain/item"
+)
 
 func TestDecodeTempBagClientPosition(t *testing.T) {
 	tests := []struct {
@@ -21,6 +25,20 @@ func TestDecodeTempBagClientPosition(t *testing.T) {
 		if got != tc.want || ok != tc.ok {
 			t.Fatalf("raw %d = (%d,%v), want (%d,%v)", tc.raw, got, ok, tc.want, tc.ok)
 		}
+	}
+}
+
+func TestParseAddItemFromTempArgs(t *testing.T) {
+	position, slotType, slotIndex, count, ok := parseAddItemFromTempArgs([]interface{}{float64(1), float64(2106)})
+	if !ok || position != 1 || slotType != domainitem.SlotTypeBag || slotIndex != 5 || count != 0 {
+		t.Fatalf("parsed = (%d,%v,%d,%d,%v)", position, slotType, slotIndex, count, ok)
+	}
+	position, slotType, slotIndex, count, ok = parseAddItemFromTempArgs([]interface{}{float64(101), float64(2312), float64(3)})
+	if !ok || position != 25 || slotType != domainitem.SlotTypeQuestBag || slotIndex != 1 || count != 3 {
+		t.Fatalf("paged parsed = (%d,%v,%d,%d,%v)", position, slotType, slotIndex, count, ok)
+	}
+	if _, _, _, _, ok := parseAddItemFromTempArgs([]interface{}{float64(1), float64(10)}); ok {
+		t.Fatal("equipment target accepted")
 	}
 }
 
