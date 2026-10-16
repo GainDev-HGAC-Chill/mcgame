@@ -651,7 +651,53 @@ func (h *Handler) SelMultiItemByIdx(ctx *rtmp.RPCContext, args []interface{}) (i
 		callbackData = h.itemDTO(newItem)
 
 	case 29:
-		// Nhận vật phẩm tiêu hao thông thường.
+	// Túi Quà Tự Chọn Hắc Diệu Thạch - ID 6634.
+	if giftItem.TemplateID == 6634 {
+		var currencyType, amount int
+
+		switch {
+		case selectedIdx == 0 && choice.ID == 5256:
+			currencyType = character.CurrencyHeiyaoshiPoint
+			amount = 50
+
+		case selectedIdx == 1 && choice.ID == 6286:
+			currencyType = character.CurrencyHeiyaoshiPoint2
+			amount = 25
+
+		default:
+			return -1, nil
+		}
+
+		char, getErr := h.charService.GetByID(
+			ctx.Context,
+			characterID,
+		)
+		if getErr != nil || char == nil {
+			return -1, nil
+		}
+
+		if err := char.AddCurrency(currencyType, amount); err != nil {
+			return -1, nil
+		}
+
+		if err := h.charService.Update(ctx.Context, char); err != nil {
+			h.logger.Error(
+				"Failed to grant Heiyaoshi choice",
+				zap.Int64("character_id", characterID),
+				zap.Error(err),
+			)
+			return -1, nil
+		}
+
+		callbackName = "onUPP"
+		callbackData = map[string]interface{}{
+			"heiyaoshiPoint":  char.HeiyaoshiPoint,
+			"heiyaoshiPoint2": char.HeiyaoshiPoint2,
+		}
+		break
+		}
+
+		// Những túi khác: nhận vật phẩm bình thường.
 		if choice.StackNum <= 0 {
 			return -1, nil
 		}

@@ -63,7 +63,13 @@ func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, ch
 	if h.awardHandler != nil && h.awardHandler.CanHandle(tpl) {
 		return h.awardHandler.Apply(ctx, uctx, char, it, tpl)
 	}
-
+	// Ưu tiên mở giao diện lựa chọn cho hai túi Hắc Diệu Thạch.
+	if tpl.ID == 6575 || tpl.ID == 6634 {
+		if h.giftBoxHandler == nil {
+			return nil, pkgerrors.ErrCannotUseItem
+		}
+		return h.giftBoxHandler.Apply(ctx, uctx, char, it, tpl)
+	}
 	if h.giftBoxHandler != nil && h.giftBoxHandler.CanHandle(tpl) {
 		result, err := h.giftBoxHandler.Apply(ctx, uctx, char, it, tpl)
 		if err != nil {

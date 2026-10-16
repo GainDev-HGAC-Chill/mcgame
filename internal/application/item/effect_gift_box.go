@@ -66,7 +66,33 @@ func (h *giftBoxEffectHandler) Apply(ctx context.Context, uctx *UseContext, char
 	if h.gameData == nil {
 		return nil, fmt.Errorf("gamedata manager not available")
 	}
+	// Bảo Rương Tự Chọn Hắc Diệu Thạch
+	if tpl.ID == 6575 {
+		result.GiftBox = &GiftBoxData{
+			GetNum: 1,
+			Choices: []*GiftBoxChoice{
+				{TableType: 29, ID: 5289, StackNum: 1},
+				{TableType: 29, ID: 6284, StackNum: 1},
+			},
+		}
+		return result, nil
+	}
 
+	// Túi Quà Tự Chọn Hắc Diệu Thạch - Sự Kiện
+	if tpl.ID == 6634 {
+		result.GiftBox = &GiftBoxData{
+			GetNum: 1,
+			Choices: []*GiftBoxChoice{
+				// Hiển thị 10 rương, mỗi rương tượng trưng 5 Hắc Diệu Thạch.
+				{TableType: 29, ID: 5256, StackNum: 10},
+
+				// Hiển thị 5 rương, mỗi rương tượng trưng 5 Tinh Hoa.
+				{TableType: 29, ID: 6286, StackNum: 5},
+			},
+		}
+		return result, nil
+	}
+	
 	if tpl.ID == 3376 {
     result.GiftBox = &GiftBoxData{
         GetNum: 1,
