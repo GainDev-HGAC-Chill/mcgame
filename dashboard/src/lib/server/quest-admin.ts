@@ -54,7 +54,7 @@ export function decorateQuest(detail: QuestDetail, canWrite: boolean, saved = fa
     if (detail.quest.a_script_text || detail.quest.script_give_up || detail.quest.qtest) warnings.push("Script/QA lịch sử chỉ đọc; không tự chuẩn hóa hoặc thực thi.")
     if (detail.quest.award_exp_re === "-1") warnings.push("EXP -1 là sentinel lịch sử, được giữ nguyên khi không chỉnh sửa.")
     if (Number(detail.quest.min_level)>Number(detail.quest.max_level)) warnings.push("Khoảng cấp lịch sử đảo ngược (có thể cố ý vô hiệu hóa).")
-    if (detail.activeUse.activeQuests || detail.activeUse.activeLoops) warnings.push("Có người chơi đang dùng nhiệm vụ; thay đổi không đặt lại tiến độ hoặc bồi thường.")
+    if (detail.activeUse.activeQuests || detail.activeUse.activeLoops) warnings.push("Có người chơi đang dùng nhiệm vụ; vẫn cho phép lưu nhưng không đặt lại tiến độ hoặc bồi thường.")
     if (!["-1","0","1","2","3","4"].includes(detail.quest.money_type ?? "")) warnings.push("Loại tiền thưởng lịch sử chưa có ánh xạ Flash/backend thống nhất; không cho chỉnh phần thưởng tiền này.")
     detail.requirements.forEach(row => { if (!(["1:19","1:29","2:12","3:12"].includes(`${row.kind}:${row.type}`))) warnings.push(`Yêu cầu ${row.id}: loại lịch sử không hỗ trợ.`) })
     detail.awards.forEach(row => { if (!(["1:19","1:29","2:12"].includes(`${row.kind}:${row.type}`)) || row.b!=="1" || (row.type==="12" && row.num!=="1")) warnings.push(`Thưởng ${row.id}: giá trị lịch sử không được runtime tôn trọng đầy đủ.`) })

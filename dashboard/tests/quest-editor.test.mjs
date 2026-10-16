@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import test from "node:test"
 import {
     aggregatePatch,
@@ -108,4 +109,23 @@ test("aggregate includes only dirty groups and preserves untouched legacy rows",
 test("class selections serialize pipes in selection order", () => {
     assert.equal(serializeClasses(["3", "1"]), "|3|1|")
     assert.equal(serializeClasses([]), "all")
+})
+
+test("active quests remain fully editable while revision and audit guards stay enabled", () => {
+    const page = readFileSync(
+        new URL("../src/app/dashboard/quests/[id]/page.tsx", import.meta.url),
+        "utf8"
+    )
+    const migration = readFileSync(
+        new URL(
+            "../../supabase/migrations/20261016073610_allow_edit_active_quests.sql",
+            import.meta.url
+        ),
+        "utf8"
+    )
+    assert.doesNotMatch(page, /unsafeActivePatch/)
+    assert.match(page, /const structuralDisabled = disabled/)
+    assert.doesNotMatch(migration, /ACTIVE_QUEST_IN_USE/)
+    assert.match(migration, /Quest revision conflict/)
+    assert.match(migration, /insert into data\.quest_admin_audit/)
 })

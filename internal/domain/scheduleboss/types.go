@@ -43,7 +43,7 @@ func (c BossConfig) IsMapBoss() bool {
 }
 
 func (c BossConfig) AllowsChannel(channelID int) bool {
-	if channelID <= 0 {
+	if channelID < 0 {
 		return false
 	}
 	if c.ChannelScope == "" || c.ChannelScope == "all" {

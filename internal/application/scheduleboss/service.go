@@ -124,7 +124,7 @@ func (s *Service) CanEngage(ctx context.Context, nid, mapID, channelID int) (boo
 
 func (s *Service) VisibleBossesForScene(ctx context.Context, mapID, channelID int) ([]domain.BossConfig, error) {
 	getter, ok := s.configs.(MapConfigGetter)
-	if !ok || channelID <= 0 {
+	if !ok || channelID < 0 {
 		return nil, nil
 	}
 	configs := getter.ConfigsForMap(mapID)

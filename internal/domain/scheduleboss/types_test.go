@@ -33,8 +33,10 @@ func TestBossConfigAllowsChannel(t *testing.T) {
 		{"", 3, true},
 		{"channel:1", 1, true},
 		{"channel:1", 2, false},
-		{"channel:x", 1, false},
+		{"all", 0, true},
 		{"channel:1", 0, false},
+		{"channel:x", 1, false},
+		{"all", -1, false},
 	}
 	for _, test := range tests {
 		cfg := BossConfig{ChannelScope: test.scope}

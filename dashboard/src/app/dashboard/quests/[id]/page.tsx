@@ -63,14 +63,6 @@ export default function QuestDetailPage({
     }, [resource.data])
     const patch = baseline && quest ? aggregatePatch(baseline, quest, rows) : {}
     const dirty = Object.keys(patch).length > 0
-    const active = (baseline?.activeUse?.activeQuests ?? 0) > 0
-    const metadata = ["name", "info", "start_text", "complete_text"]
-    const unsafeActivePatch =
-        active &&
-        (Object.keys(patch).some(key => key !== "quest") ||
-            Object.keys((patch.quest as Record<string, unknown>) ?? {}).some(
-                key => !metadata.includes(key)
-            ))
     useEffect(() => {
         const listener = (event: BeforeUnloadEvent) => {
             if (dirty) event.preventDefault()
@@ -79,8 +71,7 @@ export default function QuestDetailPage({
         return () => window.removeEventListener("beforeunload", listener)
     }, [dirty])
     async function save() {
-        if (!baseline || !dirty || !baseline.canWrite || unsafeActivePatch)
-            return
+        if (!baseline || !dirty || !baseline.canWrite) return
         setSaving(true)
         setError(null)
         try {
@@ -122,7 +113,7 @@ export default function QuestDetailPage({
         authFailure ||
         resource.loading ||
         !!resource.error
-    const structuralDisabled = disabled || active
+    const structuralDisabled = disabled
     return (
         <div className="space-y-6 p-6">
             <Link
@@ -168,7 +159,7 @@ export default function QuestDetailPage({
                         Tải lại
                     </Button>
                     <Button
-                        disabled={disabled || !dirty || unsafeActivePatch}
+                        disabled={disabled || !dirty}
                         onClick={() => setConfirm(true)}
                     >
                         Lưu nhiệm vụ
@@ -196,19 +187,15 @@ export default function QuestDetailPage({
                             {baseline.activeUse.activeLoops}
                         </p>
                     )}
-                    {active && (
+                    {(baseline.activeUse?.activeQuests ?? 0) > 0 && (
                         <div
                             role="alert"
-                            className="rounded-lg border border-destructive p-4 text-sm"
+                            className="rounded-lg border border-amber-500 p-4 text-sm"
                         >
-                            Đang có người chơi nhận nhiệm vụ. Khóa chỉnh mục
-                            tiêu, số lượng, NPC, thưởng và cấu trúc để bảo vệ
-                            tiến độ: thay đổi mục tiêu có thể làm mất tiến độ
-                            khi runtime đối chiếu. Chỉ cho phép sửa tên, mô tả
-                            và hội thoại. Chủ sở hữu phải tự hoàn thành / bỏ
-                            nhiệm vụ theo quy trình được phê duyệt trước khi sửa
-                            cấu trúc; trang này không bỏ nhiệm vụ hay khởi động
-                            lại máy chủ.
+                            Đang có người chơi nhận nhiệm vụ. Bạn vẫn có thể sửa
+                            toàn bộ cấu hình; thay đổi được áp dụng khi runtime
+                            đối chiếu lại nhiệm vụ. Dashboard không tự bỏ, đặt
+                            lại hoặc bồi thường tiến độ hiện có.
                         </div>
                     )}
                     {baseline.warnings?.length > 0 && (

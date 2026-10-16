@@ -118,7 +118,7 @@ func TestCanEngageRequiresMapChannelAndAliveState(t *testing.T) {
 		{"valid", 3, 2, true},
 		{"wrong map", 4, 2, false},
 		{"dead channel", 3, 3, false},
-		{"invalid channel", 3, 0, false},
+		{"invalid channel", 3, -1, false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -130,6 +130,21 @@ func TestCanEngageRequiresMapChannelAndAliveState(t *testing.T) {
 				t.Fatalf("CanEngage() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestCanEngageAllowsLiveBossOnChannelZero(t *testing.T) {
+	cfg := domain.BossConfig{NID: 707, MapID: 2, Kind: domain.Ground, Tier: domain.TierNormal, ChannelScope: "all", IsActive: true}
+	state := newMemStateRepo()
+	state.alive[domain.BossKey{NID: 707, ChannelID: 0}] = true
+	svc := New(state, NewConfigCache([]domain.BossConfig{cfg}), nil, nil, nil)
+
+	got, err := svc.CanEngage(context.Background(), 707, 2, 0)
+	if err != nil {
+		t.Fatalf("CanEngage: %v", err)
+	}
+	if !got {
+		t.Fatal("channel zero boss should be engageable when its state is alive")
 	}
 }
 
@@ -157,5 +172,14 @@ func TestVisibleBossesForSceneIncludesScopedMythicAndAliveNormal(t *testing.T) {
 	}
 	if len(visible) != 0 {
 		t.Fatalf("channel 2 visible = %+v, want none", visible)
+	}
+
+	state.aliveList[0] = []domain.BossState{{NID: 706, ChannelID: 0, IsAlive: true}}
+	visible, err = svc.VisibleBossesForScene(context.Background(), 3, 0)
+	if err != nil {
+		t.Fatalf("VisibleBossesForScene channel 0: %v", err)
+	}
+	if len(visible) != 1 || visible[0].NID != 706 {
+		t.Fatalf("channel 0 visible = %+v, want normal 706", visible)
 	}
 }

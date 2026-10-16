@@ -24,9 +24,6 @@ export function ApiError({ error }: { error: Error }) {
                 </>
             ) : status === 403 ? (
                 "Tài khoản không có quyền xem hoặc chỉnh sửa nhiệm vụ. Liên hệ quản trị viên để được cấp quyền."
-            ) : error instanceof QuestApiError &&
-              error.code === "ACTIVE_QUEST_IN_USE" ? (
-                "Không thể sửa cấu trúc: người chơi đang nhận nhiệm vụ. Chủ sở hữu phải tự hoàn thành / bỏ nhiệm vụ theo quy trình được phê duyệt; không thay đổi tiến độ hay khởi động lại tự động."
             ) : status === 409 ? (
                 `Xung đột dữ liệu: ${error.message}. Giữ bản chỉnh sửa để đối chiếu; tải lại trước khi lưu.`
             ) : (

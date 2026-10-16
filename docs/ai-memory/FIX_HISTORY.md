@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-16-24 — Quest Admin cho sửa nhiệm vụ đang được nhận
+
+- Hiện tượng: dashboard chỉ cho sửa tên/mô tả/hội thoại và khóa mục tiêu, NPC, thưởng, requirements/prerequisites khi có `character_quests` active; DB RPC cũng trả `ACTIVE_QUEST_IN_USE`.
+- Sửa: trang quest không còn khóa structural fields hoặc nút lưu theo active count; cảnh báo vẫn hiển thị rõ thay đổi có thể ảnh hưởng đối chiếu runtime. Migration thay `public.quest_admin_save` để bỏ active-use rejection, giữ revision conflict, validation, transactional before-image/audit, child ownership và cycle detection. Guard của shared loop không đổi.
+- An toàn: không tự bỏ/reset/bồi thường tiến độ người chơi; save vẫn yêu cầu reason, request UUID và exact revision.
+- Test: dashboard typecheck PASS; editor/validation/permission 20 PASS, 1 live test SKIP; Prettier scoped và diff-check PASS.
+- Trạng thái: CODE_FIXED/MIGRATION_STAGED — chưa apply local vì `supabase-db` đang stopped; chưa deploy dashboard.
+
 ## FIX-2026-10-16-23 — Boss bản đồ và thưởng Sổ Tay Ma Thú
 
 - Hiện tượng: boss bản đồ click trực tiếp không bắt đầu trận; 13 boss Kênh 1 không xuất hiện; boss map có thể dựng sai quái/level; toàn bộ boss map và Sổ Tay không có loot riêng.
@@ -8,6 +16,13 @@
 - Dữ liệu local: đã apply 862 loot row vào compose DB; phủ 150/150 registry boss, 3–7 row/boss, 0 item/equipment reference lỗi. Không thay đổi player data.
 - Test: focused scheduleboss/combat/scene/NPC/generator PASS; targeted vet và build gameserver/generator PASS. Broad internal không có lỗi boss; còn baseline ngoài phạm vi ở item award quality, Quest registry, chat stat và một flaky center test đã PASS khi chạy riêng.
 - Trạng thái: CODE_FIXED/LOCAL_DATA_APPLIED — chưa restart/deploy hoặc Flash smoke-test.
+
+### Follow-up channel 0
+
+- Runtime 07:22:18–07:22:20: `clickNpc(707)` trả `[Connection] Not found`; character 3 đang map 2, connection channel 0 và DB có `(nid=707, channel_id=0, is_alive=true)`.
+- Nguyên nhân: validation mới dùng `channelID <= 0`, trong khi gateway/runtime hiện coi channel 0 là hợp lệ.
+- Sửa: scope `all` chấp nhận channel 0; channel âm vẫn bị chặn; `channel:1` vẫn chỉ nhận 1. Bổ sung regression cho engagement và scene visibility channel 0.
+- Test: focused scheduleboss/combat/scene/NPC handlers, targeted vet và gameserver build PASS. Chưa restart/retest Flash.
 
 ## FIX-2026-10-15-22 — Sách triệu hồi, Mật Đạo và vật phẩm xã hội
 

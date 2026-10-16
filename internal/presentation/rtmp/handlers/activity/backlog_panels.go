@@ -235,7 +235,7 @@ func (h *Handler) registerLegacyActivityBacklogHandlers(dispatcher *rtmp.RPCDisp
 		return legacyStarterResponse{
 			response: true,
 			callbacks: []legacyActivityCallback{
-				{method: "onGetData", args: []interface{}{mapState, status, auto}},
+				{method: "onSecretTreasureHuntGetData", args: []interface{}{mapState, status, auto}},
 			},
 		}
 	})

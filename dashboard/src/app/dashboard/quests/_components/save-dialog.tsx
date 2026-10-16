@@ -56,9 +56,9 @@ export function SaveDialog({
                 )}
                 <p className="text-sm">
                     Không ghi tiến độ / lịch sử, không cấp lại thưởng. Thay đổi
-                    mục tiêu có thể làm mất tiến độ khi runtime đối chiếu: lưu
-                    cấu trúc bị chặn khi còn người đang nhận. Không tự bỏ nhiệm
-                    vụ hoặc khởi động lại.
+                    mục tiêu có thể làm thay đổi kết quả đối chiếu của nhiệm vụ
+                    đang nhận. Dashboard vẫn cho phép lưu nhưng không tự bỏ, đặt
+                    lại nhiệm vụ hoặc khởi động lại máy chủ.
                 </p>
                 <ActivationWarning />
                 <label className="grid gap-2 text-sm">
