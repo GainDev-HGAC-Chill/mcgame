@@ -24,6 +24,7 @@ cls
 echo ================= MCGAME =================
 echo 1. Start server
 echo 2. Open Flash Client
+echo F. Open Flash Client - 30 FPS experimental
 echo 3. Stop server - keep data
 echo 4. Restart server - keep data
 echo 5. Status / LAN / Radmin IP / Client URL
@@ -38,7 +39,8 @@ echo Docker Desktop must be running.
 echo If WSL2 was just enabled, restart Windows yourself first.
 echo No database reset or volume deletion is provided here.
 echo.
-choice /c 1234567890R /n /m "Select: "
+choice /c 1234567890RF /n /m "Select: "
+if errorlevel 12 goto client30
 if errorlevel 11 goto radmin
 if errorlevel 10 goto quit
 if errorlevel 9 goto lan
@@ -57,6 +59,9 @@ bin\game.exe start
 goto result
 :client
 bin\game.exe client
+goto result
+:client30
+bin\game.exe client30
 goto result
 :stop
 bin\game.exe stop

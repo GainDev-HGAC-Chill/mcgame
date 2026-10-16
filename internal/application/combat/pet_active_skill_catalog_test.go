@@ -144,6 +144,36 @@ func TestPetActiveSkillCatalogRejectsUnknown(t *testing.T) {
 	}
 }
 
+func TestEveryPetDamagePlanHasPositiveDamageAndTargets(t *testing.T) {
+	damagePlans := 0
+	for family, levels := range petActiveSkillCatalog {
+		for level, plan := range levels {
+			hasDamage := false
+			for _, effect := range plan.Effects {
+				switch effect.Kind {
+				case domaincombat.EffectPhysicalDamage, domaincombat.EffectMagicDamage, domaincombat.EffectFixedCurrentHPDamage, domaincombat.EffectFixedMaxHPDamage:
+					hasDamage = true
+					if effect.Coefficient <= 0 && effect.Fixed <= 0 {
+						t.Errorf("%s level %d has non-positive direct damage: %#v", family, level, effect)
+					}
+				}
+				if effect.Periodic != nil && effect.Periodic.Damage && effect.Periodic.Coefficient <= 0 && effect.Periodic.Fixed <= 0 {
+					t.Errorf("%s level %d has non-positive periodic damage: %#v", family, level, effect.Periodic)
+				}
+			}
+			if hasDamage {
+				damagePlans++
+				if plan.TargetCount <= 0 {
+					t.Errorf("%s level %d has damage but no targets", family, level)
+				}
+			}
+		}
+	}
+	if damagePlans == 0 {
+		t.Fatal("Pet skill catalog has no direct damage plans")
+	}
+}
+
 func TestPetActiveSkillProbabilityModifiersUsePercentagePoints(t *testing.T) {
 	tests := []struct {
 		family string

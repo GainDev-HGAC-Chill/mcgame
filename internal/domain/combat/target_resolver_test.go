@@ -176,6 +176,30 @@ func TestTargetResolverResolveTargets_HorizontalAreaUsesBattleGridLayout(t *test
 	}
 }
 
+func TestTargetResolverResolveTargets_HorizontalAreaSkipsDeadSlotsBeforeTargetCap(t *testing.T) {
+	battle := NewBattle(BattleTypePVE, 20)
+	actor := NewParticipant("actor", "player", SidePlayer, false)
+	actor.Position = 10
+	battle.AddParticipant(actor)
+
+	center := NewParticipant("center", "center", SideEnemy, true)
+	center.Position = 0
+	battle.AddParticipant(center)
+	deadNear := NewParticipant("dead", "dead", SideEnemy, true)
+	deadNear.Position = 2
+	deadNear.IsAlive = false
+	deadNear.CurrentHP = 0
+	battle.AddParticipant(deadNear)
+	liveFar := NewParticipant("far", "far", SideEnemy, true)
+	liveFar.Position = 4
+	battle.AddParticipant(liveFar)
+
+	targets := NewTargetResolver(battle).ResolveTargets(actor, center.ID, TargetEnemy, AreaHorizontal, 2)
+	if len(targets) != 2 || targets[0].ID != center.ID || targets[1].ID != liveFar.ID {
+		t.Fatalf("targets = %#v, want center and farther living target", targets)
+	}
+}
+
 func TestTargetResolverResolveTargets_TargetEnemyCreatureExcludesEnemyPlayer(t *testing.T) {
 	battle := NewBattle(BattleTypePVE, 20)
 

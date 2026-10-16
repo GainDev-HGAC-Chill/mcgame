@@ -160,7 +160,7 @@ func TestAllEnemyPlanDamagesAndDispelsEveryTarget(t *testing.T) {
 	plan := &SkillPlan{Family: "all enemy dispel", Target: TargetAllEnemy, TargetCount: 10, Effects: []SkillEffect{{Kind: EffectPhysicalDamage, Coefficient: .8}, {Kind: EffectRemoveOne, Chance: 1}}}
 	info := testPlanInfo(plan)
 	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
-	processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: first.ID, ActionType: ClientActionSkill, SkillID: info.Template.ID})
+	actions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: first.ID, ActionType: ClientActionSkill, SkillID: info.Template.ID})
 	for _, target := range []*Participant{first, second, third} {
 		if target.CurrentHP >= target.MaxHP {
 			t.Fatalf("target %s was not damaged", target.ID)
@@ -169,6 +169,26 @@ func TestAllEnemyPlanDamagesAndDispelsEveryTarget(t *testing.T) {
 			t.Fatalf("target %s buff was not removed", target.ID)
 		}
 	}
+	assertDamagePopupsForTargets(t, BuildPlaybackRounds(actions), first, second, third)
+}
+
+func TestFixedAOEDamageAlwaysProducesDamagePopupBeforeDeath(t *testing.T) {
+	battle, actor, first := planTestBattle()
+	second := NewParticipant("second", "second", SideEnemy, true)
+	second.Position = 2
+	second.MaxHP = 1000
+	second.CurrentHP = 1000
+	battle.AddParticipant(second)
+	first.CurrentHP = 100
+	second.CurrentHP = 100
+	plan := &SkillPlan{Family: "lethal aoe", Target: TargetAllEnemy, TargetCount: 10, Effects: []SkillEffect{{Kind: EffectFixedMaxHPDamage, Coefficient: .5}}}
+	info := testPlanInfo(plan)
+	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
+	actions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: first.ID, ActionType: ClientActionSkill, SkillID: info.Template.ID})
+	if first.IsAlive || second.IsAlive {
+		t.Fatalf("lethal AoE left targets alive: first=%v second=%v", first.IsAlive, second.IsAlive)
+	}
+	assertDamagePopupsForTargets(t, BuildPlaybackRounds(actions), first, second)
 }
 
 func TestRemoveAllEffectsRemovesOnlyEligiblePolarity(t *testing.T) {
@@ -277,4 +297,34 @@ func planTestBattle() (*Battle, *Participant, *Participant) {
 
 func testPlanInfo(plan *SkillPlan) *SkillInfo {
 	return &SkillInfo{Template: &skill.SkillTemplate{ID: 9001, Name: plan.Family, SkillType: skill.SkillTypeBuff, Range: 2, AttackCount: 1}, Plan: plan}
+}
+
+func assertDamagePopupsForTargets(t *testing.T, rounds [][]map[string]interface{}, targets ...*Participant) {
+	t.Helper()
+	want := make(map[int]bool, len(targets))
+	for _, target := range targets {
+		want[target.Position] = true
+	}
+	found := make(map[int]bool, len(targets))
+	for _, round := range rounds {
+		for _, action := range round {
+			if state, ok := action["tSObj"].(map[string]interface{}); ok {
+				if _, ok := state["hHp"]; ok {
+					if position, ok := action["tid"].(int); ok && want[position] {
+						found[position] = true
+					}
+				}
+			}
+			if state, ok := action["sSObj"].(map[string]interface{}); ok {
+				if _, ok := state["hHp"]; ok {
+					if position, ok := action["sid"].(int); ok && want[position] {
+						found[position] = true
+					}
+				}
+			}
+		}
+	}
+	if len(found) != len(want) {
+		t.Fatalf("damage popups found at positions %v, want %v; rounds=%#v", found, want, rounds)
+	}
 }

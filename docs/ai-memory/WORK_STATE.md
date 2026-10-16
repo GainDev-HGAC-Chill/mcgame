@@ -2,6 +2,8 @@
 
 ## Mục tiêu phiên
 
+- Kiểm tra damage thật, target AoE và số sát thương hiển thị của toàn bộ Pet active skill; mọi hit đã trừ HP phải có playback damage cho đúng target.
+- Sửa `MCGAME.bat` Start bị Supabase CLI từ chối migration out-of-order và thêm lựa chọn mở Flash 30 FPS ngay trong menu chính.
 - Sửa sáu nhiệm vụ `Thăng Cấp Trung Cấp 3-1` để nhân vật đúng class, đang ở bậc Sơ Cấp và đứng tại Khảo Quan Trung Cấp có thể hoàn thành.
 - Cho phép Quest Admin dashboard chỉnh toàn bộ cấu hình nhiệm vụ dù đang có người chơi nhận, vẫn giữ revision/validation/snapshot/audit và không tự sửa tiến độ người chơi.
 - Triển khai kế hoạch đã duyệt sửa toàn bộ boss bản đồ, phần thưởng Sổ Tay Ma Thú và boss loot theo mô tả/cấp boss.
@@ -15,6 +17,8 @@
 
 ## Đã hoàn thành
 
+- Pet skill damage/playback bước 1: xác định plan executor đã trừ HP đúng nhiều target nhưng chỉ sinh skill/death action, thiếu Hurt/Idle. `BuildPlaybackRounds` nhận nhầm đây là AoE cluster, xóa `tSObj.hHp` khỏi opener rồi không có Hurt round để gắn lại, gây quái mất HP/chết mà không hiện số; khi chỉ có một target thì không qua cluster nên hiện bình thường. Đã bổ sung canonical Hurt và Die/Idle sau mọi direct/fixed Pet damage hit dương; pure support và miss vẫn không giả damage.
+- Launcher: `cmd/game` luôn truyền `supabase db push --include-all`, nên migration local chưa có trong history dù timestamp cũ hơn migration cuối vẫn được áp mà không reset/reseed database hiện hữu. Wrapper không còn báo nhầm là thiếu CLI cho mọi lỗi push. `MCGAME.bat` thêm mục `F` gọi command `client30`; launcher 30 FPS riêng vẫn được giữ nguyên.
 - Quest Trung Cấp 3-1: audit xác định đủ sáu ID `143/287/639/640/643/644` đều là type 1, không có requirement row nên bị completion authority fail-closed. Đã thêm exact fingerprint policy riêng, yêu cầu đúng class, `class_rank == 1` và ở gần NPC 600; rank thấp/cao hơn, sai class/map hoặc catalog drift tiếp tục bị chặn. Persisted objective cũ bị loại và bước 3-1 không tự tăng class rank.
 - Quest Admin active-use: đã gỡ khóa structural fields/nút lưu trên trang quest, đổi cảnh báo thành cho phép lưu có rủi ro, và thêm migration thay `quest_admin_save` để bỏ riêng guard `ACTIVE_QUEST_IN_USE`; guard loop dùng chung giữ nguyên. Không tự sửa/reset progress. Migration chưa apply local vì `supabase-db` đang `Exited (0)` và assistant không tự restart.
 - Boss map runtime follow-up: log click NPC 707 lúc 07:22 xác nhận `clickNpc` đã vào route mới nhưng connection ở channel 0; validation nhầm chặn `channelID <= 0` dù DB có state `(707,0,is_alive=true)`. Đã cho phép channel 0 đối với scope `all`, vẫn chặn channel âm và vẫn giữ `channel:1` chỉ nhận channel 1.
@@ -41,6 +45,8 @@
 
 ## Kiểm tra đã chạy
 
+- Pet skill damage/playback focused regressions PASS: AoE damage+dispel ba target đều mất HP và có popup riêng; fixed lethal AoE có popup trước death cho từng target; pure support vẫn không gây damage; legacy multi-target playback vẫn PASS.
+- Launcher: `go test ./cmd/game`, `go vet ./cmd/game`, build `bin/game.exe` PASS; CLI `db push --include-all --dry-run` xác nhận chỉ pending `20261016040000_findback_bounty_verification.sql` và `20261016090000_sth_progress.sql`, seeds rỗng; hai asset Flash 30 FPS tồn tại; scoped diff-check sạch.
 - Quest Trung Cấp 3-1 focused policy/runtime regressions PASS cho đủ sáu class, gồm completion thật và xác nhận rank vẫn là 1 sau bước 3-1; quest/NPC handler PASS; targeted vet và build `bin/gameserver.exe` PASS; scoped diff-check sạch (chỉ cảnh báo line-ending). Full application quest và `cmd/questaudit` vẫn fail baseline conversation registry `234 want 227` từ thay đổi ngoài phạm vi.
 - Quest Admin active-use: dashboard `corepack pnpm typecheck` PASS; quest editor/validation/permission tests 20 PASS, 1 live test SKIP; scoped Prettier và diff-check PASS.
 - Sau fix channel 0: domain/application scheduleboss, application combat, combat/NPC/scene handlers PASS; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS.
@@ -78,6 +84,7 @@
 
 ## Runtime/database
 
+- Trước khi thử migration launcher: compose DB đang chạy; history đã có đến `20261016073610`, còn thiếu out-of-order `20261016040000_findback_bounty_verification.sql` và migration mới hơn `20261016090000_sth_progress.sql`. Chưa apply hai migration này trong bước code/checkpoint; không reset hoặc sửa player data.
 - `bin/gameserver.exe` đã build gồm fix channel 0; container `mcgame-server` chưa được assistant restart và cần deploy/restart được cho phép để nhận fix mới.
 - Compose DB local có 862 row `data.data_tbl_boss_loot` từ seed mới; gameserver đang chạy chưa reload cache nên chưa dùng các row này. Không thay đổi bảng dữ liệu người chơi.
 - Không có migration mới: blood bag dùng bảng wallet/stat-feature hiện có.

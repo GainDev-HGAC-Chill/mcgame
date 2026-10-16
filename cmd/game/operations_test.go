@@ -76,3 +76,17 @@ func TestSeedOnlyFreshDatabase(t *testing.T) {
 		})
 	}
 }
+
+func TestMigrationPushIncludesOutOfOrderMigrationsWithoutReseedingExistingData(t *testing.T) {
+	args := migrationPushArgs(`I:\mcgame`, "postgresql://local", false)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--include-all") {
+		t.Fatalf("missing --include-all: %v", args)
+	}
+	if strings.Contains(joined, "--include-seed") {
+		t.Fatalf("existing database would be reseeded: %v", args)
+	}
+	if args[len(args)-1] != "--yes" {
+		t.Fatalf("non-interactive confirmation missing: %v", args)
+	}
+}

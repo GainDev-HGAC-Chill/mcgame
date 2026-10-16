@@ -215,10 +215,7 @@ func (tp *TurnProcessor) applyPlannedDamage(actor, target *Participant, skillID 
 			result.Damage = tp.applyDamage(target, result.Damage, effect.Kind == EffectMagicDamage)
 		}
 		action := tp.damageAction(actor, target, skillID, tpl, result.Damage, result.IsCritical, result.IsMiss, before)
-		actions = append(actions, action)
-		if !result.IsMiss && !target.IsAlive {
-			actions = append(actions, tp.deathAction(target))
-		}
+		actions = tp.appendPlannedDamagePlayback(actions, actor, target, action)
 	}
 	return actions
 }
@@ -226,11 +223,20 @@ func (tp *TurnProcessor) applyPlannedDamage(actor, target *Participant, skillID 
 func (tp *TurnProcessor) applyFixedDamage(actor, target *Participant, skillID int, tpl *skill.SkillTemplate, amount int) []*BattleAction {
 	before := target.CurrentHP
 	amount = tp.applyDamage(target, max(0, amount), false)
-	actions := []*BattleAction{tp.damageAction(actor, target, skillID, tpl, amount, false, false, before)}
-	if !target.IsAlive {
-		actions = append(actions, tp.deathAction(target))
+	action := tp.damageAction(actor, target, skillID, tpl, amount, false, false, before)
+	return tp.appendPlannedDamagePlayback(nil, actor, target, action)
+}
+
+func (tp *TurnProcessor) appendPlannedDamagePlayback(actions []*BattleAction, actor, target *Participant, action *BattleAction) []*BattleAction {
+	actions = append(actions, action)
+	if action.IsMiss || action.Damage <= 0 {
+		return actions
 	}
-	return actions
+	actions = append(actions, &BattleAction{Round: tp.battle.CurrentRound, ActorID: target.ID, ActorPosition: target.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeHurt})
+	if !target.IsAlive {
+		return append(actions, tp.deathAction(target))
+	}
+	return append(actions, &BattleAction{Round: tp.battle.CurrentRound, ActorID: target.ID, ActorPosition: target.Position, TargetID: target.ID, TargetPosition: target.Position, ActionType: ActionTypeIdle})
 }
 
 func (tp *TurnProcessor) applyHeal(actor, target *Participant, skillID int, tpl *skill.SkillTemplate, amount int) []*BattleAction {

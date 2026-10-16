@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-16-26 — Launcher chặn migration out-of-order và thiếu mục Flash 30 FPS
+
+- Hiện tượng: Start dừng tại `supabase db push` vì migration `20261016040000_findback_bounty_verification.sql` có timestamp trước migration cuối đã ghi trong history; thông báo wrapper còn nhầm thành có thể thiếu CLI. Menu chính không có lựa chọn 30 FPS dù command/client riêng đã tồn tại.
+- Sửa: launcher truyền `--include-all`, vẫn chỉ `--include-seed` cho database mới và đổi lỗi wrapper thành thông báo trung thực. `MCGAME.bat` thêm phím `F` chạy `game client30`.
+- An toàn: không reset/volume delete/reseed database hiện hữu. Dry-run xác nhận đúng hai migration pending `20261016040000` và `20261016090000`, không có seed.
+- Test: `go test ./cmd/game`, `go vet ./cmd/game`, build `bin/game.exe`, asset 30 FPS và scoped diff-check PASS.
+- Trạng thái: CODE_FIXED/BINARY_BUILT — chưa chạy Start thật, chưa apply migration hoặc restart services.
+
 ## FIX-2026-10-16-25 — Sáu class không hoàn thành được Thăng Cấp Trung Cấp 3-1
 
 - Hiện tượng: quest `143/287/639/640/643/644` không có requirement row và không thuộc completion policy đã duyệt, nên luôn giữ state 103/`CompletionBlocked` dù nhân vật đã là Sơ Cấp.

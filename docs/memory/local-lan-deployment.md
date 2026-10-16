@@ -10,6 +10,8 @@ Monolith nhận `MCGAME_GATEWAY_PUBLIC_HOST` từ GAME_BIND_ADDRESS để DBLine
 
 Safety: setup từ chối existing `.env`/database; migrate đọc boolean `::text` thay `t/f`, fail closed khi query lỗi hoặc game tables tồn tại mà history trống; chỉ seed fresh DB. Ports admin/DB/cache/metrics chỉ loopback, game bind profile IP. Không global builder prune, không reset/volume delete khi triển khai.
 
+2026-10-16: `game start` gọi `supabase db push --include-all` để áp cả migration local chưa có trong history nhưng mang timestamp cũ hơn migration cuối đã áp. Điều này sửa lỗi CLI “Found local migration files to be inserted before the last migration” mà không reset/reseed database hiện hữu; `--include-seed` vẫn chỉ dùng khi database hoàn toàn mới. Menu `MCGAME.bat` có thêm phím `F` gọi command `client30`, giữ option 2 là client gốc.
+
 Blocker ban đầu WSL2/restart Windows đã vượt qua; Local có phiên chơi thực tế và autosave thành công sau sửa cache. Persistence qua logout/relogin/restart và LAN chưa kiểm chứng đầy đủ; firewall chưa mở, LAN chưa READY. Các assertion failures ngoài scope vẫn được ghi riêng trong test-results.
 
 ## Bản thử 30 FPS riêng

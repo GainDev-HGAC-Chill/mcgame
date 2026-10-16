@@ -252,17 +252,21 @@ func (s *stack) migrate() error {
 	}
 
 	fmt.Println("===> Applying migrations...")
-	args := []string{"db", "push", "--workdir", s.root, "--db-url", dbURL}
-	if seed {
-		args = append(args, "--include-seed")
-	}
-	args = append(args, "--yes")
+	args := migrationPushArgs(s.root, dbURL, seed)
 	push := attach(exec.Command("supabase", args...))
 	push.Env = append(os.Environ(), "PGSSLMODE=disable")
 	if err := push.Run(); err != nil {
-		return fmt.Errorf("supabase db push failed (is the Supabase CLI installed and on PATH?): %w", err)
+		return fmt.Errorf("supabase db push failed: %w", err)
 	}
 	return nil
+}
+
+func migrationPushArgs(root, dbURL string, seed bool) []string {
+	args := []string{"db", "push", "--workdir", root, "--db-url", dbURL, "--include-all"}
+	if seed {
+		args = append(args, "--include-seed")
+	}
+	return append(args, "--yes")
 }
 
 func seedFreshDatabase(history, applied, tables string) (bool, error) {

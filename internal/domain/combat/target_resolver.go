@@ -431,12 +431,8 @@ func capAndFilterAreaTargets(pattern []*Participant, size int, aliveOnly bool) [
 	if size <= 0 {
 		size = 1
 	}
-	if size > len(pattern) {
-		size = len(pattern)
-	}
 	targets := make([]*Participant, 0, size)
-	for i := 0; i < size; i++ {
-		target := pattern[i]
+	for _, target := range pattern {
 		if target == nil {
 			continue
 		}
@@ -444,6 +440,9 @@ func capAndFilterAreaTargets(pattern []*Participant, size int, aliveOnly bool) [
 			continue
 		}
 		targets = append(targets, target)
+		if len(targets) == size {
+			break
+		}
 	}
 	return targets
 }
