@@ -24,6 +24,7 @@ import (
 	"strconv"
 
 	domainitem "mcgame-server/internal/domain/item"
+	"mcgame-server/internal/gamedata/models"
 )
 
 const (

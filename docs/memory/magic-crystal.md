@@ -77,6 +77,10 @@ bonus = v * (l + s) / max
 
 Where `v = SlotStatValue(slot, lv)`, `max = (lv+1)*100`. Result routes through `applyCharacterPropBonus`, which selects flat or float based on the stat type (HP/MP/ATK/DEF/Speed → flat; Defy/Pen/etc → float).
 
+## Currency item awards
+
+The canonical currency keys are `73=magiccystalrec`, `74=magiccystalpre`, and `75=magiccystallimit`. Award-backed items grant `5947→75×200`, `5948→73×20`, `5949→74×5`, and `5993→75×10`. Multi-use aggregates these currency deltas; templates 5948/5949 must not fall back to silver.
+
 ## Code map
 
 - `internal/application/magiccrystal/catalog.go` — static catalog + accessors

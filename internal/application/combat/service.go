@@ -33,6 +33,10 @@ type EquipmentStatsProvider interface {
 	GetBattleEquipmentInfo(ctx context.Context, charID int64, gender int) (weaponResCode int64, star int)
 }
 
+type FairyBattleProvider interface {
+	BattleSkillRotation(ctx context.Context, charID int64) ([]int, error)
+}
+
 type Service struct {
 	battleRepo         combat.BattleRepository
 	battleLogRepo      combat.BattleLogRepository
@@ -54,6 +58,7 @@ type Service struct {
 	endedBattles       map[string]*endedBattleCacheEntry
 	expBuffProvider    ExpBuffProvider
 	buffService        *appbuff.Service
+	fairyProvider      FairyBattleProvider
 }
 
 type endedBattleCacheEntry struct {
@@ -99,6 +104,10 @@ func (s *Service) SetItemService(itemService *appitem.Service) {
 
 func (s *Service) SetBuffService(buffService *appbuff.Service) {
 	s.buffService = buffService
+}
+
+func (s *Service) SetFairyBattleProvider(provider FairyBattleProvider) {
+	s.fairyProvider = provider
 }
 
 func (s *Service) SetPetService(petService *apppet.Service) {

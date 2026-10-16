@@ -251,3 +251,10 @@
 - Sửa: validate Nội Đơn type 507/useType 4/propType 3 và cộng `proplNum/100`; nối `gdc` Pet với detail DTO có ownership; chặn template 5351 thành silent no-op trước generic dispatch, không tiêu hao.
 - Test: toàn bộ 10 Nội Đơn checked-in; DTO/`gdc` tooltip; application + handler Pasar; toàn bộ gamedata/item handler và domain Pet PASS. Đã bổ sung import/setter/wiring Buff Service cho combat handler; `go vet ./...` và build `bin/gameserver` PASS. Diff-check các file phạm vi PASS; `item/service.go` hiện còn trailing whitespace ở hunk encounter-book ngoài luồng.
 - Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không thay đổi dữ liệu production.
+
+## FIX-2026-10-17-16 — Character/Fairy skill authority và vật phẩm Pha Lê
+
+- Nguyên nhân: học/nâng skill thường còn tin đường client và thiếu exact-next/cost authority; combat chấp nhận level/skill không thuộc actor; Fairy book/config/guard mutation thiếu canonical validation và gameplay không đọc Fairy; currency item 5948/5949 có thể rơi về bạc do mapping 73–75 không thống nhất.
+- Sửa: canonical hóa currency `73/74/75` và bốn award 5947/5948/5949/5993; thêm ordinary/life-skill progression có lock, exact-next và debit/rollback; combat xác minh ownership Character/Pet và bỏ client-level scaling; Fairy dùng canonical 22 family, một guard, config an toàn, base/growth/satiety bonus, sáu passive và sáu active battle-local đủ dữ liệu. Các active family thiếu timing/formula vẫn fail-closed và log warning.
+- Test: focused currency/item/skill/life-skill/Pet/combat/Fairy suites PASS; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; `git diff --check` không có lỗi whitespace ngoài cảnh báo line ending. Broad `go test ./internal/... -count=1` chỉ còn baseline ngoài phạm vi: item award-quality/starter-gift, Quest registry `235 want 227`, và hai chat-stat tests.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không dùng item/người chơi thật, Quest 166 hay Pet Nấm Lục; không migration hoặc sửa player data.

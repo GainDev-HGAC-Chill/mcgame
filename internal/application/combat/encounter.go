@@ -453,6 +453,7 @@ func (s *Service) StartPVEBattleWithRoster(ctx context.Context, charIDs []int64,
 			return nil, err
 		}
 		battle.AddParticipant(player)
+		s.attachFairyBattleRotation(ctx, battle, player, charID)
 		s.addPetParticipant(ctx, battle, charID, petPositions[index].ToInt())
 	}
 

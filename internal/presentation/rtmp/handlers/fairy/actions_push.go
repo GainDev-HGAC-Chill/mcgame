@@ -55,6 +55,7 @@ func (h *Handler) ChangeState(ctx *rtmp.RPCContext, args []interface{}) (interfa
 	} else {
 		h.push(ctx, "onFairyOff", res.CharID)
 	}
+	h.refreshCharacterStats(ctx, charID)
 	return nil, nil
 }
 
@@ -76,6 +77,7 @@ func (h *Handler) DelFairy(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	if res.WasGuarding {
 		h.push(ctx, "onFairyOff", charID)
 	}
+	h.refreshCharacterStats(ctx, charID)
 	return nil, nil
 }
 

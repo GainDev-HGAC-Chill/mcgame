@@ -42,6 +42,7 @@ func (h *Handler) GrowUp(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 		h.logger.Warn("fairyGrowUp failed", zap.Int64("char_id", charID), zap.Error(err))
 		return map[string]interface{}{"f": false, "code": code}, nil
 	}
+	h.refreshCharacterStats(ctx, charID)
 	return map[string]interface{}{"f": true, "exp": res.Exp, "cri": res.Cri, "gnum": res.Gnum}, nil
 }
 
@@ -65,6 +66,7 @@ func (h *Handler) Raise(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 		h.logger.Warn("fairyRaise failed", zap.Int64("char_id", charID), zap.Error(err))
 		return map[string]interface{}{"f": false, "code": code}, nil
 	}
+	h.refreshCharacterStats(ctx, charID)
 	return map[string]interface{}{"f": true, "num": res.Num}, nil
 }
 
@@ -88,6 +90,7 @@ func (h *Handler) AddExp(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 		h.logger.Warn("addFairyExp failed", zap.Int64("char_id", charID), zap.Error(err))
 		return map[string]interface{}{"f": false, "code": code}, nil
 	}
+	h.refreshCharacterStats(ctx, charID)
 	return map[string]interface{}{"f": true, "num": res.Num, "en": res.En}, nil
 }
 
@@ -110,6 +113,7 @@ func (h *Handler) OnSkill(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		h.logger.Warn("onSkill failed", zap.Int64("char_id", charID), zap.Error(err))
 		return map[string]interface{}{"flag": false, "sindex": sindex}, nil
 	}
+	h.refreshCharacterStats(ctx, charID)
 	return skillWire(res), nil
 }
 
@@ -132,5 +136,6 @@ func (h *Handler) UpSkill(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		h.logger.Warn("upFairySkill failed", zap.Int64("char_id", charID), zap.Error(err))
 		return map[string]interface{}{"flag": false, "sindex": sindex}, nil
 	}
+	h.refreshCharacterStats(ctx, charID)
 	return skillWire(res), nil
 }

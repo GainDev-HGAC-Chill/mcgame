@@ -220,6 +220,53 @@ func TestConcurrentLearnRequestsPreserveBothSkills(t *testing.T) {
 	}
 }
 
+func TestBattleSkillRotationSnapshotsSelectedValidatedGroup(t *testing.T) {
+	svc, repo, _, _, _ := newTestService(&domainchar.Character{ID: 1})
+	f := newFairy(7)
+	f.State = fairyStateGuard
+	f.SkillFlag["s1"] = 6230
+	f.SkillFlag["s2"] = 6260
+	f.Config = validSkillConfig(6230, 6260)
+	f.Config["select"] = 1
+	seedFairy(t, repo, 1, f)
+	svc.SetSkillData(newFakeSkillData([]*models.SkillTemplate{
+		{ID: 6230, Level: 1, Kind: 1},
+		{ID: 6260, Level: 1, Kind: 1},
+	}))
+
+	rotation, err := svc.BattleSkillRotation(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("BattleSkillRotation: %v", err)
+	}
+	want := []int{6230, 6260, -1, -1, -1}
+	if len(rotation) != len(want) {
+		t.Fatalf("rotation = %+v", rotation)
+	}
+	for index := range want {
+		if rotation[index] != want[index] {
+			t.Fatalf("rotation[%d] = %d, want %d", index, rotation[index], want[index])
+		}
+	}
+}
+
+func TestBattleSkillRotationFailsClosedForMultipleGuards(t *testing.T) {
+	svc, repo, _, _, _ := newTestService(&domainchar.Character{ID: 1})
+	state := defaultState()
+	state.Fairies[7] = newFairy(7)
+	state.Fairies[8] = newFairy(8)
+	state.Fairies[7].State = fairyStateGuard
+	state.Fairies[8].State = fairyStateGuard
+	repo.charStates[1] = []*domainfeature.CharacterFeatureState{{CharacterID: 1, FeatureKey: rosterFeatureKey, State: state.toPersist()}}
+
+	rotation, err := svc.BattleSkillRotation(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("BattleSkillRotation: %v", err)
+	}
+	if rotation != nil {
+		t.Fatalf("multiple guards produced rotation %+v", rotation)
+	}
+}
+
 func validSkillConfig(first, second int) map[string]interface{} {
 	config := map[string]interface{}{"select": 0}
 	for group := 0; group < 3; group++ {

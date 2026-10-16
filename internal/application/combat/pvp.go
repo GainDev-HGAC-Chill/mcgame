@@ -34,6 +34,7 @@ func (s *Service) StartPVPBattle(ctx context.Context, attackerID, targetID int64
 		return nil, err
 	}
 	battle.AddParticipant(attackerChar)
+	s.attachFairyBattleRotation(ctx, battle, attackerChar, attackerID)
 	s.addPetParticipant(ctx, battle, attackerID, combat.PosPlayerPetCenter.ToInt())
 
 	targetChar, err := s.buildPlayerParticipant(ctx, targetID, combat.PosEnemyCharCenter.ToInt())
@@ -42,6 +43,7 @@ func (s *Service) StartPVPBattle(ctx context.Context, attackerID, targetID int64
 	}
 	targetChar.Side = combat.SideEnemy
 	battle.AddParticipant(targetChar)
+	s.attachFairyBattleRotation(ctx, battle, targetChar, targetID)
 
 	if targetPet, _ := s.getBattlePet(ctx, targetID); targetPet != nil {
 		targetPetParticipant := s.buildPetParticipantFromPet(targetPet, targetID, combat.PosEnemyPetCenter.ToInt())

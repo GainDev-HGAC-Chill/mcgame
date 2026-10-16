@@ -133,7 +133,7 @@ var (
 )
 
 func cumulativeLevel(exp int64, table []int64, cap int) int {
-	lv := 0
+	lv := 1
 	for i, threshold := range table {
 		if exp >= threshold {
 			lv = i + 1

@@ -77,3 +77,5 @@ Client uses `useItem` with skill book item template 2409. Item handler checks `i
 `player.character_skills` table: `id`, `character_id`, `skill_id`, `level` (default 1), `exp` (synced with PlantDex), `slot_position`, `is_auto`, `cooldown_end`, `created_at`.
 
 Domain entity `CharacterSkill` in `internal/domain/skill/skill.go` with `ToDTO()` producing camelCase aliases (`id`, `sid`, `skillId`).
+
+Fishing (`14`, template `2400`) and Herb (`16`, template `2408`) are life skills alongside Planting. Their level-1 books and exact-next upgrades must use the life-skill progression path; `skillLearnByClient` cannot grant their first level. Item type `19` is Hidden Weapon and must not be classified as a life skill.

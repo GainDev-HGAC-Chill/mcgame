@@ -317,6 +317,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 			}
 		}
 
+		tp.activateFairyEffect(currentActor, cmd)
 		actions := tp.executeCommand(currentActor, cmd)
 		for _, action := range actions {
 			if action != nil {
@@ -487,6 +488,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 			}
 		}
 
+		tp.activateFairyEffect(currentActor, cmd)
 		actions := tp.executeCommand(currentActor, cmd)
 		for _, action := range actions {
 			if action != nil {

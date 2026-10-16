@@ -611,6 +611,7 @@ type Battle struct {
 	BootstrapAutoDefendFired bool
 	Watchers                 []BattleWatcher
 	StatusManager            *StatusEffectManager
+	FairyRotations           map[string]*FairyRotation
 	PendingPetRewards        []PetReward
 	BossCtx                  *BossContext
 	mu                       sync.RWMutex
@@ -636,6 +637,7 @@ func NewBattle(battleType BattleType, mapID int) *Battle {
 		ProcessedActors:   make(map[string]bool),
 		RoundComplete:     true,
 		StatusManager:     NewStatusEffectManager(),
+		FairyRotations:    make(map[string]*FairyRotation),
 		PendingPetRewards: make([]PetReward, 0),
 	}
 }

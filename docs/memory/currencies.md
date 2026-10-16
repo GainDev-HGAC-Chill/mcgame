@@ -20,6 +20,7 @@ Notes:
 
 - The Postgres scan/upsert (`internal/infrastructure/persistence/postgres/character_repository_scan.go`) iterates `character.GameKVCurrencyAccessors()` and looks up by typeID via `character.LookupGameKVAccessor` — there is no separate switch / map to maintain there. Setting `AlwaysPersist: true` on the descriptor is what makes the upsert write a `0` row (so admins see the slot before any income); the old standalone `alwaysPersistCurrency` function was removed.
 - The admin server's earlier `validCurrencies` / `getCurrencyField` / `setCurrencyField` triplet has been replaced by `character.LookupCurrencyAccessor(clientKey) → CurrencyAccessor{Get, Set}`. Don't reintroduce a parallel map — extend the registry in `currency_keys.go` instead.
+- Magic-crystal resources are canonical game-KV currencies: `73=magiccystalrec`, `74=magiccystalpre`, and `75=magiccystallimit`. Descriptor rows, accessors, DTO keys, award handling, and persistence must use these exact IDs and spellings; crystal award items must not fall back to wallet silver.
 
 ## Admin-dashboard wallet UX (Phase 5)
 

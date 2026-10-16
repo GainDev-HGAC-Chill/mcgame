@@ -75,6 +75,10 @@ type FairyItemData interface {
 	GetItem(id int) *models.ItemTemplateTemplate
 }
 
+type FairyBuffData interface {
+	GetBuff(id int) *models.BuffTemplate
+}
+
 type Clock interface {
 	Now() time.Time
 }
@@ -90,6 +94,7 @@ type Service struct {
 	gameData      *gamedata.Manager
 	skillData     FairySkillData
 	itemData      FairyItemData
+	buffData      FairyBuffData
 	clock         Clock
 	logger        *zap.Logger
 	mutationLocks [64]sync.Mutex
@@ -117,6 +122,9 @@ func (s *Service) SetSkillData(sd FairySkillData) {
 	s.skillData = sd
 	if itemData, ok := sd.(FairyItemData); ok {
 		s.itemData = itemData
+	}
+	if buffData, ok := sd.(FairyBuffData); ok {
+		s.buffData = buffData
 	}
 }
 

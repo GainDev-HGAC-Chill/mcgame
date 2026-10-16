@@ -1,6 +1,6 @@
 # Character Skills, Fairy Skills, and Crystal Items — Implementation Plan
 
-**Date**: 2026-10-16 · **Status**: Approved — safe scope (Units A–H and unambiguous Unit I subset)  
+**Date**: 2026-10-16 · **Status**: Implemented — safe scope (Units A–H and unambiguous Unit I subset); runtime QA pending
 **Goal**: Make character skill learning/upgrading server-authoritative, prevent client-forged battle skill levels, make Fairy learning/configuration safe and give catalog-complete Fairy bonuses real gameplay effects, and repair magic-crystal item awards 5947/5948/5949/5993 without touching ActionScript or player data.
 
 Research base:

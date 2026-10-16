@@ -20,6 +20,7 @@ This file is an **index** of per-feature memory documents under `docs/memory/`. 
 ## Battle, Combat & Skills
 
 - [Battle & Combat System](memory/battle-combat.md) — turn flow, command handling, skill backend, animation effects, BattleService worker, damage formula, encounter balance, revive, solo-vs-pet, client protocol alignment.
+- [Fairy System](memory/fairy-system.md) — canonical learning/upgrading/config, guard authority, character bonuses, passive skills, and battle-local active rotation.
 - [PvP / APVP Gating](memory/pvp-apvp.md) — minimap PK toggle, PVPStartClient, target opt-in, 25s deadline.
 - [Cross-Server Battle Flow](memory/cross-server-battle.md) — original-server vs battle-server routing.
 - [Movement & Position](memory/movement-position.md) — udcp speed validation.

@@ -183,10 +183,11 @@ type fakeSkillData struct {
 	byID  map[int]*models.SkillTemplate
 	all   []*models.SkillTemplate
 	items map[int]*models.ItemTemplateTemplate
+	buffs map[int]*models.BuffTemplate
 }
 
 func newFakeSkillData(rows []*models.SkillTemplate) *fakeSkillData {
-	fd := &fakeSkillData{byID: map[int]*models.SkillTemplate{}, all: rows, items: map[int]*models.ItemTemplateTemplate{}}
+	fd := &fakeSkillData{byID: map[int]*models.SkillTemplate{}, all: rows, items: map[int]*models.ItemTemplateTemplate{}, buffs: map[int]*models.BuffTemplate{}}
 	for _, r := range rows {
 		fd.byID[int(r.ID)] = r
 	}
@@ -201,6 +202,9 @@ func (f *fakeSkillData) GetAllSkills() []*models.SkillTemplate {
 }
 func (f *fakeSkillData) GetItem(id int) *models.ItemTemplateTemplate {
 	return f.items[id]
+}
+func (f *fakeSkillData) GetBuff(id int) *models.BuffTemplate {
+	return f.buffs[id]
 }
 
 func chainSkills(codeName string, id1, id2, id3 int) []*models.SkillTemplate {

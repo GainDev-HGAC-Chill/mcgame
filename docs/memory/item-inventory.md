@@ -22,6 +22,8 @@ Latest voucher1132 follow-up deployed17:34:09 (2026-10-12), game running/restart
 
 Direct use now handles only template `654` (`Ngân Phiếu Lễ`), `1064` (`Hoàng Kim Lễ`) and `3848` (`Thẻ Kim Phiếu`) before the generic type-550 path. Template 654 grants 10,000 `moneyBind`; template 1064 grants the described 50 `goldBind`; template 3848 securely selects one described `goldBind` amount from 88/188/288/588/888/1888 for each card. Single and multi-use enforce the checked-in template type/useType, required level, character target, count and overflow, consume the stack, persist the character wallet and emit one `onAddMoney` callback with delta/total. Wallet persistence failure after item consumption returns an explicit non-replayable error before success callbacks. No other Hoàng Kim Lễ variant is inferred or changed. Application and item-handler tests PASS; Flash/deploy verification pending.
 
+Magic-crystal award items use game-currency IDs rather than wallet silver: `5947→75×200`, `5948→73×20`, `5949→74×5`, and `5993→75×10`. Award-backed multi-use aggregates the total currency change before callbacks.
+
 ## Mảnh Pasar direct-use guard (2026-10-14)
 
 Item template `5351` (`Mảnh Pasar`, type `550`, `useType=1`) is a collection fragment, not a directly usable reward bag. `useItem` now treats this exact template as a silent no-op before quest, book, and generic effect dispatch. Double-clicking it returns no connection/internal error and does not consume or mutate the stack. No other type-550 item is affected.

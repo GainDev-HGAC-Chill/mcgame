@@ -14,17 +14,26 @@
 package fairy
 
 import (
+	"context"
 	"strconv"
 
 	appfairy "mcgame-server/internal/application/fairy"
+	domainchar "mcgame-server/internal/domain/character"
 	"mcgame-server/internal/infrastructure/rtmp"
+	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 
 	"go.uber.org/zap"
 )
 
 type Handler struct {
-	service *appfairy.Service
-	logger  *zap.Logger
+	service          *appfairy.Service
+	characterService fairyCharacterService
+	statService      rtmputils.StatRefreshService
+	logger           *zap.Logger
+}
+
+type fairyCharacterService interface {
+	GetByID(ctx context.Context, characterID int64) (*domainchar.Character, error)
 }
 
 func NewHandler(service *appfairy.Service, logger *zap.Logger) *Handler {
@@ -32,6 +41,23 @@ func NewHandler(service *appfairy.Service, logger *zap.Logger) *Handler {
 		logger = zap.NewNop()
 	}
 	return &Handler{service: service, logger: logger}
+}
+
+func (h *Handler) SetStatRefreshServices(characters fairyCharacterService, stats rtmputils.StatRefreshService) {
+	h.characterService = characters
+	h.statService = stats
+}
+
+func (h *Handler) refreshCharacterStats(ctx *rtmp.RPCContext, charID int64) {
+	if h == nil || h.characterService == nil || h.statService == nil {
+		return
+	}
+	char, err := h.characterService.GetByID(ctx.Context, charID)
+	if err != nil || char == nil {
+		h.logger.Warn("fairy stat refresh failed", zap.Int64("char_id", charID), zap.Error(err))
+		return
+	}
+	rtmputils.SendStatRefreshUPP(ctx, h.statService, char)
 }
 
 func (h *Handler) RegisterHandlers(d *rtmp.RPCDispatcher) {

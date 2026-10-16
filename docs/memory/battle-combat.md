@@ -153,6 +153,8 @@ Full client-side research from decompiled ActionScript: `docs/research/2026-04-1
 
 **Auto-battle**: Separate priority chains for player (`battleAuto`) and pet (`battlePetAuto`): HP threshold → MP threshold → team heal → pet heal → auto-defence → main attack skill → fallback normal attack.
 
+**Fairy battle effects**: PVE and PVP snapshot the sole guarding Fairy's validated selected five-slot preset at encounter creation. The battle-local cycle advances on owner attack/skill/auto turns. Six catalog-complete stat/reduction families use the status engine; ambiguous families remain explicit unsupported entries and log instead of applying guessed effects. See [Fairy System](fairy-system.md).
+
 **Existing server implementation**: `internal/presentation/rtmp/handlers/combat/battle.go` (HitNpc), `encounters.go` (CheckBattleOnMove), `internal/domain/combat/battle.go` (ToDTO with cList).
 
 ## Battle System: Client Protocol Alignment (2026-04-11)
