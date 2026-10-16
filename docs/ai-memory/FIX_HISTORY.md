@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-16-27 — Pet AoE trừ HP nhưng không hiện damage hoặc chỉ tác dụng một mục tiêu
+
+- Hiện tượng: Pet damage plan thay đổi HP thật trên server nhưng không sinh Hurt/Idle actions. AoE playback xóa `tSObj.hHp` khỏi opener để chuyển sang shared Hurt round, nhưng round đó rỗng; quái có thể chết mà không hiện số. Ngoài ra target cap được áp trước khi lọc slot đã chết, nên một slot chết gần có thể làm mất target sống xa hơn.
+- Sửa: mọi direct/fixed Pet hit dương sinh chuỗi hit → Hurt → Die/Idle; mỗi target đã nhận damage có `hHp` riêng trước death. Area resolver lọc dead target trước rồi mới cap số lượng.
+- Semantics giữ nguyên: miss không gây/hiện damage; pure buff/debuff và lần cast đầu của DoT-only không giả damage; DoT hiển thị khi tick; AoE theo hình học chỉ đánh các ô hợp lệ đang có mục tiêu sống.
+- Test: full domain/application combat và combat handler PASS; catalog invariant xác nhận mọi direct-damage plan có hệ số và target dương; targeted vet, build `bin/gameserver.exe` và diff-check PASS.
+- Trạng thái: CODE_FIXED — chưa restart/deploy hoặc Flash smoke-test.
+
 ## FIX-2026-10-16-26 — Launcher chặn migration out-of-order và thiếu mục Flash 30 FPS
 
 - Hiện tượng: Start dừng tại `supabase db push` vì migration `20261016040000_findback_bounty_verification.sql` có timestamp trước migration cuối đã ghi trong history; thông báo wrapper còn nhầm thành có thể thiếu CLI. Menu chính không có lựa chọn 30 FPS dù command/client riêng đã tồn tại.

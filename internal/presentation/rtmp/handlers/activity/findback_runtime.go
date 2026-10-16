@@ -40,6 +40,9 @@ func (h *Handler) GetFindBackData(ctx *rtmp.RPCContext, args []interface{}) (int
 	if h.findbackPool == nil {
 		return nil, errors.New("findback repository unavailable")
 	}
+	if err := h.seedFindbackMissingDay(ctx.Context, charID); err != nil {
+		return nil, err
+	}
 	day := findbackDay()
 	var level int
 	if err := h.findbackPool.QueryRow(ctx.Context, `SELECT level FROM player.character_progression WHERE character_id=$1`, charID).Scan(&level); err != nil {
@@ -126,6 +129,9 @@ func (h *Handler) findbackClaim(ctx *rtmp.RPCContext, args []interface{}, kind s
 	mode, ok := parseIntArg(args[0])
 	if !ok || (mode != 1 && mode != 2) {
 		return nil, nil
+	}
+	if err := h.seedFindbackMissingDay(ctx.Context, charID); err != nil {
+		return nil, err
 	}
 	day := findbackDay()
 	tx, err := h.findbackPool.BeginTx(ctx.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
@@ -256,6 +262,9 @@ func (h *Handler) findbackPetClaim(ctx *rtmp.RPCContext, args []interface{}) (in
 	if !ok || (mode != 1 && mode != 2) {
 		return nil, nil
 	}
+	if err := h.seedFindbackMissingDay(ctx.Context, charID); err != nil {
+		return nil, err
+	}
 	day := findbackDay()
 	tx, err := h.findbackPool.BeginTx(ctx.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
@@ -345,4 +354,15 @@ func (h *Handler) findbackPetClaim(ctx *rtmp.RPCContext, args []interface{}) (in
 		}
 	}
 	return map[string]interface{}{"type": 3, "num": completed + missing, "exp": awarded}, nil
+}
+
+// seedFindbackMissingDay creates zero-completion rows only for loop activities
+// that the live Stage3 trigger tracks. It never backfills dates before the
+// tracker was installed, nor untracked profession / bounty activities.
+func (h *Handler) seedFindbackMissingDay(ctx context.Context, charID int64) error {
+	if h.findbackPool == nil {
+		return errors.New("findback database unavailable")
+	}
+	_, err := h.findbackPool.Exec(ctx, `SELECT player.seed_findback_missing_day($1)`, charID)
+	return err
 }

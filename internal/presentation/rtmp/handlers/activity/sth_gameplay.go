@@ -118,5 +118,6 @@ func (h *Handler) STHStop(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if err != nil {
 		return nil, err
 	}
+	h.sendActivityCallback(ctx, "onSetSecTreaHuntCanPlay", true, 0)
 	return true, nil
 }
