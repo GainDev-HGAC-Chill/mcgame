@@ -202,7 +202,9 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	h.registerLegacyActivityBacklogHandlers(dispatcher)
 	dispatcher.Register("getSecretTreasureHuntData", h.STHGetData)
 	dispatcher.Register("SecretTreasureHuntGo", h.STHGo)
-	dispatcher.Register("afterSTHPlayerStop", h.STHStop)
+	dispatcher.Register("afterSTHPlayerStop", h.STHStopWithEvent)
+	dispatcher.Register("buySecTreaHuntSZ", h.STHBuyDice)
+	dispatcher.Register("SecretTreasureHuntGoXY", h.STHGoXY)
 }
 
 func (h *Handler) characterID(ctx *rtmp.RPCContext, method string) (string, int64, error) {

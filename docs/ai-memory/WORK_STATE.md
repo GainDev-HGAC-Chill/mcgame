@@ -2,6 +2,7 @@
 
 ## Mục tiêu phiên
 
+- Cho phép người chơi chủ động bỏ nhiệm vụ type 1 đã nhận mà không sửa Flash client hoặc thay đổi canonical quest semantics.
 - Kiểm tra damage thật, target AoE và số sát thương hiển thị của toàn bộ Pet active skill; mọi hit đã trừ HP phải có playback damage cho đúng target.
 - Sửa `MCGAME.bat` Start bị Supabase CLI từ chối migration out-of-order và thêm lựa chọn mở Flash 30 FPS ngay trong menu chính.
 - Sửa sáu nhiệm vụ `Thăng Cấp Trung Cấp 3-1` để nhân vật đúng class, đang ở bậc Sơ Cấp và đứng tại Khảo Quan Trung Cấp có thể hoàn thành.
@@ -17,6 +18,7 @@
 
 ## Đã hoàn thành
 
+- Quest abandonment: xác định Flash hard-disable Cancel tại cả QuestManager/QuestPanel khi `data.type == 1`, đồng thời server có type-1 rejection tương ứng. Đã bỏ rejection, thêm per-character mutation lock quanh lookup/status/delete và publish presentation type 2 riêng cho active type-1 DTO để dùng được RPC `cancelQuest`; canonical template vẫn type 1 cho toàn bộ policy/reward/prerequisite.
 - Pet skill damage/playback: xác định plan executor đã trừ HP đúng nhiều target nhưng chỉ sinh skill/death action, thiếu Hurt/Idle. `BuildPlaybackRounds` xóa `tSObj.hHp` khỏi AoE opener rồi không có Hurt round để gắn lại, gây quái mất HP/chết mà không hiện số; khi chỉ có một target thì không qua cluster nên hiện bình thường. Đã bổ sung canonical Hurt và Die/Idle sau mọi direct/fixed Pet damage hit dương; pure support và miss vẫn không giả damage. Area resolver cũng lọc target chết trước khi cap, tránh slot chết gần làm mất target sống xa hơn.
 - Launcher: `cmd/game` luôn truyền `supabase db push --include-all`, nên migration local chưa có trong history dù timestamp cũ hơn migration cuối vẫn được áp mà không reset/reseed database hiện hữu. Wrapper không còn báo nhầm là thiếu CLI cho mọi lỗi push. `MCGAME.bat` thêm mục `F` gọi command `client30`; launcher 30 FPS riêng vẫn được giữ nguyên.
 - Quest Trung Cấp 3-1: audit xác định đủ sáu ID `143/287/639/640/643/644` đều là type 1, không có requirement row nên bị completion authority fail-closed. Đã thêm exact fingerprint policy riêng, yêu cầu đúng class, `class_rank == 1` và ở gần NPC 600; rank thấp/cao hơn, sai class/map hoặc catalog drift tiếp tục bị chặn. Persisted objective cũ bị loại và bước 3-1 không tự tăng class rank.
@@ -40,11 +42,13 @@
 
 ## File đang sửa/chưa commit
 
+- Nhóm quest abandonment: `internal/application/quest/client_presentation.go`, `service.go`, `loop_service_test.go`, `presentation_sort_test.go`; memory tại `quest-loop-system.md`, `npc-quest-system.md`, `FIX_HISTORY.md` và file này. Không chạm nhóm STH activity/migration đang tồn tại song song.
 - HEAD `2b550d0` đã chứa nhóm Pet/blood-bag/transport/shop và bộ nhớ trước đó; không commit/push thêm.
 - Working tree còn nhóm character-delete/client artifact do luồng khác để lại và cập nhật bộ nhớ phiên này. Không reset hoặc ghi đè nhóm này.
 
 ## Kiểm tra đã chạy
 
+- Quest abandonment: focused type-1 delete và client-presentation regressions PASS; quest/NPC handler PASS; targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS. Full application quest chỉ fail baseline conversation registry `234 want 227` ngoài phạm vi.
 - Pet skill damage/playback: full `internal/domain/combat`, `internal/application/combat` và combat handler PASS; AoE damage+dispel ba target đều mất HP và có popup riêng; fixed lethal AoE có popup trước death cho từng target; dead-slot target-cap regression PASS; pure support vẫn không gây damage; legacy multi-target playback vẫn PASS. Catalog invariant, targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS.
 - Launcher: `go test ./cmd/game`, `go vet ./cmd/game`, build `bin/game.exe` PASS; CLI `db push --include-all --dry-run` xác nhận chỉ pending `20261016040000_findback_bounty_verification.sql` và `20261016090000_sth_progress.sql`, seeds rỗng; hai asset Flash 30 FPS tồn tại; scoped diff-check sạch.
 - Quest Trung Cấp 3-1 focused policy/runtime regressions PASS cho đủ sáu class, gồm completion thật và xác nhận rank vẫn là 1 sau bước 3-1; quest/NPC handler PASS; targeted vet và build `bin/gameserver.exe` PASS; scoped diff-check sạch (chỉ cảnh báo line-ending). Full application quest và `cmd/questaudit` vẫn fail baseline conversation registry `234 want 227` từ thay đổi ngoài phạm vi.
@@ -93,6 +97,7 @@
 
 ## Rủi ro/chưa xác minh
 
+- Quest abandonment fix chưa deploy/restart hoặc Flash smoke-test. Active type-1 quest sẽ hiển thị trong nhóm nhiệm vụ chính để vượt hard-coded client lock; cần xác nhận nút Hủy, callback xóa quest khỏi panel và NPC state refresh sau deploy bằng quest test không phải Quest 166.
 - Pet damage popup/AoE fix chưa deploy/restart hoặc Flash smoke-test; cần thử đại diện all-enemy, horizontal/cross, damage+debuff, lethal AoE, miss và DoT tick để xác nhận animation thực tế.
 - Quest Trung Cấp 3-1 chưa deploy/restart hoặc Flash smoke-test; hai bước dùng chung 3-2 (645) và 3-3 (677) chưa được thay đổi vì có semantics riêng cần kiểm chứng nếu tiếp tục lỗi.
 - Quest Admin active-use migration chưa được parser/live RPC verify vì local `supabase-db` dừng trước lúc apply; cần apply migration rồi chạy transactional rollback test trên một quest active không phải Quest 166 trước deploy.

@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-16-28 — Không thể chủ động bỏ nhiệm vụ type 1 đã nhận
+
+- Hiện tượng: cả Flash QuestManager và QuestPanel tự khóa nút Hủy khi active DTO có `data.type == 1`; nếu gọi RPC trực tiếp, service cũng từ chối toàn bộ type 1 bằng `ErrQuestNotAvailable`.
+- Sửa: bỏ type-1 rejection, serialize abandon bằng mutation lock và vẫn yêu cầu đúng character + progress active trước khi xóa. Active type-1 DTO dùng presentation type 2 để mở nút Hủy; canonical catalog type 1 không đổi nên completion policy, prerequisite và reward vẫn giữ nguyên.
+- Tradeoff client: nhiệm vụ type 1 đã nhận tạm nằm trong nhóm nhiệm vụ chính; danh sách nhiệm vụ chưa nhận vẫn giữ nhóm gốc. Không sửa ActionScript, không tạo history/phần thưởng và không thay đổi dữ liệu người chơi.
+- Test: focused abandon/presentation regressions PASS; quest/NPC handler PASS; targeted vet, gameserver build và scoped diff-check PASS. Full application quest chỉ còn baseline conversation registry `234 want 227` ngoài phạm vi.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+
 ## FIX-2026-10-16-27 — Pet AoE trừ HP nhưng không hiện damage hoặc chỉ tác dụng một mục tiêu
 
 - Hiện tượng: Pet damage plan thay đổi HP thật trên server nhưng không sinh Hurt/Idle actions. AoE playback xóa `tSObj.hHp` khỏi opener để chuyển sang shared Hurt round, nhưng round đó rỗng; quái có thể chết mà không hiện số. Ngoài ra target cap được áp trước khi lọc slot đã chết, nên một slot chết gần có thể làm mất target sống xa hơn.

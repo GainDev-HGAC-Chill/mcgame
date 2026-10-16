@@ -47,9 +47,11 @@ type completionDateRepository interface {
 
 Four call sites were redirected from `s.questRepo.GetCompletedQuestIDs` to `s.GetCompletedQuestIDs` so the filter actually applies everywhere "completed" gates re-take: `BuildQuestLogString`, `GetAvailableQuestsForCallBoard`, `GetAvailableQuestsForNpc`, `CanAcceptQuest`.
 
-## Type-1 (newbie) cancel guard
+## Type-1 (newbie) abandonment compatibility
 
-`AbandonQuest` rejects with `pkgerrors.ErrQuestNotAvailable` when the template `Type==1`, checked before the active/status lookup. The `CancelQuest` RPC handler (`handlers/quest/lifecycle.go`) now pushes an `onCancelQuest{flag:false, qid, qn}` callback on **any** `AbandonQuest` failure (not just the type-1 case) in addition to returning the same shape as the RPC response — this unifies the previously-inconsistent "return-only, no push" failure path with the existing success path (which already did both), and the client only reads `flag` on failure either way.
+Type-1 quests can be abandoned like other active non-loop quests. The old `AbandonQuest` type-1 rejection was removed; ownership and active-status checks still run before deletion, and abandonment is serialized by the same per-character mutation lock used by quest completion/progress updates. The served Flash hard-codes `type == 1` as a disabled Cancel button in both QuestManager and QuestPanel, so active type-1 DTOs use presentation type 2 to enable the existing `cancelQuest` RPC while the canonical catalog template remains type 1 for every server-side rule, policy and reward calculation. This means an accepted type-1 quest appears under the main-quest group until it is completed or abandoned; available catalog entries are unchanged.
+
+The `CancelQuest` RPC handler (`handlers/quest/lifecycle.go`) pushes `onCancelQuest{flag:false, qid, qn}` on any `AbandonQuest` failure and `onCancelQuest{flag:true, qid, qn}` after a successful delete. This change does not alter the dedicated `cancelLoop` lifecycle that handles loop-state deactivation and cooldowns.
 
 ## RTMP wire contract (`internal/presentation/rtmp/handlers/quest/`)
 

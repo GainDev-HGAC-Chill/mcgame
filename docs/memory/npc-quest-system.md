@@ -70,6 +70,10 @@ Cost Formula: `costMultiplier = min(BASIC_GET_MONEY[level] / 70000, 1)`, `healCo
 
 ## Quest System
 
+### Active quest abandonment compatibility (2026-10-16)
+
+Accepted type-1 quests are now cancellable without editing the Flash client. The canonical template remains type 1 on the server, but `EnrichQuestDTO` publishes presentation type 2 for active type-1 progress because the served QuestManager and QuestPanel hard-disable Cancel when `data.type == 1`. `AbandonQuest` no longer rejects type 1 and serializes lookup/status/delete under the per-character quest mutation lock. Existing ownership, active-status and callback contracts remain unchanged; no completion history or rewards are created. The visual tradeoff is that accepted type-1 entries are grouped under main quests, while available catalog entries and all server-side semantics retain their original type.
+
 ### Quest reward callback correction (2026-10-11)
 
 `FinishQuest` must not send zero-argument `onUpdateAchieve` or `onUpdateSafeBattleMid`. These are data updates, not refresh signals: served Flash expects `(type,id,data)` and `(mapIDs)` respectively. Removed both placeholders without inventing achievement progress or clearing safe maps. Consumed-item results carry instance `id` plus `sid`; full deletion sends `onDelCharactorSlot(id,sid)`, not SID as an item ID. Partial stack updates are unchanged. End-to-end in-memory completion tests cover both consumption paths and rejected repeated claims. Evidence: [Quest reward callback audit](../research/2026-10-11_03_QUEST_REWARD_CALLBACK_AUDIT_RESEARCH.md).

@@ -57,7 +57,12 @@ func (h *Handler) STHGetData(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		haveGo = append(haveGo, int(v))
 	}
 	mapState := map[string]interface{}{"nullGridMapData": map[string]interface{}{}, "haveGo": haveGo, "atGridNum": position, "ptSZnum": normal, "xySZnum": lucky, "check": map[string]interface{}{"pt": false, "xy": false}, "allSZBuyNum": bought}
-	h.sendActivityCallback(ctx, "onSecretTreasureHuntGetData", mapState, map[string]interface{}{"flag": true, "type": 0}, map[string]interface{}{"play": false})
+	var sthBlockedUntil *time.Time
+	if err := h.findbackPool.QueryRow(ctx.Context, `SELECT blocked_until FROM player.character_sth_progress WHERE character_id=$1`, cid).Scan(&sthBlockedUntil); err != nil {
+		return nil, err
+	}
+	sthCanPlay := sthBlockedUntil == nil || !sthBlockedUntil.After(time.Now())
+	h.sendActivityCallback(ctx, "onSecretTreasureHuntGetData", mapState, map[string]interface{}{"flag": sthCanPlay, "type": 0}, map[string]interface{}{"play": false})
 	return true, nil
 }
 func (h *Handler) STHGo(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -78,11 +83,12 @@ func (h *Handler) STHGo(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 	defer tx.Rollback(ctx.Context)
 	var position, dice int
 	var moving bool
-	err = tx.QueryRow(ctx.Context, `SELECT position,normal_dice,moving FROM player.character_sth_progress WHERE character_id=$1 FOR UPDATE`, cid).Scan(&position, &dice, &moving)
+	var blocked *time.Time
+	err = tx.QueryRow(ctx.Context, `SELECT position,normal_dice,moving,blocked_until FROM player.character_sth_progress WHERE character_id=$1 FOR UPDATE`, cid).Scan(&position, &dice, &moving)
 	if err != nil {
 		return nil, err
 	}
-	if moving || dice <= 0 || position >= 103 {
+	if moving || (blocked != nil && blocked.After(time.Now())) || dice <= 0 || position >= 103 {
 		return map[string]interface{}{"num": 0}, nil
 	}
 	maxRoll := 6
@@ -94,7 +100,7 @@ func (h *Handler) STHGo(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 		return nil, err
 	}
 	rolled := int(rnd.Int64()) + 1
-	_, err = tx.Exec(ctx.Context, `UPDATE player.character_sth_progress SET position=$2,normal_dice=normal_dice-1,moving=true,visited=array_append(visited,$2::integer),updated_at=now() WHERE character_id=$1`, cid, position+rolled, position)
+	_, err = tx.Exec(ctx.Context, `UPDATE player.character_sth_progress SET position=$2,normal_dice=normal_dice-1,moving=true,updated_at=now() WHERE character_id=$1`, cid, position+rolled)
 	if err != nil {
 		return nil, err
 	}

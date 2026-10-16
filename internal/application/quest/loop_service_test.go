@@ -427,7 +427,7 @@ func TestCompleteQuest_LoopChild_DeactivatesOnFinalRound(t *testing.T) {
 	}
 }
 
-func TestAbandonQuest_Type1CancelGuardRejectsAndKeepsProgress(t *testing.T) {
+func TestAbandonQuest_Type1DeletesActiveProgress(t *testing.T) {
 	logger := zap.NewNop()
 	manager := newLoopTestManager(t, nil, []models.QuestTemplate{{ID: 901, Type: predef.QuestTypeNewbie}})
 	questRepo := newQuestTestQuestRepo()
@@ -440,12 +440,12 @@ func TestAbandonQuest_Type1CancelGuardRejectsAndKeepsProgress(t *testing.T) {
 	svc := NewService(questRepo, logger)
 	svc.SetGameDataManager(manager)
 
-	if err := svc.AbandonQuest(context.Background(), 1, 901); !pkgerrors.Is(err, pkgerrors.ErrQuestNotAvailable) {
-		t.Fatalf("expected ErrQuestNotAvailable for type-1 quest, got %v", err)
+	if err := svc.AbandonQuest(context.Background(), 1, 901); err != nil {
+		t.Fatalf("AbandonQuest: %v", err)
 	}
 
-	if _, err := questRepo.FindByCharacterAndQuest(context.Background(), 1, 901); err != nil {
-		t.Fatalf("expected type-1 quest progress to remain, got err=%v", err)
+	if _, err := questRepo.FindByCharacterAndQuest(context.Background(), 1, 901); !errors.Is(err, pkgerrors.ErrNotFound) {
+		t.Fatalf("expected type-1 quest progress to be deleted, got err=%v", err)
 	}
 }
 

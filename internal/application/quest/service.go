@@ -262,7 +262,7 @@ func (s *Service) EnrichQuestDTO(ctx context.Context, qp *quest.QuestProgress) m
 	if policy == PolicyUnconfigured || policy == PolicyCurrency || policy == PolicyInvalid || (policy == PolicyCatalog && !s.catalogTargetsAvailable(qp)) {
 		data["info"] = questTpl.Info + "\n[Điều kiện nhiệm vụ chưa được cấu hình đầy đủ trên server; chưa thể nhận thưởng.]"
 	}
-	data["type"] = int(questTpl.Type)
+	data["type"] = clientQuestType(int(questTpl.Type))
 	data["color"] = int(questTpl.Color)
 	data["subType"] = questTpl.SubType
 	data["startText"] = questTpl.StartText
@@ -1136,11 +1136,9 @@ func (s *Service) GetLoopQuestStartTime(questType int) int64 {
 }
 
 func (s *Service) AbandonQuest(ctx context.Context, charID int64, questID int) error {
-	if s.gameDataManager != nil {
-		if questTpl := s.gameDataManager.GetQuest(questID); questTpl != nil && int(questTpl.Type) == predef.QuestTypeNewbie {
-			return pkgerrors.ErrQuestNotAvailable
-		}
-	}
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	defer lock.Unlock()
 
 	qp, err := s.questRepo.FindByCharacterAndQuest(ctx, charID, questID)
 	if err != nil {

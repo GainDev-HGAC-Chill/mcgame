@@ -41,3 +41,23 @@ func TestEnrichQuestDTOIncludesTemplateSortColor(t *testing.T) {
 		}
 	}
 }
+
+func TestEnrichQuestDTOUsesCancellablePresentationTypeForNewbieQuest(t *testing.T) {
+	logger := zap.NewNop()
+	manager := gamedata.NewManager(nil, logger)
+	template := models.QuestTemplate{ID: 3165, Type: 1, Color: 1}
+	if err := manager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, template)}); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := NewService(nil, logger)
+	svc.SetGameDataManager(manager)
+	dto := svc.EnrichQuestDTO(context.Background(), domainquest.NewQuestProgress(1, 3165, nil))
+	data := dto["data"].(map[string]interface{})
+	if got := data["type"]; got != clientQuestTypeMain {
+		t.Fatalf("client quest type = %#v, want %d so Flash enables cancel", got, clientQuestTypeMain)
+	}
+	if got := manager.GetQuest(3165); got == nil || int(got.Type) != 1 {
+		t.Fatalf("canonical quest type changed: %#v", got)
+	}
+}
