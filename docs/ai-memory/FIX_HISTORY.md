@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-16-25 — Sáu class không hoàn thành được Thăng Cấp Trung Cấp 3-1
+
+- Hiện tượng: quest `143/287/639/640/643/644` không có requirement row và không thuộc completion policy đã duyệt, nên luôn giữ state 103/`CompletionBlocked` dù nhân vật đã là Sơ Cấp.
+- Sửa: thêm exact fingerprint policy riêng cho sáu quest; completion authority kiểm tra đúng class, `class_rank == 1` và vị trí gần Khảo Quan Trung Cấp NPC 600. Persisted objective cũ không được phép bypass điều kiện.
+- Phạm vi: không tự sửa tiến độ, không tăng class rank tại bước 3-1, không suy đoán logic cho bước 3-2/3-3.
+- Test: focused policy/runtime regression đủ sáu class PASS; quest/NPC handler PASS; targeted vet và build `bin/gameserver.exe` PASS. Full quest/questaudit vẫn fail baseline ngoài phạm vi vì conversation registry hiện có 234 entry trong working tree nhưng assertion cũ chờ 227.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+
 ## FIX-2026-10-16-24 — Quest Admin cho sửa nhiệm vụ đang được nhận
 
 - Hiện tượng: dashboard chỉ cho sửa tên/mô tả/hội thoại và khóa mục tiêu, NPC, thưởng, requirements/prerequisites khi có `character_quests` active; DB RPC cũng trả `ACTIVE_QUEST_IN_USE`.

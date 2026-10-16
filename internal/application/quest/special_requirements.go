@@ -67,6 +67,22 @@ func (s *Service) syncSpecialRequirements(ctx context.Context, qp *quest.QuestPr
 		}
 		qp.CompletionBlocked = char == nil || char.ID != qp.CharacterID || char.Level < required
 		return nil
+	case PolicyClassRank:
+		if s.charRepo == nil || tpl == nil {
+			return nil
+		}
+		char, err := s.GetCharacter(ctx, qp.CharacterID)
+		if err != nil {
+			return err
+		}
+		spec, configured := reviewedClassRankQuests[qp.QuestID]
+		qp.CompletionBlocked = !configured ||
+			char == nil ||
+			char.ID != qp.CharacterID ||
+			char.ClassID != spec.ClassID ||
+			char.ClassRank != required ||
+			!s.atQuestNPC(ctx, qp.CharacterID, int(tpl.FinishNPC))
+		return nil
 	case PolicyPetLevel, PolicyPetCount:
 		if s.petService == nil {
 			return nil

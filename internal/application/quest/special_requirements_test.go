@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	domainchar "mcgame-server/internal/domain/character"
+	"strconv"
 	"testing"
 
+	domainchar "mcgame-server/internal/domain/character"
 	domainquest "mcgame-server/internal/domain/quest"
 	"mcgame-server/internal/domain/social"
 	"mcgame-server/internal/gamedata"
@@ -140,5 +141,56 @@ func TestFriendQuestRechecksDeletionAndDoesNotPersistVerification(t *testing.T) 
 	}
 	if _, exists := stored["CompletionBlocked"]; exists {
 		t.Fatal("persisted runtime verification flag")
+	}
+}
+
+func TestIntermediatePromotionQuestsRequireExactClassRankAtExaminer(t *testing.T) {
+	for questID, spec := range reviewedClassRankQuests {
+		for _, tc := range []struct {
+			name      string
+			classID   int
+			classRank int
+			mapID     int
+			complete  bool
+		}{
+			{name: "trainee", classID: spec.ClassID, classRank: 0, mapID: 1},
+			{name: "primary", classID: spec.ClassID, classRank: 1, mapID: 1, complete: true},
+			{name: "intermediate", classID: spec.ClassID, classRank: 2, mapID: 1},
+			{name: "wrong class", classID: (spec.ClassID % 6) + 1, classRank: 1, mapID: 1},
+			{name: "wrong map", classID: spec.ClassID, classRank: 1, mapID: 2},
+		} {
+			t.Run(strconv.Itoa(questID)+"_"+tc.name, func(t *testing.T) {
+				svc := specialQuestService(t, questID, spec.Name, 1)
+				tpl := models.QuestTemplate{ID: int64(questID), Name: spec.Name, Type: 1, ReqClass: "|" + strconv.Itoa(spec.ClassID) + "|", StartNPC: float64(spec.StartNPC), FinishNPC: float64(spec.FinishNPC), StartText: "start", CompleteText: "complete"}
+				if err := svc.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, tpl)}); err != nil {
+					t.Fatal(err)
+				}
+				if err := svc.gameDataManager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustQuestJSON(t, models.NpcTemplate{ID: int64(spec.FinishNPC), PosMapID: 1, PosX: 100, PosY: 100})}); err != nil {
+					t.Fatal(err)
+				}
+				svc.SetCharacterRepository(&questTestCharacterRepo{char: &domainchar.Character{ID: 2, ClassID: tc.classID, ClassRank: tc.classRank, MapID: tc.mapID, PosX: 100, PosY: 100}})
+				qp := domainquest.NewQuestProgress(2, questID, []domainquest.Objective{{Type: domainquest.ObjectiveKillMonster, Target: 999, Required: 1, Current: 1}})
+				dto := svc.EnrichQuestDTO(context.Background(), qp)
+				wantState := 103
+				if tc.complete {
+					wantState = 104
+				}
+				if dto["state"] != wantState || qp.CanComplete() != tc.complete {
+					t.Fatalf("state=%v complete=%v want state=%d complete=%v", dto["state"], qp.CanComplete(), wantState, tc.complete)
+				}
+				if len(qp.Objectives) != 0 {
+					t.Fatal("persisted objectives overrode the class-rank requirement")
+				}
+				if tc.complete {
+					authoritySave(t, svc, qp)
+					if _, _, err := svc.CompleteQuest(context.Background(), 2, questID); err != nil {
+						t.Fatal(err)
+					}
+					if svc.charRepo.(*questTestCharacterRepo).char.ClassRank != 1 {
+						t.Fatal("3-1 changed class rank before the examination chain completed")
+					}
+				}
+			})
+		}
 	}
 }

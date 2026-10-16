@@ -2,6 +2,7 @@
 
 ## Mục tiêu phiên
 
+- Sửa sáu nhiệm vụ `Thăng Cấp Trung Cấp 3-1` để nhân vật đúng class, đang ở bậc Sơ Cấp và đứng tại Khảo Quan Trung Cấp có thể hoàn thành.
 - Cho phép Quest Admin dashboard chỉnh toàn bộ cấu hình nhiệm vụ dù đang có người chơi nhận, vẫn giữ revision/validation/snapshot/audit và không tự sửa tiến độ người chơi.
 - Triển khai kế hoạch đã duyệt sửa toàn bộ boss bản đồ, phần thưởng Sổ Tay Ma Thú và boss loot theo mô tả/cấp boss.
 - Hoàn tất bộ nhớ AI và bốn lỗi: găng thu thập, túi cứu thương HP/MP, timed transport disconnect, Pet fusion quality/tooltip/random.
@@ -14,6 +15,7 @@
 
 ## Đã hoàn thành
 
+- Quest Trung Cấp 3-1: audit xác định đủ sáu ID `143/287/639/640/643/644` đều là type 1, không có requirement row nên bị completion authority fail-closed. Đã thêm exact fingerprint policy riêng, yêu cầu đúng class, `class_rank == 1` và ở gần NPC 600; rank thấp/cao hơn, sai class/map hoặc catalog drift tiếp tục bị chặn. Persisted objective cũ bị loại và bước 3-1 không tự tăng class rank.
 - Quest Admin active-use: đã gỡ khóa structural fields/nút lưu trên trang quest, đổi cảnh báo thành cho phép lưu có rủi ro, và thêm migration thay `quest_admin_save` để bỏ riêng guard `ACTIVE_QUEST_IN_USE`; guard loop dùng chung giữ nguyên. Không tự sửa/reset progress. Migration chưa apply local vì `supabase-db` đang `Exited (0)` và assistant không tự restart.
 - Boss map runtime follow-up: log click NPC 707 lúc 07:22 xác nhận `clickNpc` đã vào route mới nhưng connection ở channel 0; validation nhầm chặn `channelID <= 0` dù DB có state `(707,0,is_alive=true)`. Đã cho phép channel 0 đối với scope `all`, vẫn chặn channel âm và vẫn giữ `channel:1` chỉ nhận channel 1.
 - Boss map implementation bước 1: schedule chỉ quản lý `ground/flying` normal, có validate map/channel/alive; scene có thể inject boss registry bị thiếu khỏi static map; `clickNpc` được chuyển sang shared combat path cho schedule boss, dựng toàn roster `TBL_NPC_CREATURE`, gắn `BossCtx` schedule và kill hook ưu tiên NID canonical.
@@ -39,6 +41,7 @@
 
 ## Kiểm tra đã chạy
 
+- Quest Trung Cấp 3-1 focused policy/runtime regressions PASS cho đủ sáu class, gồm completion thật và xác nhận rank vẫn là 1 sau bước 3-1; quest/NPC handler PASS; targeted vet và build `bin/gameserver.exe` PASS; scoped diff-check sạch (chỉ cảnh báo line-ending). Full application quest và `cmd/questaudit` vẫn fail baseline conversation registry `234 want 227` từ thay đổi ngoài phạm vi.
 - Quest Admin active-use: dashboard `corepack pnpm typecheck` PASS; quest editor/validation/permission tests 20 PASS, 1 live test SKIP; scoped Prettier và diff-check PASS.
 - Sau fix channel 0: domain/application scheduleboss, application combat, combat/NPC/scene handlers PASS; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS.
 - Sau bước battle routing boss: domain/application scheduleboss, application combat, scene/NPC/combat handler packages đều PASS.
@@ -83,6 +86,7 @@
 
 ## Rủi ro/chưa xác minh
 
+- Quest Trung Cấp 3-1 chưa deploy/restart hoặc Flash smoke-test; hai bước dùng chung 3-2 (645) và 3-3 (677) chưa được thay đổi vì có semantics riêng cần kiểm chứng nếu tiếp tục lỗi.
 - Quest Admin active-use migration chưa được parser/live RPC verify vì local `supabase-db` dừng trước lúc apply; cần apply migration rồi chạy transactional rollback test trên một quest active không phải Quest 166 trước deploy.
 - Runtime 07:22 boss 707 thất bại do channel 0 đã được code-fix và regression-test, nhưng chưa Flash retest sau khi deploy binary mới.
 - Audit boss 2026-10-16 xác nhận 71 boss bản đồ và 79 boss Sổ Tay đều có roster hợp lệ, nhưng `data_tbl_boss_loot` có 0 dòng. `clickNpc` bị NPC handler ghi đè nên boss type 10 không bắt đầu trận khi click; 13 boss mythic map dùng `pos_map_id=200` nên không xuất hiện; roster map boss và định danh kill/loot hiện cũng sai. Research tại `docs/research/2026-10-16_01_MAP_BOSS_HANDBOOK_REWARD_AUDIT.md`; plan `docs/plans/2026-10-16_01_MAP_BOSS_HANDBOOK_REWARDS.md` đã được operator duyệt, chưa sửa code hoặc áp seed.
@@ -102,14 +106,15 @@
 
 ## Bước tiếp theo
 
-1. Khi local Supabase được operator khởi động lại: apply `20261016073610_allow_edit_active_quests.sql`, xác minh transactional rollback rằng structural patch trên quest active được chấp nhận và audit/revision vẫn hoạt động; sau đó deploy dashboard theo yêu cầu riêng.
-2. Khi được operator cho phép deploy/restart: restart riêng gameserver để load binary và cache 862 loot row, rồi Flash smoke-test đại diện ground normal, flying normal, mythic Kênh 1 và Sổ Tay normal/mythic; không dùng Quest 166, Pet Nấm Lục hoặc item/người chơi thật.
-3. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
-4. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
-5. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
-6. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
-7. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
-8. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
+1. Khi được operator cho phép deploy/restart gameserver: Flash smoke-test một quest Trung Cấp 3-1 trên nhân vật test đúng class/rank tại NPC 600, rồi kiểm tra tiếp 3-2/3-3; không dùng Quest 166 hoặc sửa tiến độ người chơi thật.
+2. Khi local Supabase được operator khởi động lại: apply `20261016073610_allow_edit_active_quests.sql`, xác minh transactional rollback rằng structural patch trên quest active được chấp nhận và audit/revision vẫn hoạt động; sau đó deploy dashboard theo yêu cầu riêng.
+3. Khi được operator cho phép deploy/restart: restart riêng gameserver để load binary và cache 862 loot row, rồi Flash smoke-test đại diện ground normal, flying normal, mythic Kênh 1 và Sổ Tay normal/mythic; không dùng Quest 166, Pet Nấm Lục hoặc item/người chơi thật.
+4. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
+5. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
+6. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
+7. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
+8. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
+9. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 

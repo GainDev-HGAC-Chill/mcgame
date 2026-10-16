@@ -38,6 +38,10 @@ Both functions are `language sql`, `security invoker`, `set search_path to ''`. 
 5. Adds `rewards["classRankUp"] = newRank` only when the rank actually changed.
 6. `s.charRepo.Update(ctx, char)` persists both columns via `upsertCharacterClassProgress`.
 
+## Trung Cấp 3-1 completion gate (2026-10-16)
+
+The six class-specific `Thăng Cấp Trung Cấp 3-1` templates (`143, 287, 639, 640, 643, 644`) have no `TBL_QUEST_REQUIRE` rows, so generic empty-objective completion must not decide them. They use an exact catalog-fingerprint policy keyed by quest ID, class marker, start NPC, finish NPC 600, name and non-empty dialogue. An active quest is ready only when the authoritative character has the matching class, `ClassRank == 1` (Sơ Cấp), and is within the normal 300-unit turn-in radius of NPC 600. Kiến Tập, already-Trung-Cấp, wrong-class, wrong-map and catalog-drift cases remain blocked. Any stale persisted objectives are discarded and cannot bypass this gate. Completing step 3-1 does not itself increment class rank; it only opens the existing examination chain.
+
 ## Skill-learn gate
 
 `internal/application/skill/service.go:validateClassRankRequirement`:
@@ -61,6 +65,7 @@ Tests: `TestLearnSkill_RejectsBelowClassRank`, `TestLearnSkill_AllowsAtClassRank
 - Per-class promotion certificate items (`Bàn Địa Sơ Cấp Chứng Nhận`, etc.) are seeded but currently flavor-only; quest completion is the canonical promotion trigger. If item-driven promotion is needed later, plug an effect handler into `internal/application/item/service.go:typeHandlers`.
 - Admin dashboard does not yet expose `class_rank` editing; once added, follow the [Admin edits push realtime](../../..) pattern and push `onUPP({cl: newRank})` to online players.
 - No memory of class-rank reset on rebirth (`expRe` increment). If the design later resets `cl` to 0 on rebirth, push `onUPP({cl: 0})` from the rebirth handler.
+- The later shared steps `Thăng Cấp Trung Cấp 3-2` (645) and `3-3` (677) were identified during the 3-1 repair but were not changed or inferred; verify their distinct battle/reward semantics separately if they fail at runtime.
 
 ## Reference
 

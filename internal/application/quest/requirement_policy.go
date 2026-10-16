@@ -16,6 +16,7 @@ const (
 	PolicyPetLevel       = "pet_level"
 	PolicyPetCount       = "pet_count"
 	PolicyFriendship     = "friendship"
+	PolicyClassRank      = "class_rank"
 	PolicyUnconfigured   = "unconfigured"
 	PolicyCurrency       = "unsupported_currency_condition"
 	PolicyInvalid        = "invalid_catalog"
@@ -42,6 +43,9 @@ func ClassifyQuestCompletion(tpl *models.QuestTemplate, requirements []*models.Q
 	}
 	if tpl.Rt != 0 {
 		return PolicyCurrency, 0
+	}
+	if spec, ok := reviewedClassRankQuests[int(tpl.ID)]; ok && classRankQuestFingerprintMatches(tpl, spec) {
+		return PolicyClassRank, spec.ClassRank
 	}
 	if int(tpl.Type) == 10 {
 		id := int(tpl.ID)

@@ -21,8 +21,44 @@ type checkedQuestRecord struct {
 	FinishNPC    string `json:"finishNpc"`
 	StartText    string `json:"startText"`
 	CompleteText string `json:"completeText"`
+	ReqClass     string `json:"reqClass"`
 	Rt           string `json:"rt"`
 	Rn           string `json:"rn"`
+}
+
+func TestClassRankRegistryMatchesCheckedCatalog(t *testing.T) {
+	content, err := os.ReadFile("../../../docs/database/game_data/TBL_QUEST.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var catalog checkedQuestCatalog
+	if err := json.Unmarshal(content, &catalog); err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[int]checkedQuestRecord, len(catalog.Records))
+	for _, row := range catalog.Records {
+		id, err := strconv.Atoi(row.ID)
+		if err != nil {
+			t.Fatalf("quest id %q: %v", row.ID, err)
+		}
+		byID[id] = row
+	}
+	if len(reviewedClassRankQuests) != 6 {
+		t.Fatalf("registry count=%d want=6", len(reviewedClassRankQuests))
+	}
+	for id, spec := range reviewedClassRankQuests {
+		row, ok := byID[id]
+		if !ok {
+			t.Fatalf("quest %d missing from checked catalog", id)
+		}
+		tpl := checkedRecordTemplate(t, row)
+		if !classRankQuestFingerprintMatches(tpl, spec) {
+			t.Fatalf("quest %d registry drift: spec=%+v catalog=%+v", id, spec, tpl)
+		}
+		if policy, rank := ClassifyQuestCompletion(tpl, nil); policy != PolicyClassRank || rank != 1 {
+			t.Fatalf("quest %d policy=%s rank=%d", id, policy, rank)
+		}
+	}
 }
 
 func TestConversationRegistryMatchesCheckedCatalog(t *testing.T) {
@@ -128,5 +164,5 @@ func checkedRecordTemplate(t *testing.T, row checkedQuestRecord) *models.QuestTe
 	if err != nil {
 		t.Fatalf("quest id %q: %v", row.ID, err)
 	}
-	return &models.QuestTemplate{ID: id, Name: row.Name, Type: values[0], StartNPC: values[1], FinishNPC: values[2], Rt: values[3], Rn: values[4], StartText: row.StartText, CompleteText: row.CompleteText}
+	return &models.QuestTemplate{ID: id, Name: row.Name, Type: values[0], StartNPC: values[1], FinishNPC: values[2], ReqClass: row.ReqClass, Rt: values[3], Rn: values[4], StartText: row.StartText, CompleteText: row.CompleteText}
 }

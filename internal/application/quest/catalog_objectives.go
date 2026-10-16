@@ -11,7 +11,7 @@ func (s *Service) reconcileCatalogObjectives(qp *quest.QuestProgress) error {
 	}
 	tpl := s.gameDataManager.GetQuest(qp.QuestID)
 	policy, _ := ClassifyQuestCompletion(tpl, s.gameDataManager.GetQuestRequire(qp.QuestID))
-	if policy == PolicyConversation || policy == PolicyCharacterLevel || policy == PolicyPetLevel || policy == PolicyPetCount || policy == PolicyFriendship {
+	if policy == PolicyConversation || policy == PolicyCharacterLevel || policy == PolicyPetLevel || policy == PolicyPetCount || policy == PolicyFriendship || policy == PolicyClassRank {
 		qp.Objectives = nil
 		return nil
 	}
