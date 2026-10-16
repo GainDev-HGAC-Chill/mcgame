@@ -58,6 +58,9 @@ var gameCurrencyDescriptors = map[int]CurrencyDescriptor{
 	CurrencyMCBeans:           {TypeID: CurrencyMCBeans, ClientKey: "mcbeans", Label: "MC Beans"},
 	CurrencyPetArenaAct:       {TypeID: CurrencyPetArenaAct, ClientKey: "petPK_202504", Label: "Điểm hoạt động đấu trường thú"},
 	CurrencyShowTime2:         {TypeID: CurrencyShowTime2, ClientKey: "txkc2508p", Label: "Điểm ShowTime 2"},
+	CurrencyMagicCrystalRec:   {TypeID: CurrencyMagicCrystalRec, ClientKey: "magiccystalrec", Label: "Bụi Ma Thuật", AlwaysPersist: true},
+	CurrencyMagicCrystalPre:   {TypeID: CurrencyMagicCrystalPre, ClientKey: "magiccystalpre", Label: "Pha Lê Vĩnh Hằng", AlwaysPersist: true},
+	CurrencyMagicCrystalLimit: {TypeID: CurrencyMagicCrystalLimit, ClientKey: "magiccystallimit", Label: "Pha Lê Cực Hạn", AlwaysPersist: true},
 	CurrencyPetGuardOut:       {TypeID: CurrencyPetGuardOut, ClientKey: "petguardout", Label: "Vệ Sĩ Pet (Ra)"},
 	CurrencyPetGuardIn:        {TypeID: CurrencyPetGuardIn, ClientKey: "petguardin", Label: "Vệ Sĩ Pet (Vào)"},
 	CurrencyWisdomCrystal:     {TypeID: CurrencyWisdomCrystal, ClientKey: "wisdonCrystal", Label: "Kết Tinh Trí Thạch"},
@@ -154,9 +157,9 @@ type CurrencyAccessor struct {
 }
 
 var (
-	currencyAccessors        = make(map[string]CurrencyAccessor)
-	gameKVAccessors          []CurrencyAccessor
-	gameKVAccessorsByTypeID  = make(map[int]CurrencyAccessor)
+	currencyAccessors       = make(map[string]CurrencyAccessor)
+	gameKVAccessors         []CurrencyAccessor
+	gameKVAccessorsByTypeID = make(map[int]CurrencyAccessor)
 )
 
 func init() {
@@ -174,17 +177,6 @@ func init() {
 			func(c *Character) int64 { return int64(get(c)) },
 			func(c *Character, v int64) { set(c, int(v)) })
 	}
-	registerInlineIntGameKV := func(d CurrencyDescriptor, get func(*Character) int, set func(*Character, int)) {
-		a := CurrencyAccessor{
-			Descriptor: d,
-			Get:        func(c *Character) int64 { return int64(get(c)) },
-			Set:        func(c *Character, v int64) { set(c, int(v)) },
-		}
-		register(a)
-		gameKVAccessors = append(gameKVAccessors, a)
-		gameKVAccessorsByTypeID[d.TypeID] = a
-	}
-
 	register(CurrencyAccessor{
 		Descriptor: basicCurrencyDescriptors[BasicCurrencyMoney],
 		Get:        func(c *Character) int64 { return c.Money },
@@ -246,21 +238,9 @@ func init() {
 	registerIntGameKV(CurrencyMCBeans, func(c *Character) int { return c.MCBeans }, func(c *Character, v int) { c.MCBeans = v })
 	registerIntGameKV(CurrencyPetArenaAct, func(c *Character) int { return c.PetArenaActPoint }, func(c *Character, v int) { c.PetArenaActPoint = v })
 	registerIntGameKV(CurrencyShowTime2, func(c *Character) int { return c.ShowTime2Point }, func(c *Character, v int) { c.ShowTime2Point = v })
-	registerInlineIntGameKV(
-		CurrencyDescriptor{TypeID: CurrencyMagicCrystalRec, ClientKey: "magiccystalrec", Label: "Bụi Ma Thuật", AlwaysPersist: true},
-		func(c *Character) int { return c.MagicCrystalRec },
-		func(c *Character, v int) { c.MagicCrystalRec = v },
-	)
-	registerInlineIntGameKV(
-		CurrencyDescriptor{TypeID: CurrencyMagicCrystalPre, ClientKey: "magiccystalpre", Label: "Pha Lê Vĩnh Hằng", AlwaysPersist: true},
-		func(c *Character) int { return c.MagicCrystalPre },
-		func(c *Character, v int) { c.MagicCrystalPre = v },
-	)
-	registerInlineIntGameKV(
-		CurrencyDescriptor{TypeID: CurrencyMagicCrystalLimit, ClientKey: "magiccystallimit", Label: "Pha Lê Cực Hạn", AlwaysPersist: true},
-		func(c *Character) int { return c.MagicCrystalLimit },
-		func(c *Character, v int) { c.MagicCrystalLimit = v },
-	)
+	registerIntGameKV(CurrencyMagicCrystalRec, func(c *Character) int { return c.MagicCrystalRec }, func(c *Character, v int) { c.MagicCrystalRec = v })
+	registerIntGameKV(CurrencyMagicCrystalPre, func(c *Character) int { return c.MagicCrystalPre }, func(c *Character, v int) { c.MagicCrystalPre = v })
+	registerIntGameKV(CurrencyMagicCrystalLimit, func(c *Character) int { return c.MagicCrystalLimit }, func(c *Character, v int) { c.MagicCrystalLimit = v })
 	registerIntGameKV(CurrencyPetGuardOut, func(c *Character) int { return c.PetGuardOut }, func(c *Character, v int) { c.PetGuardOut = v })
 	registerIntGameKV(CurrencyPetGuardIn, func(c *Character) int { return c.PetGuardIn }, func(c *Character, v int) { c.PetGuardIn = v })
 	registerIntGameKV(CurrencyWisdomCrystal, func(c *Character) int { return c.WisdomCrystal }, func(c *Character, v int) { c.WisdomCrystal = v })

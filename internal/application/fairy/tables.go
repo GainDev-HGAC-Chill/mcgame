@@ -65,6 +65,50 @@ var SkillItemToTblSkill = map[int]int{
 	4009: 6275,
 }
 
+var fairySkillFamilies = [][3]int{
+	{5917, 5918, 5919},
+	{5920, 5921, 5922},
+	{5923, 5924, 5925},
+	{5926, 5927, 5928},
+	{5929, 5930, 5931},
+	{5932, 5933, 5934},
+	{6227, 6228, 6229},
+	{6230, 6231, 6232},
+	{6236, 6237, 6238},
+	{6239, 6240, 6241},
+	{6242, 6243, 6244},
+	{6245, 6246, 6247},
+	{6248, 6249, 6250},
+	{6251, 6252, 6253},
+	{6254, 6255, 6256},
+	{6257, 6258, 6259},
+	{6260, 6261, 6262},
+	{6263, 6264, 6265},
+	{6266, 6267, 6268},
+	{6269, 6270, 6271},
+	{6272, 6273, 6274},
+	{6275, 6276, 6277},
+}
+
+func fairySkillFamily(skillID int) (int, int, bool) {
+	for family, chain := range fairySkillFamilies {
+		for level, id := range chain {
+			if id == skillID {
+				return family, level + 1, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+func nextFairySkill(skillID int) (int, bool) {
+	family, level, ok := fairySkillFamily(skillID)
+	if !ok || level >= skillMaxLevel {
+		return 0, false
+	}
+	return fairySkillFamilies[family][level], true
+}
+
 var (
 	FairyLevelExp = []int64{
 		1, 50, 250, 700, 1500, 2750, 4550, 7000, 10200, 14250,

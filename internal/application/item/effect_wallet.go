@@ -21,7 +21,7 @@ var walletTemplateIDs = map[int]bool{
 	4551: true, 4571: true, 5343: true, 3815: true, 4591: true,
 	5256: true, 4839: true, 3816: true, 4905: true, 4906: true,
 	4838: true, 4886: true, 4724: true, 5968: true, 5967: true,
-	5948: true, 5949: true, 5215: true, 5216: true, 4673: true,
+	5215: true, 5216: true, 4673: true,
 }
 
 type walletEffectHandler struct{}

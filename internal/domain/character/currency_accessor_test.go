@@ -91,6 +91,41 @@ func TestCurrencyAccessor_RoundTripsScalarAndBigCurrencies(t *testing.T) {
 	}
 }
 
+func TestMagicCrystalCurrenciesShareDescriptorAndPersistenceRegistries(t *testing.T) {
+	char := NewCurrencyTestCharacter()
+	cases := []struct {
+		typeID    int
+		clientKey string
+		label     string
+	}{
+		{CurrencyMagicCrystalRec, "magiccystalrec", "Bụi Ma Thuật"},
+		{CurrencyMagicCrystalPre, "magiccystalpre", "Pha Lê Vĩnh Hằng"},
+		{CurrencyMagicCrystalLimit, "magiccystallimit", "Pha Lê Cực Hạn"},
+	}
+
+	for _, tc := range cases {
+		descriptor, ok := GameCurrencyDescriptor(tc.typeID)
+		if !ok {
+			t.Fatalf("GameCurrencyDescriptor(%d) missing", tc.typeID)
+		}
+		if descriptor.ClientKey != tc.clientKey || descriptor.Label != tc.label || !descriptor.AlwaysPersist {
+			t.Fatalf("descriptor %d = %#v", tc.typeID, descriptor)
+		}
+
+		accessor, ok := LookupGameKVAccessor(tc.typeID)
+		if !ok {
+			t.Fatalf("LookupGameKVAccessor(%d) missing", tc.typeID)
+		}
+		if accessor.Descriptor != descriptor {
+			t.Fatalf("accessor descriptor %d = %#v, want %#v", tc.typeID, accessor.Descriptor, descriptor)
+		}
+		accessor.Set(char, int64(tc.typeID))
+		if total, ok := char.GetGameCurrencyTotal(tc.typeID); !ok || total != tc.typeID {
+			t.Fatalf("GetGameCurrencyTotal(%d) = %d, %v", tc.typeID, total, ok)
+		}
+	}
+}
+
 func NewCurrencyTestCharacter() *Character {
 	return NewCharacter(uuid.New(), "tester", 1, 0)
 }

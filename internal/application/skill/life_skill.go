@@ -54,26 +54,11 @@ func (s *Service) LearnOrUpgradeLifeSkill(ctx context.Context, charID int64, req
 		return nil, nil, nil, ErrLifeSkillTemplateNotFound
 	}
 
-	skillType := int(requestedTemplate.Type)
 	if int(requestedTemplate.Level) <= 1 {
-		existingSkill, _, err := s.findLifeSkillByType(ctx, charID, skillType)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if existingSkill == nil && skillType != PlantSkillType {
-			learnedSkill, template, learnErr := s.learnLifeSkillByBook(ctx, charID, skillType)
-			if learnErr != nil {
-				return nil, nil, nil, learnErr
-			}
-			char, charErr := s.requireCharacter(ctx, charID)
-			if charErr != nil {
-				return nil, nil, nil, charErr
-			}
-			return learnedSkill, template, char, nil
-		}
+		return nil, nil, nil, ErrLifeSkillNotLearned
 	}
 
-	return s.upgradeLifeSkill(ctx, charID, requestedSkillID)
+	return s.upgradeLifeSkill(ctx, charID, requestedSkillID, true)
 }
 
 func (s *Service) LearnRecipeSkillByFormulaName(ctx context.Context, charID int64, formulaName string) (*domainskill.CharacterSkill, *models.SkillTemplate, error) {
@@ -149,7 +134,7 @@ func (s *Service) CanCraftRecipe(ctx context.Context, charID int64, recipeSkillI
 }
 
 func (s *Service) UpgradePlantSkill(ctx context.Context, charID int64, requestedSkillID int) (*domainskill.CharacterSkill, *models.SkillTemplate, *domainchar.Character, error) {
-	return s.upgradeLifeSkill(ctx, charID, requestedSkillID)
+	return s.upgradeLifeSkill(ctx, charID, requestedSkillID, false)
 }
 
 func (s *Service) AddPlantMastery(ctx context.Context, charID int64, amount int) (*domainchar.Character, *domainskill.CharacterSkill, error) {
@@ -279,7 +264,7 @@ func (s *Service) learnLifeSkillByBook(ctx context.Context, charID int64, skillT
 	return skillEntry, template, nil
 }
 
-func (s *Service) upgradeLifeSkill(ctx context.Context, charID int64, requestedSkillID int) (*domainskill.CharacterSkill, *models.SkillTemplate, *domainchar.Character, error) {
+func (s *Service) upgradeLifeSkill(ctx context.Context, charID int64, requestedSkillID int, requireRequestedNext bool) (*domainskill.CharacterSkill, *models.SkillTemplate, *domainchar.Character, error) {
 	requestedTemplate := s.skillTemplate(requestedSkillID)
 	if requestedTemplate == nil || !isUpgradeableLifeSkillType(int(requestedTemplate.Type)) {
 		return nil, nil, nil, ErrLifeSkillTemplateNotFound
@@ -307,6 +292,9 @@ func (s *Service) upgradeLifeSkill(ctx context.Context, charID int64, requestedS
 	nextTemplate := s.lifeSkillTemplateByLevel(skillType, skillEntry.Level+1)
 	if nextTemplate == nil {
 		return nil, nil, nil, ErrLifeSkillMaxLevel
+	}
+	if requireRequestedNext && int(nextTemplate.ID) != requestedSkillID {
+		return nil, nil, nil, ErrLifeSkillTemplateNotFound
 	}
 
 	if char.Level < int(nextTemplate.ReqLevel) {
@@ -499,7 +487,7 @@ func trackedLifeSkillTypes() []int {
 
 func isUpgradeableLifeSkillType(skillType int) bool {
 	switch skillType {
-	case PlantSkillType, CookSkillType, MedicineSkillType:
+	case FishSkillType, PlantSkillType, HerbSkillType, CookSkillType, MedicineSkillType:
 		return true
 	default:
 		return false

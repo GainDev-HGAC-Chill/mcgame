@@ -43,6 +43,9 @@ func (h *Handler) ChangeState(ctx *rtmp.RPCContext, args []interface{}) (interfa
 		h.logger.Warn("changeFairyState failed", zap.Int64("char_id", charID), zap.Error(err))
 		return nil, nil
 	}
+	for _, restedFairyID := range res.RestedFairyIDs {
+		h.push(ctx, "onUpdateFairy", restedFairyID, "state", strconv.Itoa(0))
+	}
 	h.push(ctx, "onUpdateFairy", res.FairyID, "state", strconv.Itoa(res.State))
 	if res.State == 1 {
 		h.push(ctx, "onFairyOn", map[string]interface{}{
@@ -64,11 +67,15 @@ func (h *Handler) DelFairy(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	if !ok1 {
 		return nil, nil
 	}
-	if err := h.service.Delete(ctx.Context, charID, fairyID); err != nil {
+	res, err := h.service.Delete(ctx.Context, charID, fairyID)
+	if err != nil {
 		h.logger.Warn("delFairy failed", zap.Int64("char_id", charID), zap.Error(err))
 		return nil, nil
 	}
 	h.push(ctx, "onDelFairy", fairyID)
+	if res.WasGuarding {
+		h.push(ctx, "onFairyOff", charID)
+	}
 	return nil, nil
 }
 

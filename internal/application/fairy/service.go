@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	domainchar "mcgame-server/internal/domain/character"
@@ -68,7 +69,10 @@ type ItemPort interface {
 
 type FairySkillData interface {
 	GetSkill(id int) *models.SkillTemplate
-	GetAllSkills() []*models.SkillTemplate
+}
+
+type FairyItemData interface {
+	GetItem(id int) *models.ItemTemplateTemplate
 }
 
 type Clock interface {
@@ -80,13 +84,15 @@ type systemClock struct{}
 func (systemClock) Now() time.Time { return time.Now() }
 
 type Service struct {
-	featureRepo domainfeature.Repository
-	charRepo    domainchar.Repository
-	items       ItemPort
-	gameData    *gamedata.Manager
-	skillData   FairySkillData
-	clock       Clock
-	logger      *zap.Logger
+	featureRepo   domainfeature.Repository
+	charRepo      domainchar.Repository
+	items         ItemPort
+	gameData      *gamedata.Manager
+	skillData     FairySkillData
+	itemData      FairyItemData
+	clock         Clock
+	logger        *zap.Logger
+	mutationLocks [64]sync.Mutex
 }
 
 func NewService(featureRepo domainfeature.Repository, charRepo domainchar.Repository, items ItemPort, gameData *gamedata.Manager, logger *zap.Logger) *Service {
@@ -98,6 +104,7 @@ func NewService(featureRepo domainfeature.Repository, charRepo domainchar.Reposi
 		charRepo:    charRepo,
 		items:       items,
 		gameData:    gameData,
+		itemData:    gameData,
 		clock:       systemClock{},
 		logger:      logger,
 	}
@@ -108,6 +115,15 @@ func (s *Service) SetSkillData(sd FairySkillData) {
 		return
 	}
 	s.skillData = sd
+	if itemData, ok := sd.(FairyItemData); ok {
+		s.itemData = itemData
+	}
+}
+
+func (s *Service) lockCharacterMutation(charID int64) func() {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	return lock.Unlock
 }
 
 func (s *Service) loadState(ctx context.Context, charID int64) (*State, error) {
@@ -164,6 +180,9 @@ func (s *Service) loadChar(ctx context.Context, charID int64) (*domainchar.Chara
 }
 
 func (s *Service) Roster(ctx context.Context, charID int64) (map[string]interface{}, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err

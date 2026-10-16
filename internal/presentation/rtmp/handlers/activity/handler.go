@@ -49,6 +49,7 @@ var onlineRewardSteps = []OnlineRewardConfig{
 }
 
 type Handler struct {
+	sthBattleStarter func(*rtmp.RPCContext, int) (string, error)
 	findbackPool     *pgxpool.Pool
 	itemService      *appitem.Service
 	characterRepo    domainchar.Repository

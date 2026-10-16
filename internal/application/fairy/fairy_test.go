@@ -20,6 +20,7 @@ import (
 
 type fakeFeatureRepo struct {
 	charStates map[int64][]*domainfeature.CharacterFeatureState
+	upsertErr  error
 }
 
 func newFakeRepo() *fakeFeatureRepo {
@@ -31,6 +32,9 @@ func (r *fakeFeatureRepo) ListCharacterFeatureStates(ctx context.Context, charID
 }
 
 func (r *fakeFeatureRepo) UpsertCharacterFeatureState(ctx context.Context, state *domainfeature.CharacterFeatureState) error {
+	if r.upsertErr != nil {
+		return r.upsertErr
+	}
 	list := r.charStates[state.CharacterID]
 	for i, st := range list {
 		if st.FeatureKey == state.FeatureKey {
@@ -137,7 +141,13 @@ func (p *fakeItemPort) ConsumeItemsByTemplateID(ctx context.Context, charID int6
 }
 func (p *fakeItemPort) AddItemWithBind(ctx context.Context, charID int64, templateID int, itemType domainitem.ItemType, stackCount int, isBound bool) (*domainitem.Item, error) {
 	p.added = append(p.added, templateID)
-	return &domainitem.Item{TemplateID: templateID}, nil
+	it := p.byTemplate[templateID]
+	if it == nil {
+		it = &domainitem.Item{TemplateID: templateID, ItemType: itemType, IsBound: isBound}
+		p.byTemplate[templateID] = it
+	}
+	it.StackCount += stackCount
+	return it, nil
 }
 func (p *fakeItemPort) IsDiamondItem(templateID int) bool { return false }
 
@@ -170,12 +180,13 @@ func seedFairy(t *testing.T, repo *fakeFeatureRepo, charID int64, f *Fairy) {
 }
 
 type fakeSkillData struct {
-	byID map[int]*models.SkillTemplate
-	all  []*models.SkillTemplate
+	byID  map[int]*models.SkillTemplate
+	all   []*models.SkillTemplate
+	items map[int]*models.ItemTemplateTemplate
 }
 
 func newFakeSkillData(rows []*models.SkillTemplate) *fakeSkillData {
-	fd := &fakeSkillData{byID: map[int]*models.SkillTemplate{}, all: rows}
+	fd := &fakeSkillData{byID: map[int]*models.SkillTemplate{}, all: rows, items: map[int]*models.ItemTemplateTemplate{}}
 	for _, r := range rows {
 		fd.byID[int(r.ID)] = r
 	}
@@ -188,6 +199,9 @@ func (f *fakeSkillData) GetSkill(id int) *models.SkillTemplate {
 func (f *fakeSkillData) GetAllSkills() []*models.SkillTemplate {
 	return f.all
 }
+func (f *fakeSkillData) GetItem(id int) *models.ItemTemplateTemplate {
+	return f.items[id]
+}
 
 func chainSkills(codeName string, id1, id2, id3 int) []*models.SkillTemplate {
 	return []*models.SkillTemplate{
@@ -195,6 +209,18 @@ func chainSkills(codeName string, id1, id2, id3 int) []*models.SkillTemplate {
 		{ID: int64(id2), CodeName: codeName, Level: 2},
 		{ID: int64(id3), CodeName: codeName, Level: 3},
 	}
+}
+
+func configureFairyBook(svc *Service, templateID int, rows []*models.SkillTemplate, reqLevel int) *fakeSkillData {
+	sd := newFakeSkillData(rows)
+	sd.items[templateID] = &models.ItemTemplateTemplate{
+		ID:       int64(templateID),
+		Type:     itemTypeFairySkill,
+		PropType: float64(SkillItemToTblSkill[templateID]),
+		ReqLevel: float64(reqLevel),
+	}
+	svc.SetSkillData(sd)
+	return sd
 }
 
 func TestState_RoundTripThroughJSON(t *testing.T) {
@@ -488,6 +514,7 @@ func TestOnSkill_TeachesAndConsumesBook(t *testing.T) {
 	f.ResetDay = "2026-06-14"
 	seedFairy(t, repo, 1, f)
 	items.items[600] = &domainitem.Item{ID: 600, TemplateID: 3577, StackCount: 1}
+	configureFairyBook(svc, 3577, chainSkills("fairy_skill_a", 5917, 5918, 5919), 0)
 
 	res, err := svc.OnSkill(context.Background(), 1, 7, 600)
 	if err != nil {
@@ -622,7 +649,7 @@ func TestUpSkill_ErrorOnUnlearnedSlot(t *testing.T) {
 	}
 }
 
-func TestUpSkill_NoSkillData_EchoesCurrentID(t *testing.T) {
+func TestUpSkill_NoSkillDataFails(t *testing.T) {
 	svc, repo, _, _, _ := newTestService(&domainchar.Character{ID: 1})
 	f := newFairy(7)
 	f.ResetDay = "2026-06-14"
@@ -630,11 +657,8 @@ func TestUpSkill_NoSkillData_EchoesCurrentID(t *testing.T) {
 	seedFairy(t, repo, 1, f)
 
 	res, err := svc.UpSkill(context.Background(), 1, 7, 1)
-	if err != nil {
-		t.Fatalf("UpSkill no skill data: %v", err)
-	}
-	if !res.Flag || res.Sindex != "s1" || res.Skill != 5917 {
-		t.Fatalf("UpSkill result (no skill data): %+v", res)
+	if !errors.Is(err, ErrSkillFailed) {
+		t.Fatalf("UpSkill no skill data: want ErrSkillFailed, got res=%+v err=%v", res, err)
 	}
 }
 
@@ -668,14 +692,14 @@ func TestDelete_RemovesFairy(t *testing.T) {
 	f.ResetDay = "2026-06-14"
 	seedFairy(t, repo, 1, f)
 
-	if err := svc.Delete(context.Background(), 1, 7); err != nil {
+	if _, err := svc.Delete(context.Background(), 1, 7); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	state := stateFromMap(repo.charStates[1][0].State)
 	if _, ok := state.fairy(7); ok {
 		t.Fatalf("fairy 7 still present after delete")
 	}
-	if err := svc.Delete(context.Background(), 1, 7); !errors.Is(err, ErrFairyMissing) {
+	if _, err := svc.Delete(context.Background(), 1, 7); !errors.Is(err, ErrFairyMissing) {
 		t.Fatalf("delete missing: want ErrFairyMissing, got %v", err)
 	}
 }

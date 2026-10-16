@@ -25,27 +25,29 @@ import (
 )
 
 type Handler struct {
-	combatService       *appcombat.Service
-	sceneService        *appscene.Service
-	charService         *appchar.Service
-	battleService       *appbattle.Service
-	groupService        *appgroup.Service
-	questService        *appquest.Service
-	skillService        *appskill.Service
-	itemService         *appitem.Service
-	petService          *apppet.Service
-	starInstanceService *appstarinstance.Service
-	skillAdapter        combatdomain.SkillGetter
-	skillOwnership      skillOwnershipChecker
-	sceneManager        *rtmp.SceneManager
-	rtmpServer          *rtmp.Server
-	gameData            *gamedata.Manager
-	questNotify         *questhandler.QuestNotifyHelper
-	accountRepo         auth.AccountRepository
-	battleInfoLookup    func(string) (*combatdomain.Battle, error)
-	logger              *zap.Logger
-	buffService         *appbuff.Service
-	bloodBag            *appbloodbag.Service
+	sthBattleResultHandler func(*rtmp.RPCContext, int64, string, bool) error
+	combatService          *appcombat.Service
+	sceneService           *appscene.Service
+	charService            *appchar.Service
+	battleService          *appbattle.Service
+	groupService           *appgroup.Service
+	questService           *appquest.Service
+	skillService           *appskill.Service
+	itemService            *appitem.Service
+	petService             *apppet.Service
+	starInstanceService    *appstarinstance.Service
+	skillAdapter           combatdomain.SkillGetter
+	skillOwnership         skillOwnershipChecker
+	petSkillOwnership      petSkillOwnershipChecker
+	sceneManager           *rtmp.SceneManager
+	rtmpServer             *rtmp.Server
+	gameData               *gamedata.Manager
+	questNotify            *questhandler.QuestNotifyHelper
+	accountRepo            auth.AccountRepository
+	battleInfoLookup       func(string) (*combatdomain.Battle, error)
+	logger                 *zap.Logger
+	buffService            *appbuff.Service
+	bloodBag               *appbloodbag.Service
 }
 
 func NewHandler(combatService *appcombat.Service, sceneService *appscene.Service, charService *appchar.Service, battleService *appbattle.Service, questService *appquest.Service, sceneManager *rtmp.SceneManager, accountRepo auth.AccountRepository, logger *zap.Logger) *Handler {
@@ -101,6 +103,7 @@ func (h *Handler) SetBuffService(buffService *appbuff.Service) {
 
 func (h *Handler) SetPetService(petService *apppet.Service) {
 	h.petService = petService
+	h.petSkillOwnership = petService
 }
 
 func (h *Handler) SetStarInstanceService(svc *appstarinstance.Service) {

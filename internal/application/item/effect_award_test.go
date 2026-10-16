@@ -5,6 +5,7 @@ package item
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	apptitle "mcgame-server/internal/application/title"
 	domainbuff "mcgame-server/internal/domain/buff"
 	domainchar "mcgame-server/internal/domain/character"
+	domainitem "mcgame-server/internal/domain/item"
 	domainpet "mcgame-server/internal/domain/pet"
 	domainskill "mcgame-server/internal/domain/skill"
 	"mcgame-server/internal/gamedata"
@@ -322,6 +324,92 @@ func TestAwardEffectHandler_Apply_GrantsFlexibleRewards(t *testing.T) {
 	}
 }
 
+func TestAwardEffectHandler_Apply_GrantsMagicCrystalCurrencies(t *testing.T) {
+	cases := []struct {
+		awardID  int
+		count    int
+		key      string
+		label    string
+		getTotal func(*domainchar.Character) int
+	}{
+		{73, 20, "magiccystalrec", "Bụi Ma Thuật", func(char *domainchar.Character) int { return char.MagicCrystalRec }},
+		{74, 5, "magiccystalpre", "Pha Lê Vĩnh Hằng", func(char *domainchar.Character) int { return char.MagicCrystalPre }},
+		{75, 200, "magiccystallimit", "Pha Lê Cực Hạn", func(char *domainchar.Character) int { return char.MagicCrystalLimit }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			manager := gamedata.NewManager(nil, zap.NewNop())
+			loadAwardTemplate(t, manager, models.ItemAwardTemplate{ID: int64(tc.awardID), ItemID: 5947, AwardID: float64(tc.awardID), Type: 35, Count: float64(tc.count), Rate: 100})
+			handler := &awardEffectHandler{gameData: manager}
+			char := &domainchar.Character{ID: 21}
+
+			result, err := handler.Apply(context.Background(), nil, char, nil, &models.ItemTemplateTemplate{ID: 5947})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.getTotal(char) != tc.count {
+				t.Fatalf("currency total = %d, want %d", tc.getTotal(char), tc.count)
+			}
+			if len(result.GrantedCurrencies) != 1 {
+				t.Fatalf("granted currencies = %#v", result.GrantedCurrencies)
+			}
+			grant := result.GrantedCurrencies[0]
+			if grant.ClientKey != tc.key || grant.Delta != int64(tc.count) || grant.Total != float64(tc.count) || grant.Label != tc.label {
+				t.Fatalf("grant = %#v", grant)
+			}
+			if !result.RefreshCharacterView {
+				t.Fatal("character refresh not requested")
+			}
+		})
+	}
+}
+
+func TestAwardEffectHandler_Apply_RejectsUnknownGameCurrency(t *testing.T) {
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadAwardTemplate(t, manager, models.ItemAwardTemplate{ID: 99, ItemID: 5999, AwardID: 999999, Type: 35, Count: 1, Rate: 100})
+	handler := &awardEffectHandler{gameData: manager}
+	char := &domainchar.Character{ID: 21}
+
+	result, err := handler.Apply(context.Background(), nil, char, nil, &models.ItemTemplateTemplate{ID: 5999})
+	if err == nil || !strings.Contains(err.Error(), "unsupported game currency id: 999999") {
+		t.Fatalf("error = %v", err)
+	}
+	if result != nil {
+		t.Fatalf("result = %#v, want nil", result)
+	}
+}
+
+func TestUseMultiItemAggregatesAwardCurrencies(t *testing.T) {
+	repo := newItemServiceTestRepo()
+	repo.items[88] = &domainitem.Item{ID: 88, CharacterID: 99, TemplateID: 7000, ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, StackCount: 3}
+	svc := NewService(repo, zap.NewNop())
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadAwardItemTemplate(t, manager, models.ItemTemplateTemplate{ID: 7000, Type: 999, UseType: 1})
+	loadAwardTemplate(t, manager, models.ItemAwardTemplate{ID: 100, ItemID: 7000, AwardID: 75, Type: 35, Count: 10, Rate: 100})
+	svc.SetGameDataManager(manager)
+	char := &domainchar.Character{ID: 99, MagicCrystalLimit: 3}
+
+	result, err := svc.UseMultiItem(context.Background(), char, 88, 2, 1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grants, ok := result["granted_currencies"].([]GrantedCurrencyResult)
+	if !ok || len(grants) != 1 {
+		t.Fatalf("granted currencies = %#v", result["granted_currencies"])
+	}
+	grant := grants[0]
+	if grant.ClientKey != "magiccystallimit" || grant.Delta != 20 || grant.Total != 23 || grant.Label != "Pha Lê Cực Hạn" {
+		t.Fatalf("grant = %#v", grant)
+	}
+	if result["refresh_character_view"] != true {
+		t.Fatalf("refresh_character_view = %#v", result["refresh_character_view"])
+	}
+	if char.MagicCrystalLimit != 23 || repo.items[88].StackCount != 1 {
+		t.Fatalf("currency = %d stack = %d", char.MagicCrystalLimit, repo.items[88].StackCount)
+	}
+}
+
 func loadAwardTemplate(t *testing.T, manager *gamedata.Manager, template models.ItemAwardTemplate) {
 	t.Helper()
 	raw, err := json.Marshal(template)
@@ -330,6 +418,17 @@ func loadAwardTemplate(t *testing.T, manager *gamedata.Manager, template models.
 	}
 	if err := manager.GetCache().LoadTable(models.TableItemAward, []json.RawMessage{raw}); err != nil {
 		t.Fatalf("load item award: %v", err)
+	}
+}
+
+func loadAwardItemTemplate(t *testing.T, manager *gamedata.Manager, template models.ItemTemplateTemplate) {
+	t.Helper()
+	raw, err := json.Marshal(template)
+	if err != nil {
+		t.Fatalf("marshal item template: %v", err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{raw}); err != nil {
+		t.Fatalf("load item template: %v", err)
 	}
 }
 

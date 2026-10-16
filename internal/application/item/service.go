@@ -1470,6 +1470,9 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 
 	totalHPHealed := 0
 	totalMPRestored := 0
+	grantedCurrencies := make([]GrantedCurrencyResult, 0)
+	grantedCurrencyIndexes := make(map[string]int)
+	refreshCharacterView := false
 
 	for i := 0; i < count; i++ {
 		if tpl != nil {
@@ -1479,6 +1482,17 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 			}
 			totalHPHealed += effectResult.HPHealed
 			totalMPRestored += effectResult.MPRestored
+			refreshCharacterView = refreshCharacterView || effectResult.RefreshCharacterView
+			for _, grant := range effectResult.GrantedCurrencies {
+				if index, ok := grantedCurrencyIndexes[grant.ClientKey]; ok {
+					grantedCurrencies[index].Delta += grant.Delta
+					grantedCurrencies[index].Total = grant.Total
+					grantedCurrencies[index].Label = grant.Label
+					continue
+				}
+				grantedCurrencyIndexes[grant.ClientKey] = len(grantedCurrencies)
+				grantedCurrencies = append(grantedCurrencies, grant)
+			}
 		}
 	}
 
@@ -1513,6 +1527,12 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	}
 	if totalMPRestored > 0 {
 		result["mp_restored"] = totalMPRestored
+	}
+	if len(grantedCurrencies) > 0 {
+		result["granted_currencies"] = grantedCurrencies
+	}
+	if refreshCharacterView {
+		result["refresh_character_view"] = true
 	}
 
 	return result, nil

@@ -37,6 +37,9 @@ func (s *Service) GrantReward(ctx context.Context, charID int64, tid int) (map[s
 }
 
 func (s *Service) Adopt(ctx context.Context, charID int64, tid int) (map[string]interface{}, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	if tid <= 0 {
 		return nil, ErrFairyMissing
 	}
@@ -116,6 +119,9 @@ func (s *Service) PurchasableFairies() []PurchasableFairy {
 }
 
 func (s *Service) BuyFairy(ctx context.Context, charID int64, tid int) (map[string]interface{}, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	if tid <= 0 || tid == FreeFairyTid {
 		return nil, ErrFairyMissing
 	}

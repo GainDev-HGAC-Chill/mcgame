@@ -37,6 +37,12 @@ type stubOwnership struct {
 	err   error
 }
 
+type stubPetSkillOwnership struct {
+	allow map[int]bool
+	level int
+	err   error
+}
+
 type handlerTestPetRepo struct {
 	pets map[int64]*domainpet.Pet
 }
@@ -121,6 +127,13 @@ func (s *stubOwnership) HasSkill(ctx context.Context, charID int64, skillID int)
 		return false, s.err
 	}
 	return s.allow[skillID], nil
+}
+
+func (s *stubPetSkillOwnership) OwnedSkillLevel(ctx context.Context, charID int64, petID int64, skillID int) (int, bool, error) {
+	if s.err != nil {
+		return 0, false, s.err
+	}
+	return s.level, s.allow[skillID], nil
 }
 
 func (r *callbackRecorder) SendCallback(method string, args ...interface{}) error {
@@ -833,6 +846,7 @@ func TestParseCommandsRejectsUnknownSkillForPlayer(t *testing.T) {
 			"tid":    float64(1),
 			"action": float64(combatdomain.ClientActionSkill),
 			"id":     float64(1086),
+			"level":  float64(999),
 		},
 	}, 42, battle)
 	if len(accepted) != 1 {
@@ -840,6 +854,44 @@ func TestParseCommandsRejectsUnknownSkillForPlayer(t *testing.T) {
 	}
 	if accepted[0].SkillID != 1086 {
 		t.Fatalf("parseCommands() skill = %d, want 1086", accepted[0].SkillID)
+	}
+	if accepted[0].SkillLevel != 1 {
+		t.Fatalf("parseCommands() level = %d, want server-authoritative 1", accepted[0].SkillLevel)
+	}
+}
+
+func TestParseCommandsRejectsUnknownSkillForPet(t *testing.T) {
+	battle := combatdomain.NewBattle(combatdomain.BattleTypePVE, 20)
+	player := combatdomain.NewParticipant("42", "player", combatdomain.SidePlayer, false)
+	player.EntityType = combatdomain.ParticipantTypeCharacter
+	player.EntityID = 42
+	player.IsAlive = true
+	battle.AddParticipant(player)
+	pet := combatdomain.NewParticipant("pet_77", "pet", combatdomain.SidePlayer, false)
+	pet.EntityType = combatdomain.ParticipantTypePet
+	pet.EntityID = 77
+	pet.OwnerID = 42
+	pet.IsAlive = true
+	battle.AddParticipant(pet)
+	handler := &Handler{
+		logger:            zap.NewNop(),
+		skillOwnership:    &stubOwnership{allow: map[int]bool{}},
+		petSkillOwnership: &stubPetSkillOwnership{allow: map[int]bool{5527: true}, level: 3},
+	}
+	base := map[string]interface{}{"tid": float64(1), "action": float64(combatdomain.ClientActionAttack)}
+	rejected := handler.parseCommands(context.Background(), []interface{}{
+		base,
+		map[string]interface{}{"tid": float64(1), "action": float64(combatdomain.ClientActionSkill), "id": float64(9999)},
+	}, 42, battle)
+	if len(rejected) != 1 {
+		t.Fatalf("commands = %d, want only player command", len(rejected))
+	}
+	accepted := handler.parseCommands(context.Background(), []interface{}{
+		base,
+		map[string]interface{}{"tid": float64(1), "action": float64(combatdomain.ClientActionSkill), "id": float64(5527), "level": float64(999)},
+	}, 42, battle)
+	if len(accepted) != 2 || accepted[1].SkillLevel != 3 {
+		t.Fatalf("accepted = %#v", accepted)
 	}
 }
 

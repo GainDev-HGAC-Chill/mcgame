@@ -18,11 +18,13 @@ import (
 )
 
 type pendingBookUse struct {
-	lifeSkillEntryID      int64
-	lifeSkillTemplateID   int
-	lifeSkillMessage      string
-	recipeSkillEntryID    int64
-	recipeSkillTemplateID int
+	ordinarySkillEntryID    int64
+	ordinarySkillTemplateID int
+	lifeSkillEntryID        int64
+	lifeSkillTemplateID     int
+	lifeSkillMessage        string
+	recipeSkillEntryID      int64
+	recipeSkillTemplateID   int
 }
 
 func (h *Handler) prepareBookUse(ctx *rtmp.RPCContext, characterID int64, item *domainitem.Item) (*pendingBookUse, interface{}, bool) {
@@ -31,6 +33,32 @@ func (h *Handler) prepareBookUse(ctx *rtmp.RPCContext, characterID int64, item *
 	}
 
 	pending := &pendingBookUse{}
+
+	_, lifeSkillBook := lifeSkillTypeForBookTemplate(item.TemplateID)
+	if h.gameData != nil && !lifeSkillBook {
+		if tpl := h.gameData.GetItem(item.TemplateID); tpl != nil && int(tpl.Type) == 505 {
+			if h.skillService == nil {
+				return nil, rtmp.ErrorToResponse(pkgerrors.ErrSystemError), true
+			}
+			learnedSkill, template, err := h.skillService.LearnOrdinarySkillByBook(ctx.Context, characterID, item.TemplateID)
+			if err != nil {
+				switch {
+				case pkgerrors.Is(err, pkgerrors.ErrAlreadyExists):
+					_ = ctx.Connection.SendCallback("onSystemMidMsgOrNote", "Bạn đã học kỹ năng này.")
+					return nil, map[string]interface{}{"success": true, "itemId": item.ID, "effects": []interface{}{}}, true
+				case pkgerrors.Is(err, pkgerrors.ErrInsufficientLevel):
+					_ = ctx.Connection.SendCallback("onSystemMidMsgOrNote", "Cấp độ không đủ!")
+					return nil, nil, true
+				case errors.Is(err, appskill.ErrNormalSkillBookNotFound):
+					return nil, rtmp.ErrorToResponse(pkgerrors.ErrInvalidInput), true
+				default:
+					return nil, rtmp.ErrorToResponse(err), true
+				}
+			}
+			pending.ordinarySkillEntryID = learnedSkill.ID
+			pending.ordinarySkillTemplateID = int(template.ID)
+		}
+	}
 
 	if lifeSkillType, ok := lifeSkillTypeForBookTemplate(item.TemplateID); ok {
 		if h.skillService == nil {
@@ -109,6 +137,14 @@ func (h *Handler) rollbackBookUse(ctx context.Context, characterID int64, pendin
 				zap.Error(err))
 		}
 	}
+	if pending.ordinarySkillEntryID > 0 {
+		if err := h.skillService.DeleteSkill(ctx, pending.ordinarySkillEntryID); err != nil {
+			h.logger.Error("UseItem: failed to rollback ordinary skill learn",
+				zap.Int64("character_id", characterID),
+				zap.Int64("skill_entry_id", pending.ordinarySkillEntryID),
+				zap.Error(err))
+		}
+	}
 
 	if pending.recipeSkillEntryID > 0 {
 		if err := h.skillService.DeleteSkill(ctx, pending.recipeSkillEntryID); err != nil {
@@ -131,6 +167,16 @@ func (h *Handler) finalizeBookUse(ctx *rtmp.RPCContext, char *character.Characte
 		}
 		rtmputils.SendLifeSkillLearnedUpdate(ctx, h.logger, h.skillService, char, pending.lifeSkillTemplateID)
 	}
+	if pending.ordinarySkillTemplateID > 0 {
+		result["message"] = "Đã học kỹ năng."
+		skills, err := h.skillService.GetSkillsForCallback(ctx.Context, char.ID)
+		if err != nil {
+			h.logger.Error("UseItem: failed to build ordinary skill callback payload", zap.Error(err))
+			return
+		}
+		_ = ctx.Connection.SendCallback("onSkillUpdate", skills)
+		_ = ctx.Connection.SendCallback("onMWeaponSkillUpdate", skills, true)
+	}
 
 	if pending.recipeSkillTemplateID > 0 {
 		result["message"] = "Đã học công thức."
@@ -140,6 +186,10 @@ func (h *Handler) finalizeBookUse(ctx *rtmp.RPCContext, char *character.Characte
 
 func lifeSkillTypeForBookTemplate(templateID int) (int, bool) {
 	switch templateID {
+	case appskill.FishSkillBookTemplateID:
+		return appskill.FishSkillType, true
+	case appskill.HerbSkillBookTemplateID:
+		return appskill.HerbSkillType, true
 	case appskill.PlantSkillBookTemplateID:
 		return appskill.PlantSkillType, true
 	case appskill.CookSkillBookTemplateID:
@@ -153,6 +203,10 @@ func lifeSkillTypeForBookTemplate(templateID int) (int, bool) {
 
 func lifeSkillLearnMessage(skillType int) string {
 	switch skillType {
+	case appskill.FishSkillType:
+		return "Đã học kỹ năng Câu Cá."
+	case appskill.HerbSkillType:
+		return "Đã học kỹ năng Hái Thuốc."
 	case appskill.PlantSkillType:
 		return "Đã học kỹ năng Trồng Trọt."
 	case appskill.CookSkillType:

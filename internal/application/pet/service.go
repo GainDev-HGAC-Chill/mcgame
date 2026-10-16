@@ -91,6 +91,24 @@ func (s *Service) GetPetDetail(ctx context.Context, charID int64, petID int64) (
 	return s.getPetAndValidate(ctx, charID, petID)
 }
 
+func (s *Service) OwnedSkillLevel(ctx context.Context, charID int64, petID int64, skillID int) (int, bool, error) {
+	p, err := s.getPetAndValidate(ctx, charID, petID)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, learned := range p.GetSkills() {
+		if learned.ID != skillID {
+			continue
+		}
+		level := learned.Level
+		if level < 1 {
+			level = 1
+		}
+		return level, true, nil
+	}
+	return 0, false, nil
+}
+
 func (s *Service) GetFollowingPet(ctx context.Context, charID int64) (*domainpet.Pet, error) {
 	p, err := s.petRepo.FindFollowingPet(ctx, charID)
 	if err != nil || p == nil {

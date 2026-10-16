@@ -2,6 +2,7 @@
 
 ## Mục tiêu phiên
 
+- Audit end-to-end học/nâng cấp/hiệu lực chiến đấu của skill nhân vật và skill Tiểu Tinh Linh; xác minh và lập kế hoạch sửa item 5947/5949 lỗi game-currency ID 75/74 mà không dùng item hoặc người chơi thật.
 - Cho phép người chơi chủ động bỏ nhiệm vụ type 1 đã nhận mà không sửa Flash client hoặc thay đổi canonical quest semantics.
 - Kiểm tra damage thật, target AoE và số sát thương hiển thị của toàn bộ Pet active skill; mọi hit đã trừ HP phải có playback damage cho đúng target.
 - Sửa `MCGAME.bat` Start bị Supabase CLI từ chối migration out-of-order và thêm lựa chọn mở Flash 30 FPS ngay trong menu chính.
@@ -18,6 +19,10 @@
 
 ## Đã hoàn thành
 
+- Skill/Fairy/crystal implementation Unit A complete: IDs 73–75 now share the canonical descriptor/accessor registry; stale 5948/5949 silver fallbacks removed; multi-use aggregates currency deltas and final totals; focused currency/award/multi-use tests and targeted vet passed.
+- Crystal Unit B complete on compose static catalog: added only `data.data_tbl_item_award` 5948→currency73×20 with ID 810001523, verified exact rows for 5947/5948/5949/5993 and total 561 rows, then exported the full table to `supabase/seeds/data_tbl_item_award.sql`. No schema migration or player data was touched; gameserver was not restarted, so current runtime cache may not see 5948 until an authorized restart.
+- Character skill Units C–F code-complete pending broad verification: added per-character mutation locks, fail-closed ordinary book resolver by title/class/environment, exact-next upgrade enforcement, EXP/selected-silver debit with compensation, ordinary type-505 learn/rollback/callback flow, and truthful callback-load errors. Fishing 2400/Herb 2408 now use the life-skill path; level-1 life skills cannot be granted through `skillLearnByClient`, and requested upgrades must identify the exact next row. Combat ignores client damage level scaling and validates exact character/Pet skill ownership. Focused skill/item/Pet/domain-combat/combat-handler tests pass.
+- Skill/Fairy/crystal audit complete and safe implementation scope approved: research is recorded at `docs/research/2026-10-16_02_CHARACTER_FAIRY_SKILLS_AND_CRYSTAL_RESEARCH.md`; approved plan is `docs/plans/2026-10-16_02_CHARACTER_FAIRY_SKILLS_CRYSTAL_FIXES.md`. Scope is Units A–H plus only catalog-complete active Fairy effects from Unit I; nine ambiguous Fairy mechanics remain fail-closed. No deploy/restart or player-data testing is authorized.
 - Quest abandonment: xác định Flash hard-disable Cancel tại cả QuestManager/QuestPanel khi `data.type == 1`, đồng thời server có type-1 rejection tương ứng. Đã bỏ rejection, thêm per-character mutation lock quanh lookup/status/delete và publish presentation type 2 riêng cho active type-1 DTO để dùng được RPC `cancelQuest`; canonical template vẫn type 1 cho toàn bộ policy/reward/prerequisite.
 - Pet skill damage/playback: xác định plan executor đã trừ HP đúng nhiều target nhưng chỉ sinh skill/death action, thiếu Hurt/Idle. `BuildPlaybackRounds` xóa `tSObj.hHp` khỏi AoE opener rồi không có Hurt round để gắn lại, gây quái mất HP/chết mà không hiện số; khi chỉ có một target thì không qua cluster nên hiện bình thường. Đã bổ sung canonical Hurt và Die/Idle sau mọi direct/fixed Pet damage hit dương; pure support và miss vẫn không giả damage. Area resolver cũng lọc target chết trước khi cap, tránh slot chết gần làm mất target sống xa hơn.
 - Launcher: `cmd/game` luôn truyền `supabase db push --include-all`, nên migration local chưa có trong history dù timestamp cũ hơn migration cuối vẫn được áp mà không reset/reseed database hiện hữu. Wrapper không còn báo nhầm là thiếu CLI cho mọi lỗi push. `MCGAME.bat` thêm mục `F` gọi command `client30`; launcher 30 FPS riêng vẫn được giữ nguyên.
@@ -42,12 +47,14 @@
 
 ## File đang sửa/chưa commit
 
+- Skill/Fairy/crystal audit only adds the research/plan documents above and updates this checkpoint. During research, external STH work modified `cmd/gameserver/main.go` and combat handler files that future implementation may also need; preserve and re-check those diffs before any approved code edit.
 - Nhóm quest abandonment: `internal/application/quest/client_presentation.go`, `service.go`, `loop_service_test.go`, `presentation_sort_test.go`; memory tại `quest-loop-system.md`, `npc-quest-system.md`, `FIX_HISTORY.md` và file này. Không chạm nhóm STH activity/migration đang tồn tại song song.
 - HEAD `2b550d0` đã chứa nhóm Pet/blood-bag/transport/shop và bộ nhớ trước đó; không commit/push thêm.
 - Working tree còn nhóm character-delete/client artifact do luồng khác để lại và cập nhật bộ nhớ phiên này. Không reset hoặc ghi đè nhóm này.
 
 ## Kiểm tra đã chạy
 
+- Skill/Fairy/crystal current scope: focused character currency, item award/multi-use, skill catalog/progression, item skill-book, life-skill, Pet ownership, domain combat and combat handler tests PASS; targeted vet for all changed Go packages PASS; scoped diff-check clean apart from line-ending warnings. Full `internal/application/item` still has only the recorded award-quality/starter-gift baseline failures, unrelated to currency aggregation.
 - Quest abandonment: focused type-1 delete và client-presentation regressions PASS; quest/NPC handler PASS; targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS. Full application quest chỉ fail baseline conversation registry `234 want 227` ngoài phạm vi.
 - Pet skill damage/playback: full `internal/domain/combat`, `internal/application/combat` và combat handler PASS; AoE damage+dispel ba target đều mất HP và có popup riêng; fixed lethal AoE có popup trước death cho từng target; dead-slot target-cap regression PASS; pure support vẫn không gây damage; legacy multi-target playback vẫn PASS. Catalog invariant, targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS.
 - Launcher: `go test ./cmd/game`, `go vet ./cmd/game`, build `bin/game.exe` PASS; CLI `db push --include-all --dry-run` xác nhận chỉ pending `20261016040000_findback_bounty_verification.sql` và `20261016090000_sth_progress.sql`, seeds rỗng; hai asset Flash 30 FPS tồn tại; scoped diff-check sạch.
@@ -88,6 +95,7 @@
 
 ## Runtime/database
 
+- Pre-Unit-B checkpoint: compose `supabase-db` is healthy. Approved static-data scope is limited to verifying 5947/5949/5993 and adding missing `data.data_tbl_item_award` row 5948→type35/currency73/count20, followed by full table seed export. No player schema/data, migration, deploy, or restart is authorized.
 - Trước khi thử migration launcher: compose DB đang chạy; history đã có đến `20261016073610`, còn thiếu out-of-order `20261016040000_findback_bounty_verification.sql` và migration mới hơn `20261016090000_sth_progress.sql`. Chưa apply hai migration này trong bước code/checkpoint; không reset hoặc sửa player data.
 - `bin/gameserver.exe` đã build gồm fix channel 0; container `mcgame-server` chưa được assistant restart và cần deploy/restart được cho phép để nhận fix mới.
 - Compose DB local có 862 row `data.data_tbl_boss_loot` từ seed mới; gameserver đang chạy chưa reload cache nên chưa dùng các row này. Không thay đổi bảng dữ liệu người chơi.
@@ -119,15 +127,16 @@
 
 ## Bước tiếp theo
 
-1. Khi được operator cho phép deploy/restart gameserver: Flash smoke-test một quest Trung Cấp 3-1 trên nhân vật test đúng class/rank tại NPC 600, rồi kiểm tra tiếp 3-2/3-3; không dùng Quest 166 hoặc sửa tiến độ người chơi thật.
-2. Khi local Supabase được operator khởi động lại: apply `20261016073610_allow_edit_active_quests.sql`, xác minh transactional rollback rằng structural patch trên quest active được chấp nhận và audit/revision vẫn hoạt động; sau đó deploy dashboard theo yêu cầu riêng.
-3. Khi được operator cho phép deploy/restart: restart riêng gameserver để load binary và cache 862 loot row, rồi Flash smoke-test đại diện ground normal, flying normal, mythic Kênh 1 và Sổ Tay normal/mythic; không dùng Quest 166, Pet Nấm Lục hoặc item/người chơi thật.
-4. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
-5. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
-6. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
-7. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
-8. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
-9. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
+1. Triển khai plan đã duyệt theo Unit A–I với checkpoint sau từng unit; không triển khai chín Fairy mechanic mơ hồ, không sửa player data, deploy hoặc restart. Trước khi chạm `cmd/gameserver/main.go`/combat handler phải đối chiếu external STH diff hiện tại.
+2. Khi được operator cho phép deploy/restart gameserver: Flash smoke-test một quest Trung Cấp 3-1 trên nhân vật test đúng class/rank tại NPC 600, rồi kiểm tra tiếp 3-2/3-3; không dùng Quest 166 hoặc sửa tiến độ người chơi thật.
+3. Khi local Supabase được operator khởi động lại: apply `20261016073610_allow_edit_active_quests.sql`, xác minh transactional rollback rằng structural patch trên quest active được chấp nhận và audit/revision vẫn hoạt động; sau đó deploy dashboard theo yêu cầu riêng.
+4. Khi được operator cho phép deploy/restart: restart riêng gameserver để load binary và cache 862 loot row, rồi Flash smoke-test đại diện ground normal, flying normal, mythic Kênh 1 và Sổ Tay normal/mythic; không dùng Quest 166, Pet Nấm Lục hoặc item/người chơi thật.
+5. Cần Flash smoke-test callback/fusion, `petUpSkill`, auto-skill và character-delete sau khi được phép deploy/restart riêng server.
+6. Cần runtime ID cho row/template làm crash túi chế tạo và yêu cầu cụ thể cho ranking/Quest Admin trước khi triển khai tiếp.
+7. Ranking cần repository/query và định nghĩa chính xác cho category tuần/tháng trước khi thay stub bằng dữ liệu thật.
+8. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
+9. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
+10. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 

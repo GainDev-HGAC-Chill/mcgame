@@ -62,6 +62,14 @@ func (h *Handler) STHGetData(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		return nil, err
 	}
 	sthCanPlay := sthBlockedUntil == nil || !sthBlockedUntil.After(time.Now())
+	var activeSTHFight bool
+	if err := h.findbackPool.QueryRow(ctx.Context, `SELECT EXISTS(SELECT 1 FROM player.sth_battle_runs
+ WHERE character_id=$1 AND activity_day=(SELECT refresh_date FROM player.character_sth_progress WHERE character_id=$1)
+ AND status IN ('starting','active'))`, cid).Scan(&activeSTHFight); err != nil {
+		return nil, err
+	}
+	sthCanPlay = sthCanPlay && !activeSTHFight
+	h.sthRecoverBattleRewards(ctx, cid)
 	h.sendActivityCallback(ctx, "onSecretTreasureHuntGetData", mapState, map[string]interface{}{"flag": sthCanPlay, "type": 0}, map[string]interface{}{"play": false})
 	return true, nil
 }
@@ -88,7 +96,14 @@ func (h *Handler) STHGo(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
-	if moving || (blocked != nil && blocked.After(time.Now())) || dice <= 0 || position >= 103 {
+	var pendingSTHFight bool
+	err = tx.QueryRow(ctx.Context, `SELECT EXISTS(SELECT 1 FROM player.sth_battle_runs r
+    WHERE r.character_id=$1 AND r.activity_day=(SELECT refresh_date FROM player.character_sth_progress WHERE character_id=$1)
+      AND r.status IN ('starting','active'))`, cid).Scan(&pendingSTHFight)
+	if err != nil {
+		return nil, err
+	}
+	if moving || pendingSTHFight || (blocked != nil && blocked.After(time.Now())) || dice <= 0 || position >= 103 {
 		return map[string]interface{}{"num": 0}, nil
 	}
 	maxRoll := 6

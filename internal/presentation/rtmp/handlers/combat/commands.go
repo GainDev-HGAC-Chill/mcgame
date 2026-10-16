@@ -20,6 +20,10 @@ type skillOwnershipChecker interface {
 	HasSkill(ctx context.Context, charID int64, skillID int) (bool, error)
 }
 
+type petSkillOwnershipChecker interface {
+	OwnedSkillLevel(ctx context.Context, charID int64, petID int64, skillID int) (int, bool, error)
+}
+
 func parseOwnerCharID(actorID string, characterID int64) (int64, bool) {
 	parsed, err := strconv.ParseInt(actorID, 10, 64)
 	if err != nil || parsed != characterID {
@@ -428,8 +432,11 @@ func (h *Handler) parseCommands(ctx context.Context, cmdArray []interface{}, cha
 			}
 		}
 
-		if command.ActionType == combatdomain.ClientActionSkill && command.SkillID > 0 && h.skillOwnership != nil {
+		if command.ActionType == combatdomain.ClientActionSkill && command.SkillID > 0 {
 			if actorID, ok := parseOwnerCharID(command.ActorID, characterID); ok {
+				if h.skillOwnership == nil {
+					continue
+				}
 				hasSkill, err := h.skillOwnership.HasSkill(ctx, actorID, command.SkillID)
 				if err != nil {
 					h.logger.Warn("HasSkill ownership check failed",
@@ -444,6 +451,29 @@ func (h *Handler) parseCommands(ctx context.Context, cmdArray []interface{}, cha
 						zap.Int("skill_id", command.SkillID))
 					continue
 				}
+				command.SkillLevel = 1
+			} else {
+				actor := battle.GetParticipant(command.ActorID)
+				if actor == nil || actor.EntityType != combatdomain.ParticipantTypePet || actor.OwnerID != characterID || h.petSkillOwnership == nil {
+					continue
+				}
+				level, hasSkill, err := h.petSkillOwnership.OwnedSkillLevel(ctx, characterID, actor.EntityID, command.SkillID)
+				if err != nil {
+					h.logger.Warn("Pet skill ownership check failed",
+						zap.Int64("character_id", characterID),
+						zap.Int64("pet_id", actor.EntityID),
+						zap.Int("skill_id", command.SkillID),
+						zap.Error(err))
+					continue
+				}
+				if !hasSkill {
+					h.logger.Warn("Rejected skill command: pet does not know skill",
+						zap.Int64("character_id", characterID),
+						zap.Int64("pet_id", actor.EntityID),
+						zap.Int("skill_id", command.SkillID))
+					continue
+				}
+				command.SkillLevel = level
 			}
 		}
 

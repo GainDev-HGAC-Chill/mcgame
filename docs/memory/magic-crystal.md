@@ -44,6 +44,8 @@ Three new currency type IDs in `data.character_currencies`, with `Character` str
 | 74 | `MagicCrystalPre` | `magiccystalpre` |
 | 75 | `MagicCrystalLimit` | `magiccystallimit` |
 
+As of 2026-10-16, all three IDs use the canonical descriptor/accessor registry. Deterministic item awards are 5947→75×200, 5948→73×20, 5949→74×5, and 5993→75×10; multi-use aggregates callback deltas and retains the final absolute balance.
+
 `upsertCharacterCurrencies` was extended with `alwaysPersistCurrency()` to write `0` for these three IDs even when drained — required because magic crystal resources frequently cycle through 0.
 
 ## Catalog (Go const, no DB)
@@ -92,7 +94,6 @@ The 5 RPC methods stay non-quiet (logging at info) until the user confirms the f
 ## Out of scope
 
 - Weekly Sunday 24:00 SMC reset (`Language[19]`) — wipe `s` field across all 16 slots for all players. Implement once cost/cap pass is QA-confirmed.
-- Item-driven resource grants for `magiccystalrec/pre/limit`. Currently grant via admin economy panel (field names `magiccystalrec`, `magiccystalpre`, `magiccystallimit`).
 
 ## References
 

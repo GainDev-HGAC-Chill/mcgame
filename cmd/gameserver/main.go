@@ -786,6 +786,8 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	activityHandler.SetStartedActivityService(startedActivityService)
 	activityHandler.SetEventBus(eventBus)
 	activityHandler.SetPPVEService(ppveService)
+	activityHandler.SetSTHBattleStarter(combatHandler.StartSTHBattle)
+	combatHandler.SetSTHBattleResultHandler(activityHandler.CompleteSTHBattle)
 	activityHandler.RegisterHandlers(dispatcher)
 	sceneHandler.SetActivityHandler(activityHandler)
 

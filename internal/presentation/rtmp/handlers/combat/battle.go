@@ -506,6 +506,12 @@ func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface
 	h.broadcastSceneCharState(ctx.Connection, ctx.CharacterID, clientCharStateNormal)
 	ctx.Connection.SetRandomEncounterCooldown(ctx.Timestamp.Add(randomEncounterCooldown))
 	h.combatService.AckBattleCleanup(battleID, characterID)
+	if h.sthBattleResultHandler != nil {
+		won := result.WinnerSide == combatdomain.SidePlayer
+		if sthErr := h.sthBattleResultHandler(ctx, characterID, battleID, won); sthErr != nil {
+			h.logger.Error("STH battle completion failed", zap.String("battle_id", battleID), zap.Error(sthErr))
+		}
+	}
 
 	h.logger.Info("Battle play ended",
 		zap.String("battle_id", battleID),
@@ -614,7 +620,7 @@ func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		return nil, err
 	}
 
-	charSkill, err := h.skillService.UpgradeSkill(ctx.Context, characterID, skillID)
+	upgrade, err := h.skillService.UpgradeSkillWithResult(ctx.Context, characterID, skillID)
 	if err != nil {
 		h.logger.Warn("Failed to learn or upgrade skill",
 			zap.Int64("character_id", characterID),
@@ -622,6 +628,7 @@ func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interfac
 			zap.Error(err))
 		return false, nil
 	}
+	charSkill := upgrade.Skill
 
 	if positionProvided {
 		if err := h.skillService.ApplySkillPosition(ctx.Context, characterID, charSkill.SkillID, position); err != nil {
@@ -634,6 +641,18 @@ func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interfac
 	}
 
 	h.sendSkillStateUpdate(ctx, characterID)
+	if upgrade.Changed && upgrade.Character != nil {
+		payload := map[string]interface{}{
+			"expSkill": upgrade.Character.Experience,
+		}
+		if upgrade.MoneyKey == "money" {
+			payload["money"] = upgrade.Character.Money
+		} else {
+			payload["moneyBind"] = upgrade.Character.MoneyBind
+		}
+		ctx.Connection.SetExpSkill(upgrade.Character.Experience)
+		_ = ctx.Connection.SendCallback("onUPP", payload)
+	}
 
 	h.logger.Info("Skill learned",
 		zap.Int64("character_id", characterID),

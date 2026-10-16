@@ -125,7 +125,14 @@ func (h *Handler) STHGoXY(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 	if err != nil {
 		return nil, err
 	}
-	if moving || xy <= 0 || pos+steps > 103 || (block != nil && block.After(time.Now())) {
+	var pendingSTHFight bool
+	err = tx.QueryRow(ctx.Context, `SELECT EXISTS(SELECT 1 FROM player.sth_battle_runs r
+    WHERE r.character_id=$1 AND r.activity_day=(SELECT refresh_date FROM player.character_sth_progress WHERE character_id=$1)
+      AND r.status IN ('starting','active'))`, cid).Scan(&pendingSTHFight)
+	if err != nil {
+		return nil, err
+	}
+	if moving || pendingSTHFight || xy <= 0 || pos+steps > 103 || (block != nil && block.After(time.Now())) {
 		return map[string]interface{}{"num": 0}, nil
 	}
 	_, err = tx.Exec(ctx.Context, `UPDATE player.character_sth_progress SET position=$2,lucky_dice=lucky_dice-1,moving=true,updated_at=now() WHERE character_id=$1`, cid, pos+steps)
@@ -226,6 +233,20 @@ func (h *Handler) STHStopWithEvent(ctx *rtmp.RPCContext, args []interface{}) (in
 			return nil, err
 		}
 	}
+	encounterStarts := false
+	if eventType == 8 {
+		npcID, npcErr := sthNPCForPosition(pos)
+		if npcErr != nil {
+			return nil, npcErr
+		}
+		tag, insertErr := tx.Exec(ctx.Context, `INSERT INTO player.sth_battle_runs(character_id,activity_day,position,npc_id,status)
+            SELECT $1,refresh_date,$2,$3,'starting' FROM player.character_sth_progress WHERE character_id=$1
+            ON CONFLICT(character_id,activity_day,position) DO NOTHING`, cid, pos, npcID)
+		if insertErr != nil {
+			return nil, insertErr
+		}
+		encounterStarts = tag.RowsAffected() == 1
+	}
 	if err = tx.Commit(ctx.Context); err != nil {
 		return nil, err
 	}
@@ -239,12 +260,14 @@ func (h *Handler) STHStopWithEvent(ctx *rtmp.RPCContext, args []interface{}) (in
 		h.sendActivityCallback(ctx, "onRedMsg", fmt.Sprintf("Bị mắc bẫy tại ô %d. Hãy mở lại Bí Cảnh sau khi hết thời gian khóa.", pos))
 	}
 	if eventType == 8 {
-		h.sendActivityCallback(ctx, "onRedMsg", "Ô Đại Thánh: chiến đấu Bí Cảnh chưa cấu hình, chưa phát thưởng")
+		if encounterStarts {
+			h.sthStartEncounter(ctx, cid, pos)
+		}
 	}
 	if eventType == 11 {
 		h.sendActivityCallback(ctx, "onRedMsg", "Minigame Bí Cảnh chưa mở")
 	}
-	h.sendActivityCallback(ctx, "onSetSecTreaHuntCanPlay", blockedSeconds == 0, 0)
+	h.sendActivityCallback(ctx, "onSetSecTreaHuntCanPlay", blockedSeconds == 0 && (eventType != 8 || !encounterStarts), 0)
 	return true, nil
 }
 

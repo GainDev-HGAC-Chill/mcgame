@@ -57,6 +57,9 @@ type AddExpResult struct {
 }
 
 func (s *Service) GrowUp(ctx context.Context, charID, fairyID int64, growType int) (*GrowResult, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	if growType != GrowTypeMoney && growType != GrowTypeGold && growType != GrowTypeGoldBatch {
 		return &GrowResult{F: false, Code: "out"}, ErrInvalidGrowType
 	}
@@ -127,6 +130,9 @@ func (s *Service) GrowUp(ctx context.Context, charID, fairyID int64, growType in
 }
 
 func (s *Service) Raise(ctx context.Context, charID, fairyID, itemSlotID int64, qty int) (*RaiseResult, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -160,6 +166,9 @@ func (s *Service) Raise(ctx context.Context, charID, fairyID, itemSlotID int64, 
 }
 
 func (s *Service) AddExp(ctx context.Context, charID, fairyID int64, slotIDs []int64, qty int) (*AddExpResult, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err

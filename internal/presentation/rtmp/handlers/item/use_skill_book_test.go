@@ -5,6 +5,7 @@ package item
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	appskill "mcgame-server/internal/application/skill"
@@ -172,6 +173,71 @@ func TestItemHandlerUseItemPlantSkillBookLearnsSkill(t *testing.T) {
 	}
 }
 
+func TestItemHandlerUseItemOrdinarySkillBookLearnsSkill(t *testing.T) {
+	char := &domainchar.Character{ID: 1, Name: "tester", ClassID: 1, Level: 20}
+	book := &domainitem.Item{
+		ID: 4401, CharacterID: char.ID, TemplateID: 44,
+		ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, StackCount: 1,
+	}
+	handler, ctx := buildItemTestHandler(t, char, book)
+	loadOrdinarySkillBookCatalog(t, handler)
+	skillRepo := newItemSkillTestRepo()
+	skillService := appskill.NewService(skillRepo, zaptest.NewLogger(t))
+	skillService.SetCharacterRepository(&itemTestCharacterRepo{char: char})
+	skillService.SetGameDataManager(handler.gameData)
+	handler.SetSkillService(skillService)
+
+	resp, err := handler.UseItem(ctx, []interface{}{float64(1), float64(-1), float64(book.ID)})
+	if err != nil {
+		t.Fatalf("UseItem() error = %v", err)
+	}
+	result, ok := resp.(map[string]interface{})
+	if !ok || result["success"] != true {
+		t.Fatalf("response = %#v", resp)
+	}
+	learned, err := skillService.GetSkill(ctx.Context, char.ID, 1010)
+	if err != nil || learned.Level != 1 {
+		t.Fatalf("learned = %#v, error = %v", learned, err)
+	}
+	if _, err := handler.itemService.GetItemByID(ctx.Context, char.ID, book.ID); !pkgerrors.Is(err, pkgerrors.ErrItemNotFound) {
+		t.Fatalf("book was not consumed: %v", err)
+	}
+}
+
+func TestItemHandlerUseItemFishingAndHerbBooksLearnLifeSkills(t *testing.T) {
+	cases := []struct {
+		bookID    int
+		skillID   int
+		skillType int
+	}{
+		{appskill.FishSkillBookTemplateID, 4931, appskill.FishSkillType},
+		{appskill.HerbSkillBookTemplateID, 4975, appskill.HerbSkillType},
+	}
+	for _, tc := range cases {
+		t.Run(strconv.Itoa(tc.bookID), func(t *testing.T) {
+			char := &domainchar.Character{ID: 1, Name: "tester", Level: 60}
+			book := &domainitem.Item{
+				ID: int64(tc.bookID) * 100, CharacterID: char.ID, TemplateID: tc.bookID,
+				ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, StackCount: 1,
+			}
+			handler, ctx := buildItemTestHandler(t, char, book)
+			loadLifeSkillBookCatalog(t, handler, tc.bookID, tc.skillID, tc.skillType)
+			skillRepo := newItemSkillTestRepo()
+			skillService := appskill.NewService(skillRepo, zaptest.NewLogger(t))
+			skillService.SetCharacterRepository(&itemTestCharacterRepo{char: char})
+			skillService.SetGameDataManager(handler.gameData)
+			handler.SetSkillService(skillService)
+
+			if _, err := handler.UseItem(ctx, []interface{}{float64(1), float64(-1), float64(book.ID)}); err != nil {
+				t.Fatalf("UseItem() error = %v", err)
+			}
+			if _, err := skillService.GetSkill(ctx.Context, char.ID, tc.skillID); err != nil {
+				t.Fatalf("life skill missing: %v", err)
+			}
+		})
+	}
+}
+
 func loadItemSkillBookTemplate(t *testing.T, handler *Handler) {
 	t.Helper()
 
@@ -184,6 +250,41 @@ func loadItemSkillBookTemplate(t *testing.T, handler *Handler) {
 	})
 	if err := handler.gameData.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{raw}); err != nil {
 		t.Fatalf("load skill book item template: %v", err)
+	}
+}
+
+func loadOrdinarySkillBookCatalog(t *testing.T, handler *Handler) {
+	t.Helper()
+	itemRaw := itemSkillRawJSON(t, map[string]interface{}{
+		"id": 44, "name": "Sách Kỹ Năng - Khai Sơn Chi Lực", "kind": 5, "type": 505,
+		"use_type": 1, "req_level": 1, "req_class": "|1|",
+	})
+	skillRaw := itemSkillRawJSON(t, map[string]interface{}{
+		"id": 1010, "name": "Khai Sơn Chi Lực", "type": 1, "kind": 1, "use_env": 0,
+		"level": 1, "req_level": 1, "req_class": "|1|", "code_name": "SKILL111001",
+	})
+	if err := handler.gameData.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{itemRaw}); err != nil {
+		t.Fatalf("load ordinary book: %v", err)
+	}
+	if err := handler.gameData.GetCache().LoadTable(models.TableSkill, []json.RawMessage{skillRaw}); err != nil {
+		t.Fatalf("load ordinary skill: %v", err)
+	}
+}
+
+func loadLifeSkillBookCatalog(t *testing.T, handler *Handler, bookID, skillID, skillType int) {
+	t.Helper()
+	itemRaw := itemSkillRawJSON(t, map[string]interface{}{
+		"id": bookID, "kind": 5, "type": 505, "use_type": 2, "req_level": 50,
+	})
+	skillRaw := itemSkillRawJSON(t, map[string]interface{}{
+		"id": skillID, "name": "Life", "type": skillType, "kind": 2, "use_env": 6,
+		"level": 1, "req_level": 50, "req_class": "|1|2|3|4|5|6|", "code_name": "life",
+	})
+	if err := handler.gameData.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{itemRaw}); err != nil {
+		t.Fatalf("load life book: %v", err)
+	}
+	if err := handler.gameData.GetCache().LoadTable(models.TableSkill, []json.RawMessage{skillRaw}); err != nil {
+		t.Fatalf("load life skill: %v", err)
 	}
 }
 

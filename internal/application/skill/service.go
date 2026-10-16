@@ -5,6 +5,7 @@ package skill
 
 import (
 	"context"
+	"sync"
 
 	domainchar "mcgame-server/internal/domain/character"
 	domainskill "mcgame-server/internal/domain/skill"
@@ -16,6 +17,8 @@ import (
 )
 
 const (
+	FishSkillBookTemplateID     = 2400
+	HerbSkillBookTemplateID     = 2408
 	PlantSkillBookTemplateID    = 2409
 	CookSkillBookTemplateID     = 2410
 	MedicineSkillBookTemplateID = 2411
@@ -34,10 +37,11 @@ type CharacterRepository interface {
 }
 
 type Service struct {
-	skillRepo domainskill.Repository
-	charRepo  CharacterRepository
-	gameData  *gamedata.Manager
-	logger    *zap.Logger
+	skillRepo     domainskill.Repository
+	charRepo      CharacterRepository
+	gameData      *gamedata.Manager
+	logger        *zap.Logger
+	mutationLocks [64]sync.Mutex
 }
 
 func NewService(skillRepo domainskill.Repository, logger *zap.Logger) *Service {
@@ -67,7 +71,7 @@ func (s *Service) GetSkillsForCallback(ctx context.Context, charID int64) ([]map
 		s.logger.Warn("Failed to get skills for callback",
 			zap.Int64("character_id", charID),
 			zap.Error(err))
-		return []map[string]interface{}{}, nil
+		return nil, err
 	}
 
 	dtos := make([]map[string]interface{}, len(skills))
@@ -116,6 +120,9 @@ func (s *Service) HasSkill(ctx context.Context, charID int64, skillID int) (bool
 }
 
 func (s *Service) LearnSkill(ctx context.Context, charID int64, skillID int) (*domainskill.CharacterSkill, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	template, char, err := s.validateNormalSkillRequest(ctx, charID, skillID, false)
 	if err != nil {
 		return nil, err
@@ -125,6 +132,9 @@ func (s *Service) LearnSkill(ctx context.Context, charID int64, skillID int) (*d
 }
 
 func (s *Service) LearnStarterSkill(ctx context.Context, charID int64, skillID int) (*domainskill.CharacterSkill, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	template, char, err := s.validateNormalSkillRequest(ctx, charID, skillID, true)
 	if err != nil {
 		return nil, err
@@ -164,47 +174,17 @@ func (s *Service) createNormalSkill(ctx context.Context, charID int64, skillID i
 }
 
 func (s *Service) UpgradeSkill(ctx context.Context, charID int64, requestedSkillID int) (*domainskill.CharacterSkill, error) {
-	requestedTemplate, _, err := s.validateNormalSkillRequest(ctx, charID, requestedSkillID, false)
+	result, err := s.UpgradeSkillWithResult(ctx, charID, requestedSkillID)
 	if err != nil {
 		return nil, err
 	}
-
-	exact, err := s.skillRepo.FindByCharacterAndSkill(ctx, charID, requestedSkillID)
-	if err == nil && exact != nil {
-		return exact, nil
-	}
-	if err != nil && !pkgerrors.Is(err, pkgerrors.ErrNotFound) {
-		return nil, err
-	}
-
-	learnedSkills, err := s.skillRepo.FindByCharacterID(ctx, charID)
-	if err != nil {
-		return nil, err
-	}
-
-	current, currentTemplate := s.findSkillFamilyEntry(learnedSkills, requestedTemplate)
-	if current == nil {
-		return s.LearnSkill(ctx, charID, requestedSkillID)
-	}
-	if skillTemplateLevel(currentTemplate) >= skillTemplateLevel(requestedTemplate) {
-		return current, nil
-	}
-
-	current.SkillID = requestedSkillID
-	current.Level = skillTemplateLevel(requestedTemplate)
-	if err := s.skillRepo.Update(ctx, current); err != nil {
-		return nil, err
-	}
-
-	s.logger.Info("Character upgraded skill",
-		zap.Int64("character_id", charID),
-		zap.Int("skill_id", requestedSkillID),
-		zap.Int("skill_level", current.Level))
-
-	return current, nil
+	return result.Skill, nil
 }
 
 func (s *Service) ApplySkillPosition(ctx context.Context, charID int64, skillID int, position *int) error {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	skillEntry, err := s.skillRepo.FindByCharacterAndSkill(ctx, charID, skillID)
 	if err != nil {
 		return err

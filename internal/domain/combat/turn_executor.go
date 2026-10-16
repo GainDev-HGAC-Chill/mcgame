@@ -132,10 +132,6 @@ func (tp *TurnProcessor) executeSkill(actor *Participant, cmd *BattleCommand) []
 		tp.startSkillCooldown(actor.ID, cmd.SkillID, sk.Cooldown)
 	}
 
-	if cmd.SkillLevel > 1 {
-		sk = applySkillLevelScaling(sk, cmd.SkillLevel)
-	}
-
 	if sk.SkillType == skill.SkillTypeHeal {
 		return tp.executeHealSkill(actor, cmd, info)
 	}
@@ -494,14 +490,6 @@ func petCommandPosition(actor *Participant, currentPet *Participant, fallback in
 		return actor.Position + 5
 	}
 	return 15
-}
-
-func applySkillLevelScaling(original *skill.SkillTemplate, level int) *skill.SkillTemplate {
-	scaled := *original
-	levelBonus := 1.0 + float64(level-1)*0.1
-	scaled.BaseDamage = int(float64(original.BaseDamage) * levelBonus)
-	scaled.Multiplier = original.Multiplier * levelBonus
-	return &scaled
 }
 
 func skillRequiresApproach(sk *skill.SkillTemplate) bool {

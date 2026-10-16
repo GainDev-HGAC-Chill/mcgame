@@ -50,7 +50,7 @@ Client uses `useItem` with skill book item template 2409. Item handler checks `i
 
 ### Skill Upgrade Flow
 
-`skillLearnByClient` RPC in combat handler intercepts type 15 skills via `tryUpgradeLifeSkill()` in `internal/presentation/rtmp/handlers/combat/life_skill.go`. Calls `skillService.UpgradePlantSkill(ctx, charID, skillID)` which validates upgrade conditions from `TBL_SKILL`: `reqLevel`, `dexSkill` (PlantDex), `expSkill`, gold cost, and `costGuildContrib`. On success, sends `SendLifeSkillStateUpdate()`.
+`skillLearnByClient` now intercepts all five base life-skill types via `tryUpgradeLifeSkill()`: Fishing 14, Planting 15, Herb 16, Cooking 17, and Medicine 18. The service requires an already learned entry and the exact next template, then validates `reqLevel`, the matching mastery field, `expSkill`, gold cost, and `costGuildContrib`. Initial learning is book-only through 2400/2408/2409/2410/2411. Type 19 is Hidden Weapon, not a life skill. Success sends `SendLifeSkillStateUpdate()`.
 
 ### PlantDex ↔ CharacterSkill.Exp Sync
 

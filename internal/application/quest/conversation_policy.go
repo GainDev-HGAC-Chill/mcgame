@@ -64,6 +64,7 @@ var reviewedConversationQuests = map[int]conversationQuestSpec{
 	223:   {QuestType: 2, StartNPC: 468, FinishNPC: 277, Name: "Cầu Cứu Chi Viện"},
 	242:   {QuestType: 2, StartNPC: 470, FinishNPC: 469, Name: "Lão Cổ Thụ Tinh Anh"},
 	254:   {QuestType: 2, StartNPC: 411, FinishNPC: 457, Name: "Thông Báo Thương Hội Bàng Bối"},
+	259:   {QuestType: 4, StartNPC: 438, FinishNPC: 376, Name: "Ngư Phu Mua Cá 11-1"},
 	382:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Hợp Nguyên Liệu"},
 	383:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Thăng Cấp Bảo Thạch"},
 	384:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Khảm Nạm Bảo Thạch"},
