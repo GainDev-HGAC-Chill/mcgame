@@ -6,6 +6,7 @@ package activity
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	domainchar "mcgame-server/internal/domain/character"
@@ -211,7 +212,32 @@ func (h *Handler) registerLegacyActivityBacklogHandlers(dispatcher *rtmp.RPCDisp
 		return legacyStarterResponse{response: map[string]interface{}{}}
 	})
 	register("sthPlayIsInGroup", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
-		return legacyStarterResponse{response: map[string]interface{}{"openflag": false, "group": false}}
+		// Opt-in UI preview only. A complete event service must implement party checks.
+		preview := os.Getenv("MCGAME_STH_PREVIEW") == "1"
+		return legacyStarterResponse{response: map[string]interface{}{"openflag": preview, "group": preview}}
+	})
+	register("getSecretTreasureHuntData", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
+		if os.Getenv("MCGAME_STH_PREVIEW") != "1" {
+			return legacyStarterResponse{response: false}
+		}
+		// Read-only preview: no dice, gold deduction, rewards, or progression writes.
+		mapState := map[string]interface{}{
+			"nullGridMapData": map[string]interface{}{},
+			"haveGo":          []interface{}{},
+			"atGridNum":       1,
+			"ptSZnum":         0,
+			"xySZnum":         0,
+			"check":           map[string]interface{}{"pt": false, "xy": false},
+			"allSZBuyNum":     0,
+		}
+		status := map[string]interface{}{"flag": true, "type": 0}
+		auto := map[string]interface{}{"play": false}
+		return legacyStarterResponse{
+			response: true,
+			callbacks: []legacyActivityCallback{
+				{method: "onGetData", args: []interface{}{mapState, status, auto}},
+			},
+		}
 	})
 	register("loadFlopRank", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
 		return legacyStarterResponse{response: map[string]interface{}{"rank": []interface{}{}, "myRank": -1}}

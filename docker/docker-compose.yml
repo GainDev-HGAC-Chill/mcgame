@@ -706,8 +706,9 @@ services:
       - MCGAME_LOGGING_LEVEL=${GAME_LOG_LEVEL:-debug}
       - MCGAME_LOGGING_FORMAT=${GAME_LOG_FORMAT:-console}
       - MCGAME_LOGGING_OUTPUT_PATH=/app/temp/mcgame-server.log
+      - MCGAME_STH_PREVIEW=1
       - MCGAME_PERFORMANCE_DEBUG_LOG_PLAYER_DATA=${GAME_DEBUG_LOG_PLAYER_DATA:-false}
-
+    
   rtmp-edge:
     container_name: mcgame-rtmp-edge
     build:

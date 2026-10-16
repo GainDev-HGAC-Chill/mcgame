@@ -23,6 +23,7 @@ import (
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
@@ -48,6 +49,7 @@ var onlineRewardSteps = []OnlineRewardConfig{
 }
 
 type Handler struct {
+	findbackPool     *pgxpool.Pool
 	itemService      *appitem.Service
 	characterRepo    domainchar.Repository
 	statFeatureRepo  domainfeature.Repository
@@ -169,6 +171,14 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("getTodayOnlineTime", h.GetTodayOnlineTime)
 	dispatcher.Register("takeNewGift", h.TakeNewGift)
 	dispatcher.Register("takeSPGift", h.TakeSPGift)
+	dispatcher.Register("getFindBackData", h.GetFindBackData)
+	dispatcher.Register("findBackXiuXing", h.FindBackXiuXing)
+	dispatcher.Register("findBackXueYuan", h.FindBackXueYuan)
+	dispatcher.Register("findBackChongWu", h.FindBackChongWu)
+	dispatcher.Register("findBackPanJun", h.FindBackPanJun)
+	dispatcher.Register("findBackFeiMo", h.FindBackFeiMo)
+	dispatcher.Register("findBackXuanShangFree", h.FindBackXuanShangFree)
+	dispatcher.Register("findBackXuanShangByBanner", h.FindBackXuanShangByBanner)
 	dispatcher.Register("getOfflineExp", h.GetOfflineExp)
 	dispatcher.Register("getPetOfflineExp", h.GetPetOfflineExp)
 	dispatcher.Register("getXCDSData", h.GetXCDSData)

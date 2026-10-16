@@ -81,7 +81,9 @@ func (h *giftBoxEffectHandler) Apply(ctx context.Context, uctx *UseContext, char
 	creatures := h.gameData.GetAllCreatures()
 	text := normalizePetSummonText(tpl.Description)
 	descQuality := parseDescriptionQuality(tpl.Description)
-
+	if strings.Contains(strings.ToLower(tpl.Name), "pet ảo hóa cam") {
+		descQuality = 25
+	}
 	choices := make([]*GiftBoxChoice, 0)
 	for _, creature := range creatures {
 		if creature == nil || creature.ID <= 0 || strings.TrimSpace(creature.Name) == "" {
