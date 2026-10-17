@@ -23,6 +23,27 @@ type itemSkillTestRepo struct {
 	skills map[int64]*domainskill.CharacterSkill
 }
 
+type itemMysteryRecipeLearner struct {
+	learned map[int64]map[int]bool
+}
+
+func (l *itemMysteryRecipeLearner) LearnRecipeByFormula(_ context.Context, characterID int64, itemTemplateID int) (int, error) {
+	if l.learned == nil {
+		l.learned = make(map[int64]map[int]bool)
+	}
+	if l.learned[characterID] == nil {
+		l.learned[characterID] = make(map[int]bool)
+	}
+	recipeID := itemTemplateID - 5041
+	l.learned[characterID][recipeID] = true
+	return recipeID, nil
+}
+
+func (l *itemMysteryRecipeLearner) ForgetRecipe(_ context.Context, characterID int64, recipeID int) error {
+	delete(l.learned[characterID], recipeID)
+	return nil
+}
+
 func newItemSkillTestRepo() *itemSkillTestRepo {
 	return &itemSkillTestRepo{
 		nextID: 1,
@@ -238,6 +259,33 @@ func TestItemHandlerUseItemFishingAndHerbBooksLearnLifeSkills(t *testing.T) {
 	}
 }
 
+func TestItemHandlerUseItemMysteryFormulaLearnsRecipe(t *testing.T) {
+	char := &domainchar.Character{ID: 1, Name: "tester", Level: 60}
+	book := &domainitem.Item{
+		ID: 504701, CharacterID: char.ID, TemplateID: 5047,
+		ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, StackCount: 1,
+	}
+	handler, ctx := buildItemTestHandler(t, char, book)
+	loadMysteryFormulaTemplate(t, handler)
+	learner := &itemMysteryRecipeLearner{}
+	handler.SetMysteryRecipeLearner(learner)
+
+	resp, err := handler.UseItem(ctx, []interface{}{float64(1), float64(-1), float64(book.ID)})
+	if err != nil {
+		t.Fatalf("UseItem() error = %v", err)
+	}
+	result, ok := resp.(map[string]interface{})
+	if !ok || result["success"] != true {
+		t.Fatalf("response = %#v", resp)
+	}
+	if !learner.learned[char.ID][6] {
+		t.Fatalf("recipe 6 was not learned: %#v", learner.learned)
+	}
+	if _, err := handler.itemService.GetItemByID(ctx.Context, char.ID, book.ID); !pkgerrors.Is(err, pkgerrors.ErrItemNotFound) {
+		t.Fatalf("formula book was not consumed: %v", err)
+	}
+}
+
 func loadItemSkillBookTemplate(t *testing.T, handler *Handler) {
 	t.Helper()
 
@@ -285,6 +333,17 @@ func loadLifeSkillBookCatalog(t *testing.T, handler *Handler, bookID, skillID, s
 	}
 	if err := handler.gameData.GetCache().LoadTable(models.TableSkill, []json.RawMessage{skillRaw}); err != nil {
 		t.Fatalf("load life skill: %v", err)
+	}
+}
+
+func loadMysteryFormulaTemplate(t *testing.T, handler *Handler) {
+	t.Helper()
+	raw := itemSkillRawJSON(t, map[string]interface{}{
+		"id": 5047, "name": "Bí Kíp Chế Tạo Mật Bảo Hang Động Cấp 1", "kind": 5,
+		"type": 516, "use_type": 1, "req_level": 50,
+	})
+	if err := handler.gameData.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{raw}); err != nil {
+		t.Fatalf("load mystery formula: %v", err)
 	}
 }
 

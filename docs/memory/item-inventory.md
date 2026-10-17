@@ -1,5 +1,11 @@
 # Item & Inventory System
 
+## Wish-Tree claim visibility and food buffs (2026-10-17)
+
+Wish-Tree/lotto holding-bag claims persist rewards through `item.Service.AddItemWithBind`, but refreshing only `updateLottoBag` does not repaint the character inventory. `ClaimSingle` and `ClaimAll` now return the actual granted item records; the RTMP handler deduplicates stacked grants by instance ID and sends normalized `onAddCharactorSlot` DTOs before refreshing the relevant holding bag. New items and changed stacks therefore render immediately without `bagSort`.
+
+Type-502 food previously only read `i1/i2`; the catalog's stat cakes have both fields zero and were silently consumed. The food handler now has an exact 33-item mapping to existing `TBL_BUFF` rows for Bánh Trôi, Bánh Ú, Bánh Nhân, Bánh Trung Thu, Bánh Thanh Minh, Christmas cakes and Táo Bình An, with 15-minute, 30-minute, one-hour or six-hour durations from their catalog descriptions/family. Use persists a timed `food_item` buff, emits long-buff callbacks and refreshes character stats. Unmapped type-502 entries with no HP/MP effect fail before consumption instead of returning false success.
+
 ## Summon, secret-passage, and social target items (2026-10-15)
 
 The three summon-scroll templates are exact-ID type-500 effects, not generic message-only scrolls. Template 2514 grants timed long-buff 1709 for one hour, 2543 grants 1709 for 30 days, and advanced 2798 grants 1979 for 30 days. The handler preflights an owned locked Pet before consumption: standard books require orange `qLevel >= 3`, while the advanced book accepts purple/orange `qLevel >= 2`. It prefers an already active/following eligible Pet, otherwise the lowest Pet ID, persists follow state, then sends scene `onCancelPet(ownerCid)` followed by `onCreatePet({cid,petData})`. This buff is required because Flash `Core.createPlayer()` gates visible follow-Pet rendering on `SHOW_PET_BUFF=1709` or `SHOW_PET_BUFF2=1979`. No eligible Pet means no item consumption.

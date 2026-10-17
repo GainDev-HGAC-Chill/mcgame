@@ -115,11 +115,11 @@ func TestService_ClaimSingle_OutOfBounds_NoOp(t *testing.T) {
 	ctx := context.Background()
 	_ = svc.AddToBag(ctx, 1, BagLotto, LottoEntry{Ti: "29", Ii: "5", N: 1, B: 1, Q: "0.00"})
 
-	bag, err := svc.ClaimSingle(ctx, 1, BagLotto, 99)
+	result, err := svc.ClaimSingle(ctx, 1, BagLotto, 99)
 	if err != nil {
 		t.Fatalf("ClaimSingle out-of-bounds should be a no-op, got err %v", err)
 	}
-	if len(bag) != 1 {
-		t.Fatalf("out-of-bounds claim changed bag: len=%d, want 1", len(bag))
+	if len(result.Bag) != 1 {
+		t.Fatalf("out-of-bounds claim changed bag: len=%d, want 1", len(result.Bag))
 	}
 }

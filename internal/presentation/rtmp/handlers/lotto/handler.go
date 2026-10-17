@@ -12,14 +12,24 @@ import (
 	"strconv"
 
 	applotto "mcgame-server/internal/application/lotto"
+	domainitem "mcgame-server/internal/domain/item"
 	"mcgame-server/internal/infrastructure/rtmp"
 
 	"go.uber.org/zap"
 )
 
 type Handler struct {
-	service *applotto.Service
-	logger  *zap.Logger
+	service        *applotto.Service
+	itemDTOBuilder itemDTOBuilder
+	logger         *zap.Logger
+}
+
+type itemDTOBuilder interface {
+	BuildClientItemDTO(item *domainitem.Item) map[string]interface{}
+}
+
+type callbackSender interface {
+	SendCallback(method string, args ...interface{}) error
 }
 
 func NewHandler(service *applotto.Service, logger *zap.Logger) *Handler {
@@ -27,6 +37,10 @@ func NewHandler(service *applotto.Service, logger *zap.Logger) *Handler {
 		logger = zap.NewNop()
 	}
 	return &Handler{service: service, logger: logger}
+}
+
+func (h *Handler) SetItemDTOBuilder(builder itemDTOBuilder) {
+	h.itemDTOBuilder = builder
 }
 
 type bagRoutes struct {
@@ -139,11 +153,12 @@ func (h *Handler) makeSingle(kind, callback string) rtmp.HandlerFunc {
 				index = n
 			}
 		}
-		bag, err := h.service.ClaimSingle(ctx.Context, charID, kind, index)
+		result, err := h.service.ClaimSingle(ctx.Context, charID, kind, index)
 		if err != nil {
 			return rtmp.ErrorToResponse(err), nil
 		}
-		_ = ctx.Connection.SendCallback(callback, bag)
+		h.sendGrantedItems(ctx.Connection, result.GrantedItems)
+		_ = ctx.Connection.SendCallback(callback, result.Bag)
 		return nil, nil
 	}
 }
@@ -154,12 +169,33 @@ func (h *Handler) makeAll(kind, callback string) rtmp.HandlerFunc {
 		if !ok {
 			return nil, nil
 		}
-		bag, err := h.service.ClaimAll(ctx.Context, charID, kind)
+		result, err := h.service.ClaimAll(ctx.Context, charID, kind)
 		if err != nil {
 			return rtmp.ErrorToResponse(err), nil
 		}
-		_ = ctx.Connection.SendCallback(callback, bag)
+		h.sendGrantedItems(ctx.Connection, result.GrantedItems)
+		_ = ctx.Connection.SendCallback(callback, result.Bag)
 		return nil, nil
+	}
+}
+
+func (h *Handler) sendGrantedItems(sender callbackSender, items []*domainitem.Item) {
+	if sender == nil || h.itemDTOBuilder == nil {
+		return
+	}
+	byID := make(map[int64]*domainitem.Item, len(items))
+	order := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if _, exists := byID[item.ID]; !exists {
+			order = append(order, item.ID)
+		}
+		byID[item.ID] = item
+	}
+	for _, id := range order {
+		_ = sender.SendCallback("onAddCharactorSlot", h.itemDTOBuilder.BuildClientItemDTO(byID[id]))
 	}
 }
 

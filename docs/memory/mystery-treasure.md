@@ -1,5 +1,11 @@
 # Mystery Treasure (Mật Bảo) System
 
+## Formula-book learning (2026-10-17)
+
+The 66 Mystery Treasure formula books are the contiguous type-516 templates `5042..5107`, matching `TBL_MYSTRE_RECIPE` IDs `1..66` by `recipeID = itemTemplateID - 5041`. They must update `MysteryTreasureState.LearnedRec`; routing them through the ordinary life-skill recipe lookup produces `life skill recipe not found` because these recipes are not `TBL_SKILL` rows.
+
+`Service.LearnRecipeByFormula` validates both the exact item range and the target `MysGetRecipe` row, rejects duplicates without consuming another book, and persists the identity-map entry. The item handler performs this route before the legacy cooking/life-skill formula resolver. If inventory consumption fails after learning, `ForgetRecipe` removes the newly added state entry. Other type-516 cooking formula books outside this exact range retain the existing life-skill recipe path.
+
 Furnace fail-closed registration deployed17:34:09 (2026-10-12); no exchange is granted/consumed. Awaited dispatch/rate-limit errors also reply false, releasing the Flash waiting flag. Full furnace conversion remains NOT IMPLEMENTED; tests/vet/build PASS, Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
 
 ## Mystery Furnace safety gate (2026-10-12)

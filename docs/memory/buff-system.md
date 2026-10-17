@@ -13,6 +13,7 @@ Persistent character buffs live in baseline table `player.character_buffs` (id, 
   - Client -> server `delBuffClient(id)` handled in `internal/presentation/rtmp/handlers/buff/handler.go` which calls `RemoveByClient`, sends `delBuff(id)` and refreshes stats via `onUPP`.
 - Payload schema (`BuildLongBuffPayload`): `{id, bid, type, ...}` plus `battleLeft` (type 1) or `addTime` (Unix seconds), `timeAll`, `timeLeft`, `ineffectiveTime` (Unix ms) for type 2.
 - PM right 3 (daily VIP buff) now uses this system: `pm_operation.go` calls `buffService.AddOrRefresh` with `BuffType=TypePermanent, Source="pm_daily"` and emits `upLongBuff` + `onUPP`. The old `statfeature.FeaturePMDailyBuff` path is removed.
+- Catalog-backed type-502 cakes use the same persistence path with `Source="food_item"`. Exact item→buff mappings and durations live in `internal/application/item/effect_food.go`; successful use emits the long-buff payload and requests a stat refresh, while zero-effect unmapped food is not consumed.
 
 References:
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strconv"
 
+	appmystre "mcgame-server/internal/application/mysterytreasure"
 	appskill "mcgame-server/internal/application/skill"
 	"mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
@@ -25,6 +26,7 @@ type pendingBookUse struct {
 	lifeSkillMessage        string
 	recipeSkillEntryID      int64
 	recipeSkillTemplateID   int
+	mysteryRecipeID         int
 }
 
 func (h *Handler) prepareBookUse(ctx *rtmp.RPCContext, characterID int64, item *domainitem.Item) (*pendingBookUse, interface{}, bool) {
@@ -90,6 +92,25 @@ func (h *Handler) prepareBookUse(ctx *rtmp.RPCContext, characterID int64, item *
 
 	if h.gameData != nil {
 		if tpl := h.gameData.GetItem(item.TemplateID); tpl != nil && int(tpl.Type) == 516 {
+			if h.mysteryRecipeLearner != nil {
+				recipeID, err := h.mysteryRecipeLearner.LearnRecipeByFormula(ctx.Context, characterID, item.TemplateID)
+				switch {
+				case err == nil:
+					pending.mysteryRecipeID = recipeID
+				case errors.Is(err, appmystre.ErrRecipeAlreadyLearned):
+					_ = ctx.Connection.SendCallback("onSystemMidMsgOrNote", "Bạn đã học công thức này.")
+					return nil, map[string]interface{}{
+						"success": true,
+						"itemId":  item.ID,
+						"effects": []interface{}{},
+					}, true
+				case !errors.Is(err, appmystre.ErrFormulaNotMysteryRecipe):
+					return nil, rtmp.ErrorToResponse(err), true
+				}
+			}
+			if pending.mysteryRecipeID > 0 {
+				return pending, nil, false
+			}
 			if h.skillService == nil {
 				return nil, rtmp.ErrorToResponse(pkgerrors.ErrSystemError), true
 			}
@@ -117,7 +138,7 @@ func (h *Handler) prepareBookUse(ctx *rtmp.RPCContext, characterID int64, item *
 		}
 	}
 
-	if pending.lifeSkillEntryID == 0 && pending.recipeSkillEntryID == 0 {
+	if pending.ordinarySkillEntryID == 0 && pending.lifeSkillEntryID == 0 && pending.recipeSkillEntryID == 0 && pending.mysteryRecipeID == 0 {
 		return nil, nil, false
 	}
 
@@ -154,6 +175,14 @@ func (h *Handler) rollbackBookUse(ctx context.Context, characterID int64, pendin
 				zap.Error(err))
 		}
 	}
+	if pending.mysteryRecipeID > 0 && h.mysteryRecipeLearner != nil {
+		if err := h.mysteryRecipeLearner.ForgetRecipe(ctx, characterID, pending.mysteryRecipeID); err != nil {
+			h.logger.Error("UseItem: failed to rollback mystery recipe learn",
+				zap.Int64("character_id", characterID),
+				zap.Int("recipe_id", pending.mysteryRecipeID),
+				zap.Error(err))
+		}
+	}
 }
 
 func (h *Handler) finalizeBookUse(ctx *rtmp.RPCContext, char *character.Character, result map[string]interface{}, pending *pendingBookUse) {
@@ -181,6 +210,9 @@ func (h *Handler) finalizeBookUse(ctx *rtmp.RPCContext, char *character.Characte
 	if pending.recipeSkillTemplateID > 0 {
 		result["message"] = "Đã học công thức."
 		_ = ctx.Connection.SendCallback("onUpdateLearnedSkill", strconv.Itoa(pending.recipeSkillTemplateID))
+	}
+	if pending.mysteryRecipeID > 0 {
+		result["message"] = "Đã học công thức Mật Bảo."
 	}
 }
 

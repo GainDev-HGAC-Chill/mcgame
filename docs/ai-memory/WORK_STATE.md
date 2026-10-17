@@ -16,6 +16,7 @@
 - Đã triển khai completion policy cho registry fingerprint 227 nhiệm vụ đối thoại đã duyệt (67 type 1, 67 type 2, 93 type 4); chưa thay đổi dữ liệu nhiệm vụ hoặc tiến độ người chơi.
 - Đã sửa đồng bộ cường hóa Pet: `petStar` roll đúng bảng Flash 100/100/90/80/70/60/50/30/30/30/30/20% cho sao đích 1→12, hỗ trợ Nội Đơn Chúc Phúc giữ sao khi thất bại từ 8+, và phát refresh nested `property` để bảng Pet dùng cùng `GrowRate + GrowRateAdd`; chưa deploy/Flash smoke-test.
 - Đã sửa inventory: `addtItemFromBag`/`addmxFromBag` dùng handler riêng để decode vị trí túi tiện dụng thay vì parse thành equipment SID; sort temp/MX giữ index 1-based. Reward sự kiện không còn gửi raw Go `*Item` vào `onAddCharactorSlot`, mà gửi Flash slot DTO đầy đủ; shop path đã có changed-stack DTO snapshot đúng.
+- Đã code-fix ba lỗi item mới: bí kíp chế tạo Mật Bảo type 516, item Cây Ước Nguyện claim vào túi nhưng chưa render, và bánh type 502 bị tiêu hao mà không cấp long-buff.
 
 ## Đã hoàn thành
 
@@ -25,6 +26,9 @@
 - Fairy Units G–I safe scope complete: canonical 22-family mutation/config integrity, sole-guard authority, exact base/growth/satiety and six passive bonuses, post-mutation stat refresh, plus PVE/PVP battle-local five-slot rotation for the six catalog-complete active families. Multiple guards/catalog drift fail closed; ambiguous active families remain explicit unsupported diagnostics without guessed effects.
 - Skill/Fairy/crystal audit complete and safe implementation scope approved: research is recorded at `docs/research/2026-10-16_02_CHARACTER_FAIRY_SKILLS_AND_CRYSTAL_RESEARCH.md`; approved plan is `docs/plans/2026-10-16_02_CHARACTER_FAIRY_SKILLS_CRYSTAL_FIXES.md`. Scope is Units A–H plus only catalog-complete active Fairy effects from Unit I; nine ambiguous Fairy mechanics remain fail-closed. No deploy/restart or player-data testing is authorized.
 - Quest abandonment: xác định Flash hard-disable Cancel tại cả QuestManager/QuestPanel khi `data.type == 1`, đồng thời server có type-1 rejection tương ứng. Đã bỏ rejection, thêm per-character mutation lock quanh lookup/status/delete và publish presentation type 2 riêng cho active type-1 DTO để dùng được RPC `cancelQuest`; canonical template vẫn type 1 cho toàn bộ policy/reward/prerequisite.
+- Bí kíp Mật Bảo bước 1: xác nhận 66 sách type 516 liên tục `5042..5107` ánh xạ chính xác recipe `1..66` bằng offset 5041. Đã thêm learn/duplicate/rollback vào state `mystery_treasure.learnedRec`, route trước life-skill recipe, wiring item handler và regression dùng sách 5047; focused tests PASS. Chưa sửa hai lỗi Cây Ước Nguyện/bánh ở checkpoint này.
+- Cây Ước Nguyện bước 2: `ClaimSingle`/`ClaimAll` nay trả các item thực tế được grant; lotto handler dedupe stack theo instance ID và push DTO chuẩn qua `onAddCharactorSlot` trước khi refresh `updateLottoBag`/bag tương ứng. Vì vậy item mới hoặc stack tăng hiện ngay, không cần `bagSort`. Focused lotto application/handler tests PASS; lỗi bánh còn đang xử lý.
+- Bánh buff bước 3: type 502 nay có exact catalog 33 item→buff cho các họ Bánh Trôi/Bánh Ú/Bánh Nhân/Bánh Trung Thu/Bánh Thanh Minh/Giáng Sinh và Táo Bình An, với duration theo mô tả 15m/30m/1h/6h. Use cấp/persist timed long-buff, phát callback buff và refresh stat; multi-use giữ final buff callback. Food `i1/i2=0` ngoài catalog bị chặn trước tiêu hao thay vì success giả. Focused food tests PASS.
 - Pet skill damage/playback: xác định plan executor đã trừ HP đúng nhiều target nhưng chỉ sinh skill/death action, thiếu Hurt/Idle. `BuildPlaybackRounds` xóa `tSObj.hHp` khỏi AoE opener rồi không có Hurt round để gắn lại, gây quái mất HP/chết mà không hiện số; khi chỉ có một target thì không qua cluster nên hiện bình thường. Đã bổ sung canonical Hurt và Die/Idle sau mọi direct/fixed Pet damage hit dương; pure support và miss vẫn không giả damage. Area resolver cũng lọc target chết trước khi cap, tránh slot chết gần làm mất target sống xa hơn.
 - Launcher: `cmd/game` luôn truyền `supabase db push --include-all`, nên migration local chưa có trong history dù timestamp cũ hơn migration cuối vẫn được áp mà không reset/reseed database hiện hữu. Wrapper không còn báo nhầm là thiếu CLI cho mọi lỗi push. `MCGAME.bat` thêm mục `F` gọi command `client30`; launcher 30 FPS riêng vẫn được giữ nguyên.
 - Quest Trung Cấp 3-1: audit xác định đủ sáu ID `143/287/639/640/643/644` đều là type 1, không có requirement row nên bị completion authority fail-closed. Đã thêm exact fingerprint policy riêng, yêu cầu đúng class, `class_rank == 1` và ở gần NPC 600; rank thấp/cao hơn, sai class/map hoặc catalog drift tiếp tục bị chặn. Persisted objective cũ bị loại và bước 3-1 không tự tăng class rank.
@@ -56,6 +60,10 @@
 ## Kiểm tra đã chạy
 
 - Skill/Fairy/crystal current scope: focused character currency, item award/multi-use, skill catalog/progression, item skill-book, life-skill, Pet ownership, domain combat and combat handler tests PASS; targeted vet for all changed Go packages PASS; scoped diff-check clean apart from line-ending warnings. Full `internal/application/item` still has only the recorded award-quality/starter-gift baseline failures, unrelated to currency aggregation.
+- Mật Bảo formula focused: `internal/application/mysterytreasure` và item-handler tests cho learn/duplicate/rollback/use-item PASS.
+- Lotto claim visibility: full `internal/application/lotto` và lotto handler PASS; regression xác nhận final stack/SID DTO và dedupe callback.
+- Food buff focused: representative 15m/30m/1h mappings, catalog-family coverage và zero-effect fail-closed PASS.
+- Nhóm Mật Bảo/Cây Ước Nguyện/bánh: full Mystery Treasure, lotto, lotto handler và item handler PASS; targeted item food PASS; targeted vet và `go build -o bin/gameserver.exe ./cmd/gameserver` PASS. Full item còn đúng sáu baseline award-quality/starter-gift đã biết; `git diff --check` sạch ngoài cảnh báo line ending Windows.
 - Fairy Units G–I final verification: Fairy/combat application, domain combat, Fairy handler and `cmd/gameserver` focused tests PASS; matching targeted vet PASS; PVE/PVP profile attachment included. `go build -o bin/gameserver.exe ./cmd/gameserver` PASS and `git diff --check` has no whitespace errors (line-ending warnings only). Broad internal retains only known out-of-scope failures: item award-quality/starter-gift, Quest registry `235 want 227`, and two chat-stat tests.
 - Quest abandonment: focused type-1 delete và client-presentation regressions PASS; quest/NPC handler PASS; targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS. Full application quest chỉ fail baseline conversation registry `234 want 227` ngoài phạm vi.
 - Pet skill damage/playback: full `internal/domain/combat`, `internal/application/combat` và combat handler PASS; AoE damage+dispel ba target đều mất HP và có popup riêng; fixed lethal AoE có popup trước death cho từng target; dead-slot target-cap regression PASS; pure support vẫn không gây damage; legacy multi-target playback vẫn PASS. Catalog invariant, targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS.
@@ -127,6 +135,7 @@
 - Đã chốt Nuốt Chửng hồi 10/15/20% max HP+MP; Tự Nhiên Thuẫn đơn/quần HoT bằng 65%/25% MagicAttack; Pháo Kích chỉ P100% + stun. Plan triển khai đã Approved tại `docs/plans/2026-10-14_01_PET_ACTIVE_SKILLS_COMBAT.md`.
 - Trong lúc audit xuất hiện thay đổi ngoài luồng ở `turn_executor.go`, item/quest/EXP helpers; không ghi đè. Diff combat mới chỉ đổi cách resolve target cho đánh thường, không thay đổi kết luận skill audit.
 - Character/Fairy/crystal Units A–I safe scope đã code/build/test nhưng chưa deploy/restart hoặc Flash smoke-test. Chín Fairy mechanics thiếu timing/formula vẫn unsupported; runtime hiện tại có thể chưa nạp award 5948 hoặc binary mới.
+- Ba fix Mật Bảo/Cây Ước Nguyện/bánh chưa deploy/restart hoặc Flash smoke-test. Không có migration hay player-data mutation; bánh type 502 zero-effect ngoài 33 mapping exact nay trả cannot-use và không tiêu hao.
 
 ## Bước tiếp theo
 
@@ -140,6 +149,7 @@
 8. Skill Pet cần Flash smoke-test sau khi được phép deploy/restart riêng server; kiểm tra đại diện damage đơn/AoE/multi-hit, buff, DoT/HoT, revive, shield, Nuốt Chửng và fixed-HP skill.
 9. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
 10. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
+11. Sau khi được phép deploy/restart, dùng item/character test để kiểm tra một bí kíp Mật Bảo mới và duplicate, claim single/all Cây Ước Nguyện vào stack mới/cũ, cùng bánh 15m/30m/1h; không dùng vật phẩm hoặc người chơi thật.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 

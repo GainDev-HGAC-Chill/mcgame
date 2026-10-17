@@ -45,6 +45,11 @@ type Service struct {
 	rngMu       sync.Mutex
 }
 
+type ClaimResult struct {
+	Bag          []any
+	GrantedItems []*domainitem.Item
+}
+
 func NewService(featureRepo domainfeature.Repository, logger *zap.Logger) *Service {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -122,44 +127,49 @@ func (s *Service) ThrowAll(ctx context.Context, charID int64, kind string) ([]an
 	return []any{}, nil
 }
 
-func (s *Service) ClaimAll(ctx context.Context, charID int64, kind string) ([]any, error) {
+func (s *Service) ClaimAll(ctx context.Context, charID int64, kind string) (*ClaimResult, error) {
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err
 	}
 	bag := state.bag(kind)
 	remaining := make([]LottoEntry, 0, len(*bag))
+	granted := make([]*domainitem.Item, 0, len(*bag))
 	for _, entry := range *bag {
-		if grantErr := s.grantEntry(ctx, charID, entry); grantErr != nil {
+		item, grantErr := s.grantEntry(ctx, charID, entry)
+		if grantErr != nil {
 			s.logger.Warn("lotto: claim-all grant failed", zap.Int64("char_id", charID), zap.Error(grantErr))
 			remaining = append(remaining, entry)
+			continue
 		}
+		granted = append(granted, item)
 	}
 	*bag = remaining
 	if err := s.saveState(ctx, charID, state); err != nil {
 		return nil, err
 	}
-	return entriesToList(*bag), nil
+	return &ClaimResult{Bag: entriesToList(*bag), GrantedItems: granted}, nil
 }
 
-func (s *Service) ClaimSingle(ctx context.Context, charID int64, kind string, index int) ([]any, error) {
+func (s *Service) ClaimSingle(ctx context.Context, charID int64, kind string, index int) (*ClaimResult, error) {
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err
 	}
 	bag := state.bag(kind)
 	if index < 0 || index >= len(*bag) {
-		return entriesToList(*bag), nil
+		return &ClaimResult{Bag: entriesToList(*bag)}, nil
 	}
 	entry := (*bag)[index]
-	if grantErr := s.grantEntry(ctx, charID, entry); grantErr != nil {
+	granted, grantErr := s.grantEntry(ctx, charID, entry)
+	if grantErr != nil {
 		return nil, grantErr
 	}
 	*bag = append((*bag)[:index], (*bag)[index+1:]...)
 	if err := s.saveState(ctx, charID, state); err != nil {
 		return nil, err
 	}
-	return entriesToList(*bag), nil
+	return &ClaimResult{Bag: entriesToList(*bag), GrantedItems: []*domainitem.Item{granted}}, nil
 }
 
 func (s *Service) AddToBag(ctx context.Context, charID int64, kind string, entry LottoEntry) error {
@@ -175,13 +185,13 @@ func (s *Service) AddToBag(ctx context.Context, charID int64, kind string, entry
 	return s.saveState(ctx, charID, state)
 }
 
-func (s *Service) grantEntry(ctx context.Context, charID int64, entry LottoEntry) error {
+func (s *Service) grantEntry(ctx context.Context, charID int64, entry LottoEntry) (*domainitem.Item, error) {
 	if s.itemService == nil {
-		return fmt.Errorf("lotto: item service unavailable")
+		return nil, fmt.Errorf("lotto: item service unavailable")
 	}
 	templateID := parseInt(entry.Ii)
 	if templateID <= 0 {
-		return fmt.Errorf("lotto: invalid template id %q", entry.Ii)
+		return nil, fmt.Errorf("lotto: invalid template id %q", entry.Ii)
 	}
 	count := entry.N
 	if count <= 0 {
@@ -191,6 +201,5 @@ func (s *Service) grantEntry(ctx context.Context, charID int64, entry LottoEntry
 	if entry.Ti == "19" || entry.Ti == "27" {
 		itemType = domainitem.ItemTypeEquipment
 	}
-	_, err := s.itemService.AddItemWithBind(ctx, charID, templateID, itemType, count, entry.B == 1)
-	return err
+	return s.itemService.AddItemWithBind(ctx, charID, templateID, itemType, count, entry.B == 1)
 }

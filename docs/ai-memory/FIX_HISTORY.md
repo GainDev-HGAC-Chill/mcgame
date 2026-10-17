@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-17-17 — Bí kíp Mật Bảo, item Cây Ước Nguyện và buff bánh
+
+- Hiện tượng: bí kíp chế tạo Mật Bảo trả `life skill recipe not found`; item claim từ Kho Ước Nguyện đã vào DB nhưng chỉ hiện sau `bagSort`; bánh type 502 bị tiêu hao nhưng không có buff.
+- Nguyên nhân: 66 sách Mật Bảo type 516 bị route nhầm vào `TBL_SKILL`; lotto claim chỉ refresh holding bag; food handler chỉ đọc `i1/i2` trong khi bánh stat dùng `TBL_BUFF` và có `i1=i2=0`.
+- Sửa: map exact sách `5042..5107` tới Mystery recipe `1..66`, persist `learnedRec`, duplicate no-consume và rollback khi consume fail; trả item thực từ lotto claim rồi push DTO `onAddCharactorSlot`; thêm 33 mapping food→buff timed, stat refresh và chặn zero-effect chưa hỗ trợ trước tiêu hao.
+- Test: full Mystery Treasure/lotto/lotto-handler/item-handler PASS; focused food PASS; targeted vet và build `bin/gameserver.exe` PASS. Full item chỉ còn sáu baseline award-quality/starter-gift đã biết.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không dùng item/người chơi thật và không thay đổi DB/player data.
+
 ## FIX-2026-10-16-28 — Không thể chủ động bỏ nhiệm vụ type 1 đã nhận
 
 - Hiện tượng: cả Flash QuestManager và QuestPanel tự khóa nút Hủy khi active DTO có `data.type == 1`; nếu gọi RPC trực tiếp, service cũng từ chối toàn bộ type 1 bằng `ErrQuestNotAvailable`.

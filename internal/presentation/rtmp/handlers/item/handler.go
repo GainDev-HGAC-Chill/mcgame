@@ -42,6 +42,11 @@ type MWSkillGranter interface {
 	RevokeOnUnequip(ctx context.Context, charID int64, equip *domainitem.Item) error
 }
 
+type MysteryRecipeLearner interface {
+	LearnRecipeByFormula(ctx context.Context, characterID int64, itemTemplateID int) (int, error)
+	ForgetRecipe(ctx context.Context, characterID int64, recipeID int) error
+}
+
 type Handler struct {
 	itemService             *appitem.Service
 	sceneService            *appscene.Service
@@ -76,6 +81,7 @@ type Handler struct {
 	groupPersonalLeave      func(ctx context.Context, charID int64)
 	mwSkillGranter          MWSkillGranter
 	mwSkillUpdatePusher     func(ctx context.Context, conn *rtmp.Connection, charID int64)
+	mysteryRecipeLearner    MysteryRecipeLearner
 }
 
 const flyerEquipmentPosition = 14
@@ -109,6 +115,10 @@ func (h *Handler) SetInterfaceSettingsRepository(repo character.InterfaceSetting
 
 func (h *Handler) SetSkillService(skillService *appskill.Service) {
 	h.skillService = skillService
+}
+
+func (h *Handler) SetMysteryRecipeLearner(learner MysteryRecipeLearner) {
+	h.mysteryRecipeLearner = learner
 }
 
 func (h *Handler) SetBuffService(buffService *appbuff.Service) {

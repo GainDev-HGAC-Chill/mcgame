@@ -160,7 +160,7 @@ func (s *Service) initEffectHandlers() {
 	s.typeHandlers = map[int]ItemEffectHandler{
 		500: &scrollEffectHandler{service: s},
 		501: &petGrowthOrPotionEffectHandler{itemService: s},
-		502: &foodEffectHandler{},
+		502: &foodEffectHandler{itemService: s},
 		503: &gemSocketHandler{itemService: s},
 		504: &starStoneEffectHandler{itemService: s},
 		505: &skillBookEffectHandler{},
@@ -1472,6 +1472,8 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	totalMPRestored := 0
 	grantedCurrencies := make([]GrantedCurrencyResult, 0)
 	grantedCurrencyIndexes := make(map[string]int)
+	grantedBuffs := make([]*domainbuff.Buff, 0)
+	grantedBuffIndexes := make(map[int]int)
 	refreshCharacterView := false
 
 	for i := 0; i < count; i++ {
@@ -1492,6 +1494,17 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 				}
 				grantedCurrencyIndexes[grant.ClientKey] = len(grantedCurrencies)
 				grantedCurrencies = append(grantedCurrencies, grant)
+			}
+			for _, buff := range effectResult.GrantedBuffs {
+				if buff == nil {
+					continue
+				}
+				if index, ok := grantedBuffIndexes[buff.BuffID]; ok {
+					grantedBuffs[index] = buff
+					continue
+				}
+				grantedBuffIndexes[buff.BuffID] = len(grantedBuffs)
+				grantedBuffs = append(grantedBuffs, buff)
 			}
 		}
 	}
@@ -1530,6 +1543,9 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	}
 	if len(grantedCurrencies) > 0 {
 		result["granted_currencies"] = grantedCurrencies
+	}
+	if len(grantedBuffs) > 0 {
+		result["granted_buffs"] = grantedBuffs
 	}
 	if refreshCharacterView {
 		result["refresh_character_view"] = true
