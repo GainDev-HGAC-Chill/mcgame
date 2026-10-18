@@ -45,6 +45,25 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("initMonsterHeartData", h.InitMonsterHeartData)
 	dispatcher.Register("monsterHeartSet", h.MonsterHeartSet)
 	dispatcher.Register("monsterHeartReMove", h.MonsterHeartReMove)
+	dispatcher.Register("openHoleMonsterHeart", h.OpenHoleMonsterHeart)
+	dispatcher.Register("openHoleMonsterHeartJingang", h.OpenHoleMonsterHeartJingang)
+	dispatcher.Register("upgradeMonsterHeartItem", h.UpgradeMonsterHeartItem)
+	dispatcher.Register("resolveMonsterHeart", h.ResolveMonsterHeart)
+	dispatcher.Register("upgradeMonsterHeartBox", h.UpgradeMonsterHeartBox)
+}
+
+func (h *Handler) sendCurrentPanel(ctx *rtmp.RPCContext) {
+	if ctx == nil || ctx.Connection == nil {
+		return
+	}
+	state := appmonsterheart.NewState()
+	if charID, ok := h.charIDFromCtx(ctx); ok && h.service != nil {
+		loaded, err := h.service.Load(ctx.Context, charID)
+		if err == nil && loaded != nil {
+			state = loaded
+		}
+	}
+	_ = ctx.Connection.SendCallback("updateMonsterHeartPanel", stateToWire(state))
 }
 
 func (h *Handler) charIDFromCtx(ctx *rtmp.RPCContext) (int64, bool) {

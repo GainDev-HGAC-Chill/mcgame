@@ -41,6 +41,7 @@ var validHoles = map[int]struct{}{
 }
 
 type BagEntry struct {
+	ID     int
 	ItemID int
 	N      int
 }
@@ -96,6 +97,7 @@ func (s *State) Encode() map[string]interface{} {
 		for itemID, entry := range entries {
 			key := intKey(itemID)
 			catMap[key] = map[string]interface{}{
+				"id":     entry.ID,
 				"itemId": entry.ItemID,
 				"n":      entry.N,
 			}
@@ -145,12 +147,16 @@ func DecodeState(raw map[string]interface{}) *State {
 	bagRaw, _ := raw["bag"].(map[string]interface{})
 	for cat := range validBagCategories {
 		catRaw, _ := bagRaw[cat].(map[string]interface{})
-		for _, entryRaw := range catRaw {
+		for entryKey, entryRaw := range catRaw {
 			entry, _ := entryRaw.(map[string]interface{})
+			entryID := anyInt(entry["id"])
+			if entryID <= 0 {
+				entryID = parseIntKey(entryKey)
+			}
 			itemID := anyInt(entry["itemId"])
 			n := anyInt(entry["n"])
-			if itemID > 0 {
-				s.Bag[cat][itemID] = BagEntry{ItemID: itemID, N: n}
+			if entryID > 0 && itemID > 0 && n > 0 {
+				s.Bag[cat][entryID] = BagEntry{ID: entryID, ItemID: itemID, N: n}
 			}
 		}
 	}
@@ -218,8 +224,31 @@ func DecodeState(raw map[string]interface{}) *State {
 func (s *State) BagItemCount(itemID int) int {
 	total := 0
 	for _, entries := range s.Bag {
-		if entry, ok := entries[itemID]; ok {
-			total += entry.N
+		for _, entry := range entries {
+			if entry.ItemID == itemID {
+				total += entry.N
+			}
+		}
+	}
+	return total
+}
+
+func (s *State) BagEntry(entryID int) (string, BagEntry, bool) {
+	for category, entries := range s.Bag {
+		if entry, ok := entries[entryID]; ok {
+			return category, entry, true
+		}
+	}
+	return "", BagEntry{}, false
+}
+
+func (s *State) EquippedCount(itemID int) int {
+	total := 0
+	for _, holes := range s.HadActHole {
+		for _, equippedID := range holes {
+			if equippedID == itemID {
+				total++
+			}
 		}
 	}
 	return total

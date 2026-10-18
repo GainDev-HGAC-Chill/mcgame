@@ -884,6 +884,30 @@ func (c *Cache) GetCreature(id int) *models.CreatureTemplate {
 	return c.creatures[id]
 }
 
+func (c *Cache) GetCreatureHeart(id int) *models.CreaturehHeartTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.creatureHeart[id]
+}
+
+func (c *Cache) GetCreatureHeartCombine(id int) *models.CreaturehCombineTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.creatureComb[id]
+}
+
+func (c *Cache) GetCreatureHeartContain(id int) *models.CreaturehContainTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.creatureCont[id]
+}
+
+func (c *Cache) GetCreatureHeartPoint(id int) *models.CreaturehPointTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.creaturePoint[id]
+}
+
 func (c *Cache) GetAllCreatures() []*models.CreatureTemplate {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

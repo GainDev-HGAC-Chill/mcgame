@@ -3,6 +3,7 @@
 package petarena
 
 import (
+	"fmt"
 	"strconv"
 
 	"mcgame-server/internal/infrastructure/rtmp"
@@ -15,6 +16,21 @@ func currentCharacterID(ctx *rtmp.RPCContext) (int64, error) {
 		return 0, pkgerrors.ErrUnauthorized
 	}
 	return characterID, nil
+}
+
+func normalizeStringMap(raw interface{}) (map[string]interface{}, bool) {
+	switch typed := raw.(type) {
+	case map[string]interface{}:
+		return typed, true
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{}, len(typed))
+		for key, value := range typed {
+			result[fmt.Sprintf("%v", key)] = value
+		}
+		return result, true
+	default:
+		return nil, false
+	}
 }
 
 func parseIntArg(arg interface{}) (int, error) {

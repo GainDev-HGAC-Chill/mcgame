@@ -183,38 +183,32 @@ func (h *Handler) GetHMTXLSData(ctx *rtmp.RPCContext, args []interface{}) (inter
 }
 
 func (h *Handler) EnterPubRoom(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	characterID, char, err := h.loadActivityCharacter(ctx, "EnterPubRoom")
+	return h.rejectHMTXLSMutation(ctx, "enterPubRoom", args)
+}
+
+func (h *Handler) EnterAdvRoom(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.rejectHMTXLSMutation(ctx, "enterAdvRoom", args)
+}
+
+func (h *Handler) EndHMTXLRoom(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.rejectHMTXLSMutation(ctx, "endHMTXLRoom", args)
+}
+
+func (h *Handler) GetHMTAward(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.rejectHMTXLSMutation(ctx, "getHMTAward", args)
+}
+
+func (h *Handler) rejectHMTXLSMutation(ctx *rtmp.RPCContext, method string, args []interface{}) (interface{}, error) {
+	characterID, _, err := h.loadActivityCharacter(ctx, method)
 	if err != nil {
 		return nil, err
 	}
-
-	level := 1
-	if char != nil && char.Level > 0 {
-		level = char.Level
-	}
-
-	now := time.Now()
-	response := map[string]interface{}{
-		"pubdata": map[string]interface{}{
-			"plist":    map[string]interface{}{},
-			"plistadv": map[string]interface{}{},
-			"flagat":   0,
-		},
-		"nmldata": map[string]interface{}{
-			"name": "Normal",
-		},
-		"now": now.UnixMilli(),
-		"lev": level,
-	}
-
-	h.sendActivityCallback(ctx, "onHMTXLSData", response)
-	h.sendActivityCallback(ctx, "onMidNote", "Làm mới dữ liệu")
-	h.logger.Info("EnterPubRoom: returning starter payload",
+	h.logger.Warn(method+": blocked without authoritative room and reward rules",
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID),
-		zap.Int("level", level))
-
-	return nil, nil
+		zap.Any("args", args))
+	_, err = h.GetHMTXLSData(ctx, nil)
+	return nil, err
 }
 
 func (h *Handler) GetTXKCData(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {

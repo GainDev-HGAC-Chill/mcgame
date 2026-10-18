@@ -69,3 +69,11 @@ Empty hole value is `-1`.
 - Security: `bagItemID` is validated against player-owned bag (`BagContains`); `box` and `holePos` are validated against server-side allow-lists before any state mutation.
 - `type` arg (monsterHeartSet arg[3]) is accepted but not validated server-side per research note OQ5.
 - `FOR UPDATE` is not used since the feature-state store uses `UpsertCharacterFeatureState` (single-row upsert on PK); concurrent double-send risk is low for UI drag operations.
+
+## Catalog authority and stat projection follow-up (2026-10-18)
+
+- `monsterHeartSet` now serializes mutations per character and re-derives the heart template, heart category, point template, point type filter, open-hole state, and available owned count. The fourth client argument is no longer trusted as the only type authority.
+- Equipped direct heart properties are projected into effective character stats using the exact Flash scaling: property IDs 59/60/62/63 divide `propnum` by 100; all others divide by 10000.
+- Duplicate source entry IDs, category/catalog mismatch, over-equipped stacks, missing point rows, and closed holes fail closed and contribute no forged stats.
+- `openHoleMonsterHeart`, `openHoleMonsterHeartJingang`, `upgradeMonsterHeartItem`, `resolveMonsterHeart`, and `upgradeMonsterHeartBox` are explicitly registered but remain fail-closed. They do not spend currency/items or synthesize output until inventory, Ma Năng, box EXP, and feature state can share one authoritative mutation boundary.
+- `TBL_CREATUREH_COMBINE` bonuses are not yet applied; direct-heart bonuses must not be described as full Ma Tâm completion.

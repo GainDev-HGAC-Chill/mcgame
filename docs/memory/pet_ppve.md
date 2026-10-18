@@ -1,5 +1,12 @@
 # Pet PVE — Không Gian Điêu Khắc (Carve Space)
 
+## Truthful challenge gate (2026-10-18)
+
+- `challengeNextFloor` no longer calls the bookkeeping function that advanced one floor and returned `BATTLE_WIN` without combat.
+- Because no checked floor-to-opponent roster exists, the handler now sends `changePPLoadingState` followed by `onSendReplayPPVEPanel(BATTLE_NOT_END, 0, "", [], -1)` and logs `missing_floor_opponent_roster`.
+- The fail-closed path consumes no attempt, grants no KP, and changes no floor/rank state. Panel state, lineup, rank read model, and KP exchange remain available.
+- Re-enabling challenge requires a server-owned battle roster and idempotent result commit; website prose alone is not sufficient to synthesize opponents.
+
 Panel/login stage-container fixes deployed17:34:09 (2026-10-12), focused tests/vet/build PASS. Does not certify petPVE combat/replay/carve progression; Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
 
 ## Empty-stage login consistency (2026-10-12)

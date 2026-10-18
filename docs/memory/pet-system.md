@@ -260,3 +260,12 @@ Open questions (combat-resolution stub):
 - Live capture shows result arg1=-1 which client routes into `addPPLog`. The exact meaning of -1 (win/loss/replay code) is not confirmed.
 - No kp reward on floor advance is implemented yet; kp management is deferred.
 - `onUpdatePPVEPanel` and `GetPPVERank` still return partial/empty data — fixing those is a separate task.
+
+## Pet fight lineup authority (2026-10-18)
+
+- `getPetConf`, `getPetArenaConf`, `petFightConf`, and `petArenaTicket` remain the canonical Flash RPCs.
+- Configurations are validated before persistence: owned unique Pets, positions 5–9, at most 24 commands, exact action enum, basic attack/defence IDs, learned skill ownership, available legacy skill level, and target codes.
+- Farm, HMTXLS, and arena configurations no longer share one implicit `farm` record. Arena registration persists its own snapshot and battle lead selection reads that snapshot instead of trusting stale ranking `pet_id` state.
+- Arena registration requires 2–5 Pets. Farm/HMTXLS setup permits 1–5 because those panels can be configured before a full arena team exists.
+- The current arena simulator still resolves only the lead Pet; validation and snapshot authority do not claim full 2–5 Pet command-sequence combat.
+- `getPetConf` has no mode argument, so HMTXLS can save an isolated configuration but cannot independently select that readback through the current Flash contract.

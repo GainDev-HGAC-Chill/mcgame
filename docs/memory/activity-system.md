@@ -155,6 +155,12 @@ Implementation notes:
 
 - handlers live in `internal/presentation/rtmp/handlers/activity/icon_panels.go`
 - callback-driven panels still receive the callback names the Flash client expects, such as `onXCDSGetData`, `onGetShowTimeData`, `onMCZDGetData`, `onMYTCData`, `onHMTXLSData`, and `onTXKCGetData`
+
+## Fail-closed legacy surfaces (2026-10-18)
+
+- Card Game now returns `{flag:true,max:0,now:0,changeTime:0}` from `initCardPlayPanel`. This drives the Flash panel into its disabled reset branch. `startGame`, `changeCard`, `getCardAward`, and `addPlayTime` are registered no-ops until authoritative draw/reward/economy rules exist.
+- Task Sweep now registers `initTaskSweepPanelByClient`, `getTaskBattleTime`, `taskSweepSure`, `taskSweepCancel`, `taskSweepEnd`, `taskSweepLeftTimeCheck`, and `taskFinishByGold`, but returns no session and performs no task/currency/attempt/reward mutation. This removes method-not-found without pretending an unsupported instance is eligible.
+- HMTXLS now registers `enterPubRoom`, `enterAdvRoom`, `endHMTXLRoom`, and `getHMTAward`. Mutation attempts are rejected, logged, and followed by the truthful empty `onHMTXLSData` read model; no room occupancy, elapsed reward, or claim state is synthesized.
 - lightweight player context is reused only where already available from `player.characters`, primarily character `level` and `anni_consume_point`
 - the current goal is compatibility and log cleanup, not full gameplay completion for every activity panel
 

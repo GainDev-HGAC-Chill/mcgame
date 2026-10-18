@@ -7,6 +7,7 @@
 package activity
 
 import (
+	"context"
 	"testing"
 
 	apppet "mcgame-server/internal/application/pet"
@@ -64,5 +65,27 @@ func TestChallengeNextFloor_NilServiceReturnsNil(t *testing.T) {
 	}
 	if result != nil {
 		t.Fatalf("ChallengeNextFloor() result = %v, want nil", result)
+	}
+}
+
+func TestChallengeNextFloorFailsClosedWithoutAdvancing(t *testing.T) {
+	logger := zap.NewNop()
+	h := NewHandler(nil, logger)
+	h.SetPPVEService(apppet.NewPPVEService(nil, nil, logger))
+	sender := &pmResponderTransport{}
+	conn := rtmp.NewConnection(1, nil, nil, logger)
+	conn.SetTransport(sender)
+	ctx := &rtmp.RPCContext{Context: context.Background(), ConnID: 1, CharacterID: "42", Connection: conn}
+
+	result, err := h.ChallengeNextFloor(ctx, nil)
+	if err != nil || result != nil {
+		t.Fatalf("ChallengeNextFloor() result=%v err=%v", result, err)
+	}
+	if len(sender.methods) != 2 || sender.methods[0] != "changePPLoadingState" || sender.methods[1] != "onSendReplayPPVEPanel" {
+		t.Fatalf("callbacks = %v", sender.methods)
+	}
+	args := sender.args[1]
+	if len(args) != 5 || args[0] != ppveBattleNotEnd || args[1] != 0 || args[2] != "" || args[4] != -1 {
+		t.Fatalf("unsupported challenge args = %#v", args)
 	}
 }

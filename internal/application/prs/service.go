@@ -29,6 +29,7 @@ import (
 	domainchar "mcgame-server/internal/domain/character"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
+	"mcgame-server/internal/gamedata/models"
 
 	"go.uber.org/zap"
 )
@@ -51,6 +52,8 @@ var (
 	ErrAlreadyActivated    = errors.New("prs: hình dạng đã kích hoạt")
 	ErrChipBagFull         = errors.New("prs: túi mảnh vỡ đã đầy")
 	ErrInvalidArgs         = errors.New("prs: tham số không hợp lệ")
+	ErrInvalidTreeState    = errors.New("prs: trạng thái cây chân hồn không hợp lệ")
+	ErrInvalidTreeCatalog  = errors.New("prs: dữ liệu cây chân hồn không hợp lệ")
 )
 
 type ItemConsumer interface {
@@ -58,14 +61,21 @@ type ItemConsumer interface {
 }
 
 type Service struct {
-	featureRepo  domainfeature.Repository
-	charRepo     domainchar.Repository
-	gameData     *gamedata.Manager
-	logger       *zap.Logger
-	mu           sync.Mutex
-	rng          *rand.Rand
-	nowFn        func() time.Time
-	itemConsumer ItemConsumer
+	featureRepo   domainfeature.Repository
+	charRepo      domainchar.Repository
+	gameData      *gamedata.Manager
+	logger        *zap.Logger
+	mu            sync.Mutex
+	rng           *rand.Rand
+	nowFn         func() time.Time
+	itemConsumer  ItemConsumer
+	mutationLocks [64]sync.Mutex
+}
+
+func (s *Service) lockCharacterMutation(charID int64) func() {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	return lock.Unlock
 }
 
 func (s *Service) SetItemConsumer(ic ItemConsumer) {
@@ -151,16 +161,22 @@ func (s *Service) ChipBagWire(ctx context.Context, charID int64) (map[string]int
 }
 
 func (s *Service) AddSoulTreeLvl(ctx context.Context, charID int64) (map[string]interface{}, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err
 	}
-	currentTid, _ := strconv.Atoi(state.Tid)
-	nextTid := currentTid + 1
-	tpl := s.gameData.GetPrsTree(nextTid)
-	if tpl == nil {
-		return nil, ErrMaxTree
+	currentTid, err := strconv.Atoi(state.Tid)
+	if err != nil || currentTid < 0 {
+		return nil, ErrInvalidTreeState
 	}
+	tpl, err := s.nextTreeTemplate(currentTid)
+	if err != nil {
+		return nil, err
+	}
+	nextTid := tpl.GetID()
 
 	char, err := s.loadChar(ctx, charID)
 	if err != nil {
@@ -170,17 +186,60 @@ func (s *Service) AddSoulTreeLvl(ctx context.Context, charID int64) (map[string]
 		return nil, ErrInsufficientStone
 	}
 	if err := s.charRepo.Update(ctx, char); err != nil {
+		_ = char.AddCurrency(domainchar.CurrencyRealSoulStone, int(tpl.CostStone))
 		return nil, fmt.Errorf("prs: deduct soul stone: %w", err)
 	}
 
 	state.Tid = strconv.Itoa(nextTid)
 	if err := s.saveState(ctx, charID, state); err != nil {
+		if restoreErr := s.restoreCurrency(ctx, char, domainchar.CurrencyRealSoulStone, int(tpl.CostStone)); restoreErr != nil {
+			return nil, errors.Join(err, restoreErr)
+		}
 		return nil, err
 	}
 	return state.toWire(), nil
 }
 
+func (s *Service) nextTreeTemplate(currentTid int) (*models.PrsTreeTemplate, error) {
+	if s.gameData == nil {
+		return nil, ErrInvalidTreeCatalog
+	}
+	if currentTid == 0 {
+		first := s.gameData.GetPrsTree(1)
+		if first == nil || int(first.Level) != 1 {
+			return nil, ErrInvalidTreeCatalog
+		}
+		return first, nil
+	}
+	current := s.gameData.GetPrsTree(currentTid)
+	if current == nil {
+		return nil, ErrInvalidTreeState
+	}
+	nextID := int(current.NextID)
+	if nextID <= 0 {
+		return nil, ErrMaxTree
+	}
+	next := s.gameData.GetPrsTree(nextID)
+	if next == nil || int(next.Level) != int(current.Level)+1 {
+		return nil, ErrInvalidTreeCatalog
+	}
+	return next, nil
+}
+
+func (s *Service) restoreCurrency(ctx context.Context, char *domainchar.Character, currencyType, amount int) error {
+	if err := char.AddCurrency(currencyType, amount); err != nil {
+		return fmt.Errorf("prs: restore currency: %w", err)
+	}
+	if err := s.charRepo.Update(ctx, char); err != nil {
+		return fmt.Errorf("prs: persist restored currency: %w", err)
+	}
+	return nil
+}
+
 func (s *Service) MoveChip(ctx context.Context, charID int64, fromPos, toPos, direction int) (*State, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	if fromPos <= 0 || toPos <= 0 {
 		return nil, ErrInvalidArgs
 	}
@@ -203,6 +262,9 @@ func (s *Service) MoveChip(ctx context.Context, charID int64, fromPos, toPos, di
 }
 
 func (s *Service) ExchangeChip(ctx context.Context, charID int64, chipID int) (*State, *ChipReward, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	tpl := s.gameData.GetPrsChip(chipID)
 	if tpl == nil {
 		return nil, nil, ErrUnknownChip
@@ -222,9 +284,13 @@ func (s *Service) ExchangeChip(ctx context.Context, charID int64, chipID int) (*
 		return nil, nil, ErrChipBagFull
 	}
 	if err := s.charRepo.Update(ctx, char); err != nil {
+		_ = char.AddCurrency(domainchar.CurrencyRealSoulCrystal, int(tpl.CostCrystal))
 		return nil, nil, fmt.Errorf("prs: deduct crystal: %w", err)
 	}
 	if err := s.saveState(ctx, charID, state); err != nil {
+		if restoreErr := s.restoreCurrency(ctx, char, domainchar.CurrencyRealSoulCrystal, int(tpl.CostCrystal)); restoreErr != nil {
+			return nil, nil, errors.Join(err, restoreErr)
+		}
 		return nil, nil, err
 	}
 	reward := &ChipReward{TableID: tpl.TableID(), ID: chipID, Num: 1}

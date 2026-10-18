@@ -30,6 +30,9 @@ func (s *Service) SwapChipTimes(ctx context.Context, charID int64) (*State, []Ch
 }
 
 func (s *Service) swap(ctx context.Context, charID int64, all bool) (*State, []ChipReward, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

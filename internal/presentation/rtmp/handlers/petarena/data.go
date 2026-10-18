@@ -3,7 +3,7 @@
 package petarena
 
 import (
-	"fmt"
+	apppetarena "mcgame-server/internal/application/petarena"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -78,15 +78,29 @@ func (h *Handler) GetPetArenaSysMsg(ctx *rtmp.RPCContext, args []interface{}) (i
 }
 
 func (h *Handler) GetPetArenaConf(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	characterID, err := currentCharacterID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := h.arenaService.GetPetFightConfig(ctx.Context, characterID, apppetarena.ConfigContextArena)
+	if err != nil {
+		return rtmp.ErrorToResponse(err), nil
+	}
+	response := make(map[string]interface{}, len(payload)+6)
+	for key, value := range payload {
+		response[key] = value
+	}
 	config := h.arenaService.GetConfig()
-	return map[string]interface{}{
-		"season":              config.Season,
-		"maxTickets":          config.MaxTickets,
-		"ticketRefreshHours":  config.TicketRefreshHours,
-		"baseRating":          config.BaseRating,
-		"ratingKFactor":       config.RatingKFactor,
-		"winStreakBonusStart": config.WinStreakBonusStart,
-	}, nil
+	response["season"] = config.Season
+	response["maxTickets"] = config.MaxTickets
+	response["ticketRefreshHours"] = config.TicketRefreshHours
+	response["baseRating"] = config.BaseRating
+	response["ratingKFactor"] = config.RatingKFactor
+	response["winStreakBonusStart"] = config.WinStreakBonusStart
+	if err := ctx.Connection.SendCallback("onGetPetConf", response); err != nil {
+		h.logger.Warn("Failed to send arena onGetPetConf callback", zap.Error(err))
+	}
+	return response, nil
 }
 
 func (h *Handler) GetPetConf(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -95,7 +109,7 @@ func (h *Handler) GetPetConf(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		return nil, err
 	}
 
-	payload, err := h.arenaService.GetPetFightConfig(ctx.Context, characterID, "farm")
+	payload, err := h.arenaService.GetPetFightConfig(ctx.Context, characterID, apppetarena.ConfigContextFarm)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
@@ -117,34 +131,17 @@ func (h *Handler) PetFightConf(ctx *rtmp.RPCContext, args []interface{}) (interf
 		return nil, err
 	}
 
-	confData, ok := args[0].(map[string]interface{})
+	confData, ok := normalizeStringMap(args[0])
 	if !ok {
-		if generic, mapOK := args[0].(map[interface{}]interface{}); mapOK {
-			confData = make(map[string]interface{}, len(generic))
-			for key, value := range generic {
-				confData[fmt.Sprintf("%v", key)] = value
-			}
-		} else {
-			return nil, pkgerrors.ErrInvalidArgs
-		}
+		return nil, pkgerrors.ErrInvalidArgs
 	}
 
+	configContext, isXiulianshi := petFightConfigContext(args)
 	payload := map[string]interface{}{
 		"conf1": confData,
 	}
-
-	if err := h.arenaService.SavePetFightConfig(ctx.Context, characterID, "farm", payload); err != nil {
+	if err := h.arenaService.SavePetFightConfig(ctx.Context, characterID, configContext, payload); err != nil {
 		return rtmp.ErrorToResponse(err), nil
-	}
-
-	isXiulianshi := false
-	if len(args) >= 3 {
-		switch typed := args[2].(type) {
-		case bool:
-			isXiulianshi = typed
-		case float64:
-			isXiulianshi = typed != 0
-		}
 	}
 
 	callback := "onSubPetConf"
@@ -158,6 +155,22 @@ func (h *Handler) PetFightConf(ctx *rtmp.RPCContext, args []interface{}) (interf
 	return map[string]interface{}{"success": true}, nil
 }
 
+func petFightConfigContext(args []interface{}) (string, bool) {
+	isXiulianshi := false
+	if len(args) >= 3 {
+		switch typed := args[2].(type) {
+		case bool:
+			isXiulianshi = typed
+		case float64:
+			isXiulianshi = typed != 0
+		}
+	}
+	if isXiulianshi {
+		return apppetarena.ConfigContextHMTXLS, true
+	}
+	return apppetarena.ConfigContextFarm, false
+}
+
 func (h *Handler) PetArenaTicket(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	characterID, err := currentCharacterID(ctx)
 	if err != nil {
@@ -167,7 +180,7 @@ func (h *Handler) PetArenaTicket(ctx *rtmp.RPCContext, args []interface{}) (inte
 		return nil, err
 	}
 	teamName, _ := args[0].(string)
-	confData, ok := args[1].(map[string]interface{})
+	confData, ok := normalizeStringMap(args[1])
 	if !ok {
 		return nil, pkgerrors.ErrInvalidArgs
 	}

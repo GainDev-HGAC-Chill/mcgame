@@ -28,8 +28,9 @@ const (
 )
 
 var (
-	ErrDecoHoleInvalidPosition = errors.New("deco: invalid hole position")
-	ErrDecoHoleInsufficientSil = errors.New("deco: not enough decoration silver")
+	ErrDecoHoleInvalidPosition       = errors.New("deco: invalid hole position")
+	ErrDecoHoleInsufficientSil       = errors.New("deco: not enough decoration silver")
+	ErrDecoHoleInsufficientMoneyBind = errors.New("deco: not enough bound silver")
 )
 
 type HolePosition struct {
@@ -60,16 +61,20 @@ type charRepoForDeco interface {
 }
 
 type DecoHoleService struct {
-	featureRepo featureStateRepo
-	charRepo    charRepoForDeco
-	gameDataMgr decoHoleGameData
-	logger      *zap.Logger
-	rng         *rand.Rand
-	rngMu       sync.Mutex
+	featureRepo   featureStateRepo
+	charRepo      charRepoForDeco
+	gameDataMgr   decoHoleGameData
+	logger        *zap.Logger
+	rng           *rand.Rand
+	rngMu         sync.Mutex
+	mutationLocks [64]sync.Mutex
 }
 
 type decoHoleGameData interface {
 	GetDecoHole(id int) *models.DecoHoleTemplate
+	GetDecoRune(id int) *models.DecoRuneTemplate
+	GetDecoShow(id int) *models.DecoShowTemplate
+	GetDecoShowsBySuitID(suitID int) []*models.DecoShowTemplate
 }
 
 func NewDecoHoleService(
@@ -121,13 +126,31 @@ func (s *DecoHoleService) saveState(ctx context.Context, charID int64, state *De
 type DecoHoleLevelResult struct {
 	State           *DecoHoleState
 	SpentDecoSilver int64
+	SpentMoneyBind  int64
 	DecoSilverAfter int64
+	MoneyBindAfter  int64
 }
 
 func (s *DecoHoleService) AddDecoHoleLevel(ctx context.Context, charID int64, position int) (*DecoHoleLevelResult, error) {
+	return s.addDecoHoleLevels(ctx, charID, position, 1)
+}
+
+func (s *DecoHoleService) AddDecoHoleLevelTenTimes(ctx context.Context, charID int64, position int) (*DecoHoleLevelResult, error) {
+	return s.addDecoHoleLevels(ctx, charID, position, 10)
+}
+
+func (s *DecoHoleService) lockCharacterMutation(charID int64) func() {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	return lock.Unlock
+}
+
+func (s *DecoHoleService) addDecoHoleLevels(ctx context.Context, charID int64, position, attempts int) (*DecoHoleLevelResult, error) {
 	if position < decoHolePositionMin || position > decoHolePositionMax {
 		return nil, ErrDecoHoleInvalidPosition
 	}
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
 
 	char, err := s.charRepo.FindByID(ctx, charID)
 	if err != nil {
@@ -144,72 +167,69 @@ func (s *DecoHoleService) AddDecoHoleLevel(ctx context.Context, charID int64, po
 		return nil, ErrDecoHoleInvalidPosition
 	}
 
-	tpl := s.gameDataMgr.GetDecoHole(int(hole.Hid))
-	if tpl == nil {
-		return &DecoHoleLevelResult{State: state}, nil
-	}
+	originalDecoSilver := char.DecoSilver
+	originalMoneyBind := char.MoneyBind
+	spentDecoSilver := 0
+	spentMoneyBind := int64(0)
+	stateChanged := false
 
-	nextID := int(tpl.NextID)
-	if nextID <= 0 {
-		return &DecoHoleLevelResult{State: state}, nil
-	}
-
-	nextTpl := s.gameDataMgr.GetDecoHole(nextID)
-	if nextTpl == nil {
-		return &DecoHoleLevelResult{State: state}, nil
-	}
-
-	costSil := int(tpl.CostSil)
-	if costSil > 0 {
-		if char.DecoSilver < costSil {
-			return nil, ErrDecoHoleInsufficientSil
+	for attempt := 0; attempt < attempts; attempt++ {
+		tpl := s.gameDataMgr.GetDecoHole(int(hole.Hid))
+		if tpl == nil || int(tpl.NextID) <= 0 {
+			break
 		}
-	}
+		nextTpl := s.gameDataMgr.GetDecoHole(int(tpl.NextID))
+		if nextTpl == nil || int(nextTpl.Position) != position || int(nextTpl.Level) != int(tpl.Level)+1 {
+			break
+		}
+		costDecoSilver := int(tpl.CostNum)
+		costMoneyBind := int64(tpl.CostSil)
+		if char.DecoSilver < costDecoSilver {
+			if attempt == 0 {
+				return nil, ErrDecoHoleInsufficientSil
+			}
+			break
+		}
+		if char.MoneyBind < costMoneyBind {
+			if attempt == 0 {
+				return nil, ErrDecoHoleInsufficientMoneyBind
+			}
+			break
+		}
+		char.DecoSilver -= costDecoSilver
+		char.MoneyBind -= costMoneyBind
+		spentDecoSilver += costDecoSilver
+		spentMoneyBind += costMoneyBind
 
-	rate := int(tpl.Rate)
-	if rate > 0 {
 		s.rngMu.Lock()
 		roll := s.rng.Intn(100)
 		s.rngMu.Unlock()
-		if roll >= rate {
-			var spent int64
-			if costSil > 0 {
-				if deductErr := char.DeductCurrency(domainchar.CurrencyDecoSilver, costSil); deductErr == nil {
-					if updateErr := s.charRepo.Update(ctx, char); updateErr != nil {
-						return nil, fmt.Errorf("deco_hole: persist character after rng-fail deduction: %w", updateErr)
-					}
-					spent = int64(costSil)
-				}
+		if roll < int(tpl.Rate) {
+			hole.Hid = nextTpl.ID
+			stateChanged = true
+		}
+	}
+
+	if spentDecoSilver == 0 && spentMoneyBind == 0 {
+		return &DecoHoleLevelResult{State: state, DecoSilverAfter: int64(char.DecoSilver), MoneyBindAfter: char.MoneyBind}, nil
+	}
+	if err := s.charRepo.Update(ctx, char); err != nil {
+		char.DecoSilver = originalDecoSilver
+		char.MoneyBind = originalMoneyBind
+		return nil, fmt.Errorf("deco_hole: persist character deduction: %w", err)
+	}
+	if stateChanged {
+		if err := s.saveState(ctx, charID, state); err != nil {
+			char.DecoSilver = originalDecoSilver
+			char.MoneyBind = originalMoneyBind
+			if restoreErr := s.charRepo.Update(ctx, char); restoreErr != nil {
+				return nil, fmt.Errorf("deco_hole: persist state: %w; restore currency: %v", err, restoreErr)
 			}
-			return &DecoHoleLevelResult{
-				State:           state,
-				SpentDecoSilver: spent,
-				DecoSilverAfter: int64(char.DecoSilver),
-			}, nil
+			return nil, fmt.Errorf("deco_hole: persist state: %w", err)
 		}
 	}
 
-	if costSil > 0 {
-		if deductErr := char.DeductCurrency(domainchar.CurrencyDecoSilver, costSil); deductErr != nil {
-			return nil, ErrDecoHoleInsufficientSil
-		}
-		if updateErr := s.charRepo.Update(ctx, char); updateErr != nil {
-			return nil, fmt.Errorf("deco_hole: persist character after deduction: %w", updateErr)
-		}
-	}
-
-	hole.Hid = int64(nextID)
-	hole.ShowLvl = int(nextTpl.Level)
-
-	if saveErr := s.saveState(ctx, charID, state); saveErr != nil {
-		return nil, fmt.Errorf("deco_hole: persist state: %w", saveErr)
-	}
-
-	return &DecoHoleLevelResult{
-		State:           state,
-		SpentDecoSilver: int64(costSil),
-		DecoSilverAfter: int64(char.DecoSilver),
-	}, nil
+	return &DecoHoleLevelResult{State: state, SpentDecoSilver: int64(spentDecoSilver), SpentMoneyBind: spentMoneyBind, DecoSilverAfter: int64(char.DecoSilver), MoneyBindAfter: char.MoneyBind}, nil
 }
 
 func (s *DecoHoleService) GetDecoHoleState(ctx context.Context, charID int64) (*DecoHoleState, error) {

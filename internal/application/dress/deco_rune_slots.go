@@ -30,6 +30,8 @@ func (s *DecoHoleService) SetRuneSlot(ctx context.Context, charID int64, decoPos
 	if slotIdx < 0 || slotIdx >= 16 {
 		return nil, fmt.Errorf("deco_hole: invalid rune slot index %d", slotIdx)
 	}
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -52,6 +54,8 @@ func (s *DecoHoleService) ClearRuneSlot(ctx context.Context, charID int64, decoP
 	if slotIdx < 0 || slotIdx >= 16 {
 		return nil, 0, fmt.Errorf("deco_hole: invalid rune slot index %d", slotIdx)
 	}
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, 0, err

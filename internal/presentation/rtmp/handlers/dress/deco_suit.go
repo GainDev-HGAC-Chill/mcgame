@@ -9,9 +9,15 @@ package dress
 
 import (
 	"mcgame-server/internal/infrastructure/rtmp"
+
+	"go.uber.org/zap"
 )
 
 func (h *Handler) GetDecoSuitProp(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	charID, validCharacter := h.characterID(ctx)
+	if !validCharacter || h.decoHoleService == nil {
+		return nil, nil
+	}
 	if len(args) < 3 {
 		return nil, nil
 	}
@@ -22,8 +28,11 @@ func (h *Handler) GetDecoSuitProp(ctx *rtmp.RPCContext, args []interface{}) (int
 	linkSuitID, _ := toInt64(args[1])
 	linkID, _ := toInt64(args[2])
 
-	result := h.service.GetDecoSuitProp(int(suitID), int(linkSuitID), int(linkID))
-	if result == nil {
+	result, err := h.decoHoleService.GetDecoSuitProp(ctx.Context, charID, int(suitID), int(linkSuitID), int(linkID))
+	if err != nil || result == nil {
+		if err != nil {
+			h.logger.Error("getDecoSuitProp: service error", zap.Int64("character_id", charID), zap.Error(err))
+		}
 		return nil, nil
 	}
 

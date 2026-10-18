@@ -51,8 +51,33 @@ func (h *Handler) registerLegacyActivityBacklogHandlers(dispatcher *rtmp.RPCDisp
 		return legacyStarterResponse{response: map[string]interface{}{"rank": []interface{}{}, "myRank": -1, "award": 0}}
 	})
 	register("initCardPlayPanel", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
-		return legacyStarterResponse{response: map[string]interface{}{"day": state.day, "time": 0, "max": 0}}
+		return legacyStarterResponse{response: legacyCardGameUnavailablePayload()}
 	})
+	register("startGame", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
+		return legacyStarterResponse{}
+	})
+	register("changeCard", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
+		return legacyStarterResponse{}
+	})
+	register("getCardAward", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
+		return legacyStarterResponse{}
+	})
+	register("addPlayTime", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
+		return legacyStarterResponse{}
+	})
+	for _, method := range []string{
+		"initTaskSweepPanelByClient",
+		"getTaskBattleTime",
+		"taskSweepSure",
+		"taskSweepCancel",
+		"taskSweepEnd",
+		"taskSweepLeftTimeCheck",
+		"taskFinishByGold",
+	} {
+		register(method, func(state legacyActivityState, args []interface{}) legacyStarterResponse {
+			return legacyStarterResponse{}
+		})
+	}
 	register("getAutoTaskData", func(state legacyActivityState, args []interface{}) legacyStarterResponse {
 		payload := legacyAutoTaskPayload(state)
 		return legacyStarterResponse{
@@ -415,6 +440,10 @@ func legacyTreasureBowlPayload(state legacyActivityState) map[string]interface{}
 		"gold4awardTimeDaily": "0",
 		"ppvefloor":           0,
 	}
+}
+
+func legacyCardGameUnavailablePayload() map[string]interface{} {
+	return map[string]interface{}{"flag": true, "max": 0, "now": 0, "changeTime": 0}
 }
 
 func legacyTrialsPayload(state legacyActivityState) map[string]interface{} {

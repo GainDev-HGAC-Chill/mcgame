@@ -16,11 +16,15 @@ import (
 	"time"
 )
 
-var ErrInsufficientItems = errors.New("prs: không đủ vật phẩm")
-
-var ErrNotActivated = errors.New("prs: hình dạng chưa kích hoạt")
+var (
+	ErrInsufficientItems = errors.New("prs: không đủ vật phẩm")
+	ErrNotActivated      = errors.New("prs: hình dạng chưa kích hoạt")
+)
 
 func (s *Service) ActiveShow(ctx context.Context, charID int64, showID int) (map[string]interface{}, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	tpl := s.gameData.GetPrsShow(showID)
 	if tpl == nil {
 		return nil, ErrUnknownShow
@@ -54,6 +58,9 @@ func (s *Service) ActiveShow(ctx context.Context, charID int64, showID int) (map
 }
 
 func (s *Service) ActiveShowSpe(ctx context.Context, charID int64, showID int) (map[string]interface{}, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	tpl := s.gameData.GetPrsShow(showID)
 	if tpl == nil {
 		return nil, ErrUnknownShow
@@ -86,6 +93,9 @@ func (s *Service) ActiveShowSpe(ctx context.Context, charID int64, showID int) (
 }
 
 func (s *Service) ReplaceShow(ctx context.Context, charID int64, showID int) (int, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return 0, err
@@ -102,6 +112,9 @@ func (s *Service) ReplaceShow(ctx context.Context, charID int64, showID int) (in
 }
 
 func (s *Service) CancelShow(ctx context.Context, charID int64) (int, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return 0, err
@@ -118,6 +131,9 @@ func (s *Service) UpdateActiveShow(ctx context.Context, charID int64, expiredSho
 	if len(expiredShowIDs) == 0 {
 		return nil
 	}
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return err

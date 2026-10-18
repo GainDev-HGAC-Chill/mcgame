@@ -216,3 +216,19 @@ User: "continue to solve the blocked". 6-agent research workflow re-verified eve
 - **STILL deferred:** Pet PVE rank (DB-migration-dependent, data present); lottery/luckDraw pools (unproven `TBL_PLAN.t`, needs live trace); Medal award-type-36 (data-blocked — pipeline works, no `TBL_ITEM_AWARD` rows exist anywhere).
 
 **quietMethods**: `activePRSShowSpe` is a NEW registered RPC — left LOGGED, ASK before quieting. Others ride existing RPCs/login path.
+
+## PRS Thăng Cấp integrity follow-up (2026-10-18)
+
+- `addSoulTreeLvl` now follows checked `TBL_PRS_TREE.next_id` and verifies that the target level is exactly current+1; it no longer assumes `tid+1`.
+- PRS mutations are serialized per character in-process. Concurrent Thăng Cấp requests execute in order rather than overwriting the same JSONB snapshot.
+- If PRS state persistence fails after Chân Hồn Thạch is deducted, the service restores and persists the currency. Equivalent compensation now covers Kết Tinh Thần Dụ exchange and paid PRS collection.
+- The handler continues to push the complete `updatePRSPanel` object after success; focused wire tests assert non-null `actArr`, `actLimitObj`, `chipBag`, and `excBag` plus the exact next `tid`.
+- This follow-up covers the outer second tab, **Thăng Cấp**, as confirmed by the operator. `activePRSShowSpe` was not changed.
+
+## Hồn Khí lifecycle and stats (2026-10-18)
+
+- Hồn Khí ownership is persisted inside the existing `FeatureDecoHole` state without a schema change. Activation validates `TBL_DECO_SHOW`, charges exact `activeGold`, and compensates Gold if feature-state persistence fails.
+- Equip/off, show/hide, visual tier, expiry cleanup, suit ownership flags, and the exact Flash RPC names now use server-owned state. Unowned, expired, wrong-position, and invalid visual-tier requests fail closed.
+- `addDecoHoleLevel` and `addDecoHoleLevelTenTimes` spend both `costNum` Bí Ngân (`DecoSilver`) and `costSil` bound silver per attempt, use catalog success rate/next row, serialize with rune/lifecycle mutations, and restore both balances if a successful level change cannot be persisted.
+- Hole, equipped show, and character-target rune properties are merged through the character bonus-provider pipeline. Only checked catalog property IDs are projected; no undocumented Hồn Khí effect is invented.
+- Economy consistency uses explicit compensation, not one PostgreSQL transaction. Runtime Flash confirmation is still pending.

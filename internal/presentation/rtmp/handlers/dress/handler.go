@@ -83,7 +83,16 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("setFakeFlyerDress", h.SetFakeFlyerDress)
 	dispatcher.Register("unsetFakeFlyerDress", h.UnsetFakeFlyerDress)
 	dispatcher.Register("getDecoSuitProp", h.GetDecoSuitProp)
+	dispatcher.Register("initDecoratePanel", h.InitDecoratePanel)
+	dispatcher.Register("activeDecoShow", h.ActiveDecoShow)
+	dispatcher.Register("equipDecoShow", h.EquipDecoShow)
+	dispatcher.Register("equipOffDecoShow", h.EquipOffDecoShow)
+	dispatcher.Register("hideDecoShow", h.HideDecoShow)
+	dispatcher.Register("showDecoShow", h.ShowDecoShow)
+	dispatcher.Register("changeShowLvl", h.ChangeShowLevel)
+	dispatcher.Register("updateActiveDecoShow", h.UpdateActiveDecoShow)
 	dispatcher.Register("addDecoHoleLevel", h.AddDecoHoleLevel)
+	dispatcher.Register("addDecoHoleLevelTenTimes", h.AddDecoHoleLevelTenTimes)
 }
 
 func (h *Handler) characterID(ctx *rtmp.RPCContext) (int64, bool) {

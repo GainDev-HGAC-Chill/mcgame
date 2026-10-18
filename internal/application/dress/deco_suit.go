@@ -7,8 +7,10 @@
 package dress
 
 import (
+	"context"
 	"sort"
 	"strconv"
+	"time"
 
 	"mcgame-server/internal/gamedata/models"
 )
@@ -30,8 +32,8 @@ type DecoSuitPropResult struct {
 	ActLinkSuitName string
 }
 
-func (s *Service) GetDecoSuitProp(suitID, linkSuitID, linkID int) *DecoSuitPropResult {
-	shows := s.gameData.GetDecoShowsBySuitID(suitID)
+func (s *DecoHoleService) GetDecoSuitProp(ctx context.Context, charID int64, suitID, linkSuitID, linkID int) (*DecoSuitPropResult, error) {
+	shows := s.gameDataMgr.GetDecoShowsBySuitID(suitID)
 	suitIdObj := buildSuitIdObj(shows)
 	suitProp := buildSuitProps(shows)
 	actName := extractSuitName(shows)
@@ -47,11 +49,19 @@ func (s *Service) GetDecoSuitProp(suitID, linkSuitID, linkID int) *DecoSuitPropR
 		ActLinkSuitFlag: false,
 		ActLinkSuitName: "",
 	}
+	state, err := s.loadState(ctx, charID)
+	if err != nil {
+		return nil, err
+	}
+	result.ActArr = ownedDecoShowsForSuit(state, shows, time.Now().UnixMilli())
+	result.ActFlag = len(shows) > 0 && len(result.ActArr) == len(shows)
 
 	if linkSuitID > 0 && linkSuitID != suitID {
-		linkShows := s.gameData.GetDecoShowsBySuitID(linkSuitID)
+		linkShows := s.gameDataMgr.GetDecoShowsBySuitID(linkSuitID)
 		if len(linkShows) > 0 {
 			result.ActLinkSuitName = extractSuitName(linkShows)
+			result.ActLinkSuitFlag = len(ownedDecoShowsForSuit(state, linkShows, time.Now().UnixMilli())) == len(linkShows)
+			result.LinkFlag = result.ActFlag && result.ActLinkSuitFlag
 			linkProps := buildLinkProps(linkShows, linkID)
 			if len(linkProps) > 0 {
 				result.LinkProp = buildIndexedPropMap(linkProps)
@@ -63,7 +73,22 @@ func (s *Service) GetDecoSuitProp(suitID, linkSuitID, linkID int) *DecoSuitPropR
 		}
 	}
 
-	return result
+	return result, nil
+}
+
+func ownedDecoShowsForSuit(state *DecoHoleState, shows []*models.DecoShowTemplate, nowMs int64) map[string]interface{} {
+	owned := make(map[string]interface{})
+	if state == nil {
+		return owned
+	}
+	for _, show := range shows {
+		position := int(show.Position)
+		hole := state.Positions[position]
+		if hole != nil && decoShowOwned(decodeDecoActiveFlag(hole.ActiveFlag), int(show.ID), nowMs) {
+			owned[strconv.Itoa(position)] = int(show.ID)
+		}
+	}
+	return owned
 }
 
 func buildSuitIdObj(shows []*models.DecoShowTemplate) map[string]interface{} {

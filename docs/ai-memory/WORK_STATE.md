@@ -2,6 +2,7 @@
 
 ## Mục tiêu phiên
 
+- Audit và lập kế hoạch hoàn thiện 10 hệ thống legacy: Ma Tâm, Thẻ Bài Ma Thuật, sweep phụ bản, Trang Viên, Hồn Khí, thiết lập/Đấu Trường Pet, Phần Thưởng Hồi Phục, Tu Luyện Ảo Ma, Không Gian Điêu Khắc và trang 2 Chân Hồn Pet; đối chiếu Flash, server, game-data và website chính thức trước khi sửa code.
 - Audit end-to-end học/nâng cấp/hiệu lực chiến đấu của skill nhân vật và skill Tiểu Tinh Linh; xác minh và lập kế hoạch sửa item 5947/5949 lỗi game-currency ID 75/74 mà không dùng item hoặc người chơi thật.
 - Cho phép người chơi chủ động bỏ nhiệm vụ type 1 đã nhận mà không sửa Flash client hoặc thay đổi canonical quest semantics.
 - Kiểm tra damage thật, target AoE và số sát thương hiển thị của toàn bộ Pet active skill; mọi hit đã trừ HP phải có playback damage cho đúng target.
@@ -20,6 +21,11 @@
 
 ## Đã hoàn thành
 
+- Legacy C/D/I compatibility safety hoàn tất: Card có disabled payload và đủ RPC no-op; sweep đủ bảy RPC no-op; HMTXLS đủ entry/exit/claim RPC và refresh read model rỗng thay vì giả occupancy/reward. Gameplay vẫn BLOCKED đúng plan vì thiếu reward/task-room authority.
+- Legacy Unit B safe subset và Unit F catalog scope hoàn tất: Ma Tâm validate catalog/type/hole/owned-count, serialize set/remove và cộng direct-heart stats; các mutation economy/combine thiếu authority vẫn fail-closed. Hồn Khí có ownership/equip/show/suit lifecycle, nâng 1/10 lần bằng `costNum` Bí Ngân + `costSil` bạc khóa, stat provider và compensation; rune/lifecycle dùng chung mutation lock.
+- Legacy Unit J safety hoàn tất: PPVE `challengeNextFloor` không còn auto-advance và báo thắng giả; khi thiếu floor roster, server trả `BATTLE_NOT_END`, không tiêu lượt hay đổi floor/rank/KP, kèm structured diagnostic.
+- Legacy Units A/G/K hoàn tất: thêm combined registration baseline; harden Thiết lập/Đấu Trường Pet bằng ownership/position/command/skill validation và state context riêng; tab Thăng Cấp PRS đi theo checked `next_id`, serialize mutation, full-state callback và rollback currency khi save lỗi. Review parent loại bỏ single-flight gộp nhầm hai lần bấm hợp lệ và giữ nguyên `activePRSShowSpe` vì operator xác nhận chỉ outer tab Thăng Cấp.
+- Audit 10 hệ thống legacy hoàn tất tại `docs/research/2026-10-18_01_LEGACY_FEATURE_COMPLETENESS_AUDIT.md`; plan `docs/plans/2026-10-18_01_LEGACY_FEATURE_COMPLETION.md` đã được operator duyệt toàn bộ Units A–K. Thuật ngữ đã chốt: “Đấu Pet kiểu” = Thiết lập/Đấu Trường Pet; “trang 2 Chân Hồn Pet” = outer tab Thăng Cấp. Implementation bắt đầu từ Unit A và nhóm hardening không cần đoán cơ chế.
 - Skill/Fairy/crystal implementation Unit A complete: IDs 73–75 now share the canonical descriptor/accessor registry; stale 5948/5949 silver fallbacks removed; multi-use aggregates currency deltas and final totals; focused currency/award/multi-use tests and targeted vet passed.
 - Crystal Unit B complete on compose static catalog: added only `data.data_tbl_item_award` 5948→currency73×20 with ID 810001523, verified exact rows for 5947/5948/5949/5993 and total 561 rows, then exported the full table to `supabase/seeds/data_tbl_item_award.sql`. No schema migration or player data was touched; gameserver was not restarted, so current runtime cache may not see 5948 until an authorized restart.
 - Character skill Units C–F code-complete pending broad verification: added per-character mutation locks, fail-closed ordinary book resolver by title/class/environment, exact-next upgrade enforcement, EXP/selected-silver debit with compensation, ordinary type-505 learn/rollback/callback flow, and truthful callback-load errors. Fishing 2400/Herb 2408 now use the life-skill path; level-1 life skills cannot be granted through `skillLearnByClient`, and requested upgrades must identify the exact next row. Combat ignores client damage level scaling and validates exact character/Pet skill ownership. Focused skill/item/Pet/domain-combat/combat-handler tests pass.
@@ -52,6 +58,7 @@
 
 ## File đang sửa/chưa commit
 
+- Nhóm legacy A–K hiện sửa application/handler/test cho Dress/Hồn Khí, Monster Heart/statfeature, Pet Arena, PRS và Activity/PPVE, cùng wiring gamedata/main và các tài liệu research/plan/memory. Không có migration, ActionScript, deploy/restart, player-data mutation, commit hoặc push.
 - Skill/Fairy/crystal implementation modifies the approved currency/item/skill/combat/Fairy/bootstrap/seed scope plus research, plan, memory, history and checkpoint documents. Preserve unrelated Quest/STH/client artifacts if they reappear; no deploy, restart, migration, player-data mutation, commit or push was performed.
 - Nhóm quest abandonment: `internal/application/quest/client_presentation.go`, `service.go`, `loop_service_test.go`, `presentation_sort_test.go`; memory tại `quest-loop-system.md`, `npc-quest-system.md`, `FIX_HISTORY.md` và file này. Không chạm nhóm STH activity/migration đang tồn tại song song.
 - HEAD `2b550d0` đã chứa nhóm Pet/blood-bag/transport/shop và bộ nhớ trước đó; không commit/push thêm.
@@ -59,6 +66,13 @@
 
 ## Kiểm tra đã chạy
 
+- Final legacy verification: broad `go test ./internal/... -count=1` has no new legacy failure. It retains known unrelated baselines: six item award-quality/starter-gift cases, Quest registry `235 want 227`, and two chat-stat expectations. Targeted vet PASS, gameserver build PASS, diff-check clean except Windows line-ending warnings.
+- Legacy C/D/I compatibility: activity backlog/icon-panel tests và combined dispatcher registration PASS.
+- Legacy B/F + current legacy batch: targeted `go vet` PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; `git diff --check` sạch ngoài cảnh báo LF→CRLF của Windows.
+- Legacy B/F focused: Monster Heart application/statfeature/handler; Dress application/handler; Rune application/handler và gamedata đều PASS. Combined registration đã được cập nhật cho authenticated Hồn Khí handler và PASS.
+- Legacy Unit J: activity handler và `internal/application/pet` PASS; targeted vet PASS.
+- Legacy A/G/K: Pet Arena application/handler, PRS application/handler, combined handler registration suite và targeted `go vet` đều PASS.
+- Audit legacy chỉ thay đổi Markdown; `git diff --check` PASS, ngoài cảnh báo chuyển LF→CRLF của Windows cho `WORK_STATE.md`. Không chạy test/build vì chưa có thay đổi code.
 - Skill/Fairy/crystal current scope: focused character currency, item award/multi-use, skill catalog/progression, item skill-book, life-skill, Pet ownership, domain combat and combat handler tests PASS; targeted vet for all changed Go packages PASS; scoped diff-check clean apart from line-ending warnings. Full `internal/application/item` still has only the recorded award-quality/starter-gift baseline failures, unrelated to currency aggregation.
 - Mật Bảo formula focused: `internal/application/mysterytreasure` và item-handler tests cho learn/duplicate/rollback/use-item PASS.
 - Lotto claim visibility: full `internal/application/lotto` và lotto handler PASS; regression xác nhận final stack/SID DTO và dedupe callback.
@@ -105,6 +119,8 @@
 
 ## Runtime/database
 
+- Unit E/H database blocker: `docker compose ... ps` không kết nối được Docker Desktop Linux engine. Không start/restart stack, không áp SQL, không tạo migration tay và không đổi player data.
+- Pre-Unit-E checkpoint 2026-10-18: A/G/K code and docs are uncommitted; focused tests/vet PASS. No Unit-E schema/function has been applied, no compose service has been restarted, and no player row has been changed. Next action is read-only inspection of estate/inventory repositories and compose status before deciding whether a generated migration is required.
 - Pre-Unit-B checkpoint: compose `supabase-db` is healthy. Approved static-data scope is limited to verifying 5947/5949/5993 and adding missing `data.data_tbl_item_award` row 5948→type35/currency73/count20, followed by full table seed export. No player schema/data, migration, deploy, or restart is authorized.
 - Trước khi thử migration launcher: compose DB đang chạy; history đã có đến `20261016073610`, còn thiếu out-of-order `20261016040000_findback_bounty_verification.sql` và migration mới hơn `20261016090000_sth_progress.sql`. Chưa apply hai migration này trong bước code/checkpoint; không reset hoặc sửa player data.
 - `bin/gameserver.exe` đã build gồm fix channel 0; container `mcgame-server` chưa được assistant restart và cần deploy/restart được cho phép để nhận fix mới.
@@ -115,6 +131,11 @@
 
 ## Rủi ro/chưa xác minh
 
+- Card/sweep/HMTXLS hiện không còn method-not-found nhưng gameplay chủ ý unavailable: Card thiếu draw probability/reward authority; sweep thiếu canonical eligibility/cost/reward transaction; HMTXLS thiếu room capacity/timing/cost/reward. Không được coi no-op compatibility là feature completion.
+- Ma Tâm chưa có atomic authority cho mở lỗ/nâng/resolve/nâng box và chưa áp `TBL_CREATUREH_COMBINE`; các RPC này chỉ fail-closed. Hồn Khí dùng compensation hai bước thay vì DB transaction chung; chưa Flash smoke-test callback/render/stat.
+- Trang Viên atomic transfer (E) và Find Back banner/repository (H) cần compose transaction + generated migration nên đang BLOCKED khi Docker engine tắt. Banner mapping đã xác minh theo Flash: color 0..5 → item `1330,1331,1332,1333,1335,731`; chưa bật claim khi thiếu persisted refresh count/atomic boundary.
+- Pet Arena simulator hiện vẫn chỉ chạy lead Pet, chưa execute cả đội 2–5 theo chuỗi 24 lệnh. `getPetConf` không có mode arg nên HMTXLS save được state riêng nhưng chưa có wire để chọn readback riêng. PRS compensation là hai bước có error propagation nếu chính restore persistence thất bại, chưa phải một DB transaction chung.
+- Nguồn authority vẫn thiếu nên phải fail-closed: Card draw/reward, sweep task/cost/reward transaction, HMTXLS room/timing/cost/reward, PPVE floor-enemy roster, Ma Tâm economy/combine và Hồn Khí effect ngoài checked catalog. Thuật ngữ đã được operator chốt: Đấu Pet = lineup/AI + Pet Arena; trang 2 Chân Hồn = outer tab Thăng Cấp, không mở rộng `activePRSShowSpe`.
 - Quest abandonment fix chưa deploy/restart hoặc Flash smoke-test. Active type-1 quest sẽ hiển thị trong nhóm nhiệm vụ chính để vượt hard-coded client lock; cần xác nhận nút Hủy, callback xóa quest khỏi panel và NPC state refresh sau deploy bằng quest test không phải Quest 166.
 - Pet damage popup/AoE fix chưa deploy/restart hoặc Flash smoke-test; cần thử đại diện all-enemy, horizontal/cross, damage+debuff, lethal AoE, miss và DoT tick để xác nhận animation thực tế.
 - Quest Trung Cấp 3-1 chưa deploy/restart hoặc Flash smoke-test; hai bước dùng chung 3-2 (645) và 3-3 (677) chưa được thay đổi vì có semantics riêng cần kiểm chứng nếu tiếp tục lỗi.
@@ -139,6 +160,12 @@
 
 ## Bước tiếp theo
 
+- Safe implementation pass A–K is complete. Next actionable work requires either Docker availability for E/H, new authoritative data for B/C/D/I/J, or explicit deploy/restart permission for Flash smoke tests; do not guess around these gates.
+- Chạy final focused/broad verification cho toàn legacy batch A–K, cập nhật plan summary. E/H tiếp tục blocked bởi Docker; B/C/D/I/J còn blocked mechanics đã ghi rõ.
+- Chạy targeted vet/build/diff-check cho B/F và toàn nhóm legacy hiện tại; sau đó tiếp tục Unit C/D/I theo fail-closed constraints. E/H vẫn chờ Docker compose khả dụng.
+- Tiếp tục catalog-backed Unit B (Ma Tâm) và F (Hồn Khí) không cần schema trước; E/H chờ Docker compose khả dụng.
+- Tiếp tục legacy Unit E (Trang Viên atomic transfer), rồi H (Find Back); ghi checkpoint trước khi chạm compose migration.
+- Triển khai Unit A, sau đó hardening E/G/H/K; ghi checkpoint riêng trước mọi compose migration. Không tự restart/deploy hoặc dùng dữ liệu người chơi thật.
 1. Khi được operator cho phép deploy/restart, dùng character/item test để smoke-test ordinary/life skill learn-upgrade, bốn crystal awards, Fairy guard/stat refresh, một passive và sáu active effect đủ dữ liệu; xác nhận family mơ hồ không tạo effect. Không dùng Quest 166, Pet Nấm Lục, item hoặc người chơi thật.
 2. Khi được operator cho phép deploy/restart gameserver: Flash smoke-test một quest Trung Cấp 3-1 trên nhân vật test đúng class/rank tại NPC 600, rồi kiểm tra tiếp 3-2/3-3; không dùng Quest 166 hoặc sửa tiến độ người chơi thật.
 3. Khi local Supabase được operator khởi động lại: apply `20261016073610_allow_edit_active_quests.sql`, xác minh transactional rollback rằng structural patch trên quest active được chấp nhận và audit/revision vẫn hoạt động; sau đó deploy dashboard theo yêu cầu riêng.

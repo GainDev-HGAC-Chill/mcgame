@@ -91,6 +91,22 @@ func (m *Manager) GetCreature(id int) *models.CreatureTemplate {
 	return m.cache.GetCreature(id)
 }
 
+func (m *Manager) GetCreatureHeart(id int) *models.CreaturehHeartTemplate {
+	return m.cache.GetCreatureHeart(id)
+}
+
+func (m *Manager) GetCreatureHeartCombine(id int) *models.CreaturehCombineTemplate {
+	return m.cache.GetCreatureHeartCombine(id)
+}
+
+func (m *Manager) GetCreatureHeartContain(id int) *models.CreaturehContainTemplate {
+	return m.cache.GetCreatureHeartContain(id)
+}
+
+func (m *Manager) GetCreatureHeartPoint(id int) *models.CreaturehPointTemplate {
+	return m.cache.GetCreatureHeartPoint(id)
+}
+
 func (m *Manager) GetAllCreatures() []*models.CreatureTemplate {
 	return m.cache.GetAllCreatures()
 }

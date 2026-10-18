@@ -114,6 +114,9 @@ func (s *Service) today() string {
 }
 
 func (s *Service) FreeCollect(ctx context.Context, charID int64) (*State, []ChipReward, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -153,6 +156,9 @@ func (s *Service) GoldCollectThree(ctx context.Context, charID int64) (*State, [
 }
 
 func (s *Service) goldCollect(ctx context.Context, charID int64, cost, qty int) (*State, []ChipReward, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -177,11 +183,16 @@ func (s *Service) goldCollect(ctx context.Context, charID int64, cost, qty int) 
 
 	char.Gold -= int64(cost)
 	if err := s.charRepo.Update(ctx, char); err != nil {
+		char.Gold += int64(cost)
 		return nil, nil, fmt.Errorf("prs: deduct gold: %w", err)
 	}
 	if err := s.saveState(ctx, charID, state); err != nil {
-		s.logger.Error("prs: gold deducted but chip save failed",
-			zap.Int64("char_id", charID), zap.Int("cost", cost), zap.Error(err))
+		char.Gold += int64(cost)
+		if restoreErr := s.charRepo.Update(ctx, char); restoreErr != nil {
+			s.logger.Error("prs: failed to restore gold after chip save failure",
+				zap.Int64("char_id", charID), zap.Int("cost", cost), zap.Error(restoreErr))
+			return nil, nil, errors.Join(err, fmt.Errorf("prs: persist restored gold: %w", restoreErr))
+		}
 		return nil, nil, err
 	}
 	return state, rewards, nil

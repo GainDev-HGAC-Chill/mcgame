@@ -110,10 +110,11 @@ func (s *Service) Fight(ctx context.Context, attackerID int64, defenderID int64)
 		return nil, nil, pkgerrors.ErrInvalidInput
 	}
 
-	if attackerRanking.PetID == nil {
-		return nil, nil, pkgerrors.ErrInvalidInput
+	attackerPetID, err := s.arenaLeadPetID(ctx, attackerID)
+	if err != nil {
+		return nil, nil, err
 	}
-	attackerPet, err := s.petRepo.FindByID(ctx, *attackerRanking.PetID)
+	attackerPet, err := s.petRepo.FindByID(ctx, attackerPetID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -123,10 +124,11 @@ func (s *Service) Fight(ctx context.Context, attackerID int64, defenderID int64)
 		return nil, nil, err
 	}
 
-	if defenderRanking.PetID == nil {
-		return nil, nil, pkgerrors.ErrInvalidInput
+	defenderPetID, err := s.arenaLeadPetID(ctx, defenderID)
+	if err != nil {
+		return nil, nil, err
 	}
-	defenderPet, err := s.petRepo.FindByID(ctx, *defenderRanking.PetID)
+	defenderPet, err := s.petRepo.FindByID(ctx, defenderPetID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,8 +138,8 @@ func (s *Service) Fight(ctx context.Context, attackerID int64, defenderID int64)
 	battle := &petarena.ArenaBattle{
 		AttackerID:           attackerID,
 		DefenderID:           defenderID,
-		AttackerPetID:        *attackerRanking.PetID,
-		DefenderPetID:        *defenderRanking.PetID,
+		AttackerPetID:        attackerPetID,
+		DefenderPetID:        defenderPetID,
 		AttackerRatingBefore: attackerRanking.Rating,
 		DefenderRatingBefore: defenderRanking.Rating,
 		RatingChange:         result.AttackerRatingChange,
@@ -339,69 +341,6 @@ func (s *Service) GetLastSeasonRank(ctx context.Context, charID int64) (int, int
 	return reward.Rank, reward.Rating, nil
 }
 
-func (s *Service) GetPetFightConfig(ctx context.Context, charID int64, configKey string) (map[string]interface{}, error) {
-	if s.arenaRepo == nil {
-		return map[string]interface{}{}, nil
-	}
-
-	config, err := s.arenaRepo.GetFightConfig(ctx, charID, configKey)
-	if err != nil {
-		if errors.Is(err, pkgerrors.ErrNotFound) {
-			return map[string]interface{}{}, nil
-		}
-		return nil, err
-	}
-	if config == nil || config.ConfData == nil {
-		return map[string]interface{}{}, nil
-	}
-	return config.ConfData, nil
-}
-
-func (s *Service) SavePetFightConfig(ctx context.Context, charID int64, configKey string, confData map[string]interface{}) error {
-	if s.arenaRepo == nil {
-		return pkgerrors.ErrSystemError
-	}
-
-	config := &petarena.FightConfig{
-		CharacterID: charID,
-		ConfigKey:   configKey,
-		ConfData:    confData,
-	}
-	return s.arenaRepo.SaveFightConfig(ctx, config)
-}
-
-func (s *Service) RegisterArenaEntry(ctx context.Context, charID int64, teamName string, confData map[string]interface{}) (*petarena.Entry, error) {
-	entry, err := s.arenaRepo.GetEntry(ctx, charID, s.config.Season)
-	if err != nil && !errors.Is(err, pkgerrors.ErrNotFound) {
-		return nil, err
-	}
-	if entry == nil {
-		entry = &petarena.Entry{
-			CharacterID: charID,
-			Season:      s.config.Season,
-			MaxFights:   20,
-			UsedFights:  0,
-			LastRank:    -1,
-		}
-	}
-	entry.TeamName = teamName
-	entry.ConfData = map[string]interface{}{"conf1": confData}
-	if entry.MaxFights <= 0 {
-		entry.MaxFights = 20
-	}
-	if entry.LastRank == 0 {
-		entry.LastRank = -1
-	}
-	if err := s.arenaRepo.SaveEntry(ctx, entry); err != nil {
-		return nil, err
-	}
-
-	if leadPetID := firstConfiguredPetID(confData); leadPetID > 0 {
-		_ = s.SetBattlePet(ctx, charID, leadPetID)
-	}
-	return entry, nil
-}
-
 func (s *Service) GetEnemies(ctx context.Context, charID int64) ([]map[string]interface{}, error) {
 	selfRanking, rank, err := s.GetArenaData(ctx, charID)
 	if err != nil {
@@ -564,35 +503,4 @@ func rewardTierID(rank int) int {
 	default:
 		return 0
 	}
-}
-
-func firstConfiguredPetID(confData map[string]interface{}) int64 {
-	if len(confData) == 0 {
-		return 0
-	}
-	for _, key := range []string{"5", "6", "7", "8", "9"} {
-		raw, ok := confData[key]
-		if !ok {
-			continue
-		}
-		entry, ok := raw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		switch pid := entry["pid"].(type) {
-		case float64:
-			if int64(pid) > 0 {
-				return int64(pid)
-			}
-		case int64:
-			if pid > 0 {
-				return pid
-			}
-		case int:
-			if pid > 0 {
-				return int64(pid)
-			}
-		}
-	}
-	return 0
 }

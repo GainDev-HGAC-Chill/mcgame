@@ -51,3 +51,21 @@ func TestDecodeStateBoxLevels(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeStatePreservesBagEntryInstanceID(t *testing.T) {
+	state := DecodeState(map[string]interface{}{
+		"bag": map[string]interface{}{
+			"ren": map[string]interface{}{
+				"9001": map[string]interface{}{"id": float64(9001), "itemId": float64(101), "n": float64(2)},
+			},
+		},
+	})
+	category, entry, ok := state.BagEntry(9001)
+	if !ok || category != "ren" || entry.ID != 9001 || entry.ItemID != 101 || entry.N != 2 {
+		t.Fatalf("decoded entry = %q %#v %v", category, entry, ok)
+	}
+	wire := state.Encode()["bag"].(map[string]interface{})["ren"].(map[string]interface{})["9001"].(map[string]interface{})
+	if wire["id"] != 9001 || wire["itemId"] != 101 || wire["n"] != 2 {
+		t.Fatalf("wire entry = %#v", wire)
+	}
+}

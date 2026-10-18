@@ -37,6 +37,13 @@ func TestLegacyAutoTaskPayload_HasExpectedStarterKeys(t *testing.T) {
 	}
 }
 
+func TestLegacyCardGamePayloadFailsClosedWithoutStartingSession(t *testing.T) {
+	payload := legacyCardGameUnavailablePayload()
+	if payload["flag"] != true || payload["max"] != 0 || payload["now"] != 0 || payload["changeTime"] != 0 {
+		t.Fatalf("card payload = %#v", payload)
+	}
+}
+
 func TestLegacyCrossContentionPayload_ContainsPVEAndPVP(t *testing.T) {
 	payload := legacyCrossContentionPayload(legacyActivityState{day: "4|14|6"})
 

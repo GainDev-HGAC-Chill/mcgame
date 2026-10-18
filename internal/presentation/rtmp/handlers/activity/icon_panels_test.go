@@ -167,6 +167,27 @@ func TestGetHMTXLSData_UsesCharacterLevel(t *testing.T) {
 	}
 }
 
+func TestEnterPubRoomFailsClosedAndRefreshesReadModel(t *testing.T) {
+	char := domainchar.NewCharacter(uuid.New(), "tester", 1, 0)
+	char.ID = 11
+	char.Level = 60
+	handler := NewHandler(nil, zap.NewNop())
+	handler.SetCharacterRepository(&activityTestCharacterRepo{char: char})
+	sender := &pmResponderTransport{}
+	conn := rtmp.NewConnection(18, nil, nil, zap.NewNop())
+	conn.SetCharacter("11")
+	conn.SetTransport(sender)
+	ctx := &rtmp.RPCContext{Context: context.Background(), ConnID: 18, CharacterID: "11", Connection: conn}
+
+	result, err := handler.EnterPubRoom(ctx, nil)
+	if err != nil || result != nil {
+		t.Fatalf("EnterPubRoom() result=%#v err=%v", result, err)
+	}
+	if len(sender.methods) != 1 || sender.methods[0] != "onHMTXLSData" {
+		t.Fatalf("callbacks = %v, want only onHMTXLSData", sender.methods)
+	}
+}
+
 func TestGetTXKCData_ReturnsStarterFlagShape(t *testing.T) {
 	handler := NewHandler(nil, zap.NewNop())
 	handler.SetCharacterRepository(&activityTestCharacterRepo{})

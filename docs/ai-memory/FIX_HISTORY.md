@@ -266,3 +266,33 @@
 - Sửa: canonical hóa currency `73/74/75` và bốn award 5947/5948/5949/5993; thêm ordinary/life-skill progression có lock, exact-next và debit/rollback; combat xác minh ownership Character/Pet và bỏ client-level scaling; Fairy dùng canonical 22 family, một guard, config an toàn, base/growth/satiety bonus, sáu passive và sáu active battle-local đủ dữ liệu. Các active family thiếu timing/formula vẫn fail-closed và log warning.
 - Test: focused currency/item/skill/life-skill/Pet/combat/Fairy suites PASS; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; `git diff --check` không có lỗi whitespace ngoài cảnh báo line ending. Broad `go test ./internal/... -count=1` chỉ còn baseline ngoài phạm vi: item award-quality/starter-gift, Quest registry `235 want 227`, và hai chat-stat tests.
 - Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không dùng item/người chơi thật, Quest 166 hay Pet Nấm Lục; không migration hoặc sửa player data.
+
+## FIX-2026-10-18-18 — RPC baseline, Thiết lập Pet và trang Thăng Cấp Chân Hồn
+
+- Xác nhận full registration order không để activity backlog ghi đè handler thật của Ma Tâm, Trang Viên, Hồn Khí, Pet Arena, Find Back, PPVE và PRS; Card vẫn là stub có chủ đích, sweep vẫn chưa đăng ký trước Unit D.
+- Thiết lập/Đấu Trường Pet nay validate Pet sở hữu duy nhất, vị trí 5–9, 2–5 Pet khi báo danh, tối đa 24 lệnh, action/target và skill sở hữu; tách state farm/HMTXLS/arena và dùng arena snapshot để chọn Pet chiến đấu.
+- `addSoulTreeLvl` đi theo `TBL_PRS_TREE.next_id`, khóa mutation theo nhân vật, trả full panel state và hoàn Chân Hồn Thạch khi save state thất bại. Compensation tương tự được thêm cho đổi chip và paid collect.
+- Test: combined registration, Pet Arena application/handler và PRS application/handler PASS; targeted vet PASS. Không migration, deploy/restart, ActionScript, player-data mutation, commit hoặc push.
+- Trạng thái: CODE_FIXED — cần Flash smoke-test bằng nhân vật/Pet test sau khi được phép; Pet Arena combat vẫn chỉ mô phỏng lead Pet.
+
+## FIX-2026-10-18-19 — PPVE không còn tự thắng/tự tăng tầng
+
+- Nguyên nhân: `challengeNextFloor` gọi thẳng bookkeeping rồi push `BATTLE_WIN` dù chưa có combat hoặc floor-opponent roster.
+- Sửa: fail-closed tại handler, phát loading + `BATTLE_NOT_END`, không gọi mutation service nên không trừ lượt, tăng tầng, rank hoặc KP.
+- Test: activity handler và full `internal/application/pet` PASS; targeted vet PASS.
+- Trạng thái: SAFETY_FIXED/BLOCKED — challenge thật chờ nguồn roster đối thủ authoritative; chưa deploy/restart hoặc Flash smoke-test.
+
+## FIX-2026-10-18-20 — Ma Tâm authority và Hồn Khí catalog-backed
+
+- Ma Tâm: gắn tim nay kiểm tra catalog, loại tim/ô, category, lỗ mở và số lượng sở hữu; mutation được serialize theo nhân vật. Stat trực tiếp của tim đã vào effective character stats theo đúng divisor Flash. Các RPC tiêu item/tiền và combine bonus tiếp tục fail-closed, không đoán economy.
+- Hồn Khí: thêm ownership/equip/show lifecycle, suit activation, nâng một/mười lần bằng cả Bí Ngân + bạc khóa, catalog stat provider và compensation khi save state lỗi. Rune write dùng cùng khóa mutation để tránh ghi đè JSONB.
+- Test: Monster Heart application/statfeature/handler; Dress application/handler; Rune application/handler; gamedata focused đều PASS. Chưa migration, deploy/restart, ActionScript, player-data mutation, commit hoặc push.
+- Trạng thái: B PARTIAL_SAFE, F CODE_FIXED — cần broad vet/build và Flash smoke-test được cấp phép.
+
+## FIX-2026-10-18-21 — Card, sweep và HMTXLS fail-closed đầy đủ RPC
+
+- Thẻ Bài trả explicit disabled state đúng nhánh Flash và đăng ký đủ start/change/claim/add-time dưới dạng no-op; không tạo session bị kẹt hoặc cấp reward đoán.
+- Sweep đăng ký đủ bảy RPC client gọi nhưng không tạo eligibility, timer, cost, quest progress hay reward giả.
+- HMTXLS đăng ký đủ public/advanced entry, exit và claim; mọi mutation bị chặn và refresh `onHMTXLSData` rỗng, không còn báo giả “Làm mới dữ liệu” như đã vào phòng.
+- Test: activity backlog/icon-panel và combined dispatcher PASS. Không migration, deploy/restart, player-data mutation, commit hoặc push.
+- Trạng thái: COMPATIBILITY_FIXED/GAMEPLAY_BLOCKED — chờ nguồn authority đã ghi trong plan.

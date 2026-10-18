@@ -49,6 +49,7 @@ func (s *Service) AggregateCharacterStatBonuses(ctx context.Context, charID int6
 	s.applyHeiyaoshiBonus(&bonuses, featureStates[domainfeature.FeatureHeiyaoshi])
 	s.applyPMDailyBuffBonus(&bonuses, featureStates[domainfeature.FeaturePMDailyBuff])
 	applyMagicCrystalBonus(&bonuses, featureStates[domainfeature.FeatureMagicCrystal])
+	s.applyMonsterHeartBonus(&bonuses, featureStates[domainfeature.FeatureMonsterHeart])
 
 	return bonuses
 }

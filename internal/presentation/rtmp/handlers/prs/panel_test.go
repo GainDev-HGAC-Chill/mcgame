@@ -3,12 +3,16 @@ package prs
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
 
 	appprs "mcgame-server/internal/application/prs"
+	domainchar "mcgame-server/internal/domain/character"
 	domainfeature "mcgame-server/internal/domain/statfeature"
+	"mcgame-server/internal/gamedata"
+	"mcgame-server/internal/gamedata/models"
 	"mcgame-server/internal/infrastructure/rtmp"
 
 	"github.com/yutopp/go-amf0"
@@ -38,10 +42,43 @@ func (r *panelRepository) UpsertCharacterFeatureState(context.Context, *domainfe
 
 type panelTransport struct {
 	methods []string
+	args    [][]interface{}
 }
 
-func (s *panelTransport) WriteCommand(_ context.Context, method string, _ []interface{}) error {
+func (s *panelTransport) WriteCommand(_ context.Context, method string, args []interface{}) error {
 	s.methods = append(s.methods, method)
+	s.args = append(s.args, args)
+	return nil
+}
+
+type actionFeatureRepository struct {
+	domainfeature.Repository
+	state *domainfeature.CharacterFeatureState
+}
+
+func (r *actionFeatureRepository) ListCharacterFeatureStates(context.Context, int64) ([]*domainfeature.CharacterFeatureState, error) {
+	if r.state == nil {
+		return nil, nil
+	}
+	return []*domainfeature.CharacterFeatureState{r.state}, nil
+}
+
+func (r *actionFeatureRepository) UpsertCharacterFeatureState(_ context.Context, state *domainfeature.CharacterFeatureState) error {
+	r.state = state
+	return nil
+}
+
+type actionCharacterRepository struct {
+	domainchar.Repository
+	char *domainchar.Character
+}
+
+func (r *actionCharacterRepository) FindByID(context.Context, int64) (*domainchar.Character, error) {
+	return r.char, nil
+}
+
+func (r *actionCharacterRepository) Update(_ context.Context, char *domainchar.Character) error {
+	r.char = char
 	return nil
 }
 func (s *panelTransport) WriteCommandSync(ctx context.Context, method string, args []interface{}) error {
@@ -148,4 +185,37 @@ func TestEmptyPanelAMFResultIsObjectWithNonNullContainers(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertPanelContract(t, result)
+}
+
+func TestAddSoulTreeLvlPushesFullStateForExactNextRow(t *testing.T) {
+	mgr := gamedata.NewManager(nil, zap.NewNop())
+	raw := []json.RawMessage{
+		json.RawMessage(`{"id":1,"cost_stone":100,"next_id":20,"level":1}`),
+		json.RawMessage(`{"id":20,"cost_stone":200,"next_id":0,"level":2}`),
+	}
+	if err := mgr.GetCache().LoadTable(models.TablePrsTree, raw); err != nil {
+		t.Fatal(err)
+	}
+	featureRepo := &actionFeatureRepository{state: &domainfeature.CharacterFeatureState{
+		CharacterID: 101,
+		FeatureKey:  domainfeature.FeaturePRS,
+		State:       map[string]interface{}{"tid": "1"},
+	}}
+	charRepo := &actionCharacterRepository{char: &domainchar.Character{ID: 101, RealSoulStone: 500}}
+	h := NewHandler(appprs.NewService(featureRepo, charRepo, mgr, zap.NewNop()), zap.NewNop())
+	sender := &panelTransport{}
+	conn := rtmp.NewConnection(1, nil, nil, zap.NewNop())
+	conn.SetTransport(sender)
+	ctx := &rtmp.RPCContext{Context: context.Background(), CharacterID: "101", Connection: conn}
+
+	if _, err := h.AddSoulTreeLvl(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(sender.methods) != 1 || sender.methods[0] != "updatePRSPanel" || len(sender.args[0]) != 1 {
+		t.Fatalf("callbacks = %v args=%#v", sender.methods, sender.args)
+	}
+	panel := assertPanelContract(t, sender.args[0][0])
+	if panel["tid"] != "20" || charRepo.char.RealSoulStone != 300 {
+		t.Fatalf("callback/cost used wrong next row: panel=%#v stone=%d", panel, charRepo.char.RealSoulStone)
+	}
 }

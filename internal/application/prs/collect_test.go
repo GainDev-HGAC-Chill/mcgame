@@ -217,6 +217,19 @@ func TestGoldCollect_DoesNotUseArenaPointForGold(t *testing.T) {
 	}
 }
 
+func TestGoldCollect_RestoresGoldWhenStateSaveFails(t *testing.T) {
+	char := &domainchar.Character{ID: 1, Gold: 1000}
+	svc, charRepo := newCollectService(t, char)
+	svc.featureRepo.(*fakeFeatureRepo).upsertErr = errors.New("state unavailable")
+
+	if _, _, err := svc.GoldCollect(context.Background(), 1); err == nil {
+		t.Fatal("expected state save failure")
+	}
+	if got := charRepo.chars[1].Gold; got != 1000 {
+		t.Fatalf("gold after failed PRS save = %d, want restored 1000", got)
+	}
+}
+
 func TestSwapChip_RerollsExcSlotNetZero(t *testing.T) {
 	svc, _ := newCollectService(t, &domainchar.Character{ID: 1})
 	ctx := context.Background()

@@ -17,6 +17,14 @@ import (
 )
 
 func (h *Handler) AddDecoHoleLevel(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.addDecoHoleLevels(ctx, args, false)
+}
+
+func (h *Handler) AddDecoHoleLevelTenTimes(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	return h.addDecoHoleLevels(ctx, args, true)
+}
+
+func (h *Handler) addDecoHoleLevels(ctx *rtmp.RPCContext, args []interface{}, tenTimes bool) (interface{}, error) {
 	charID, ok := h.characterID(ctx)
 	if !ok {
 		return nil, nil
@@ -36,7 +44,13 @@ func (h *Handler) AddDecoHoleLevel(ctx *rtmp.RPCContext, args []interface{}) (in
 		return nil, nil
 	}
 
-	result, err := h.decoHoleService.AddDecoHoleLevel(ctx.Context, charID, int(position))
+	var result *appdress.DecoHoleLevelResult
+	var err error
+	if tenTimes {
+		result, err = h.decoHoleService.AddDecoHoleLevelTenTimes(ctx.Context, charID, int(position))
+	} else {
+		result, err = h.decoHoleService.AddDecoHoleLevel(ctx.Context, charID, int(position))
+	}
 	if err != nil {
 		if errors.Is(err, appdress.ErrDecoHoleInvalidPosition) {
 			h.logger.Warn("addDecoHoleLevel: invalid position rejected by service", zap.Int64("character_id", charID), zap.Int64("position", position))
@@ -46,6 +60,10 @@ func (h *Handler) AddDecoHoleLevel(ctx *rtmp.RPCContext, args []interface{}) (in
 			h.logger.Debug("addDecoHoleLevel: insufficient deco silver", zap.Int64("character_id", charID))
 			return nil, nil
 		}
+		if errors.Is(err, appdress.ErrDecoHoleInsufficientMoneyBind) {
+			h.logger.Debug("addDecoHoleLevel: insufficient bound silver", zap.Int64("character_id", charID))
+			return nil, nil
+		}
 		h.logger.Error("addDecoHoleLevel: service error", zap.Int64("character_id", charID), zap.Error(err))
 		return nil, nil
 	}
@@ -53,6 +71,10 @@ func (h *Handler) AddDecoHoleLevel(ctx *rtmp.RPCContext, args []interface{}) (in
 	if result.SpentDecoSilver > 0 && ctx.Connection != nil {
 		_ = ctx.Connection.SendCallback("onAddMoney", float64(charID), "decoSilver", float64(-result.SpentDecoSilver), float64(result.DecoSilverAfter))
 	}
+	if result.SpentMoneyBind > 0 && ctx.Connection != nil {
+		_ = ctx.Connection.SendCallback("onAddMoney", float64(charID), "moneyBind", float64(-result.SpentMoneyBind), float64(result.MoneyBindAfter))
+	}
+	h.refreshCharacterBonuses(ctx, charID)
 
 	wire := appdress.DecoHoleStateToWire(charID, result.State)
 	return wire, nil

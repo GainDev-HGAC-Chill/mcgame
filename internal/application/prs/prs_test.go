@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 
 	domainchar "mcgame-server/internal/domain/character"
@@ -18,7 +19,12 @@ import (
 )
 
 type fakeFeatureRepo struct {
-	charStates map[int64][]*domainfeature.CharacterFeatureState
+	charStates  map[int64][]*domainfeature.CharacterFeatureState
+	mu          sync.Mutex
+	upsertErr   error
+	listStarted chan struct{}
+	listRelease <-chan struct{}
+	listOnce    sync.Once
 }
 
 func newFakeRepo() *fakeFeatureRepo {
@@ -26,9 +32,22 @@ func newFakeRepo() *fakeFeatureRepo {
 }
 
 func (r *fakeFeatureRepo) ListCharacterFeatureStates(ctx context.Context, charID int64) ([]*domainfeature.CharacterFeatureState, error) {
+	if r.listStarted != nil {
+		r.listOnce.Do(func() { close(r.listStarted) })
+	}
+	if r.listRelease != nil {
+		<-r.listRelease
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.charStates[charID], nil
 }
 func (r *fakeFeatureRepo) UpsertCharacterFeatureState(ctx context.Context, state *domainfeature.CharacterFeatureState) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.upsertErr != nil {
+		return r.upsertErr
+	}
 	list := r.charStates[state.CharacterID]
 	for i, st := range list {
 		if st.FeatureKey == state.FeatureKey {
@@ -60,13 +79,15 @@ func (r *fakeFeatureRepo) PPVEChallengeNextFloor(ctx context.Context, charID int
 }
 
 type fakeCharRepo struct {
-	chars map[int64]*domainchar.Character
+	chars   map[int64]*domainchar.Character
+	updates int
 }
 
 func (r *fakeCharRepo) FindByID(ctx context.Context, id int64) (*domainchar.Character, error) {
 	return r.chars[id], nil
 }
 func (r *fakeCharRepo) Update(ctx context.Context, c *domainchar.Character) error {
+	r.updates++
 	r.chars[c.ID] = c
 	return nil
 }
@@ -102,8 +123,8 @@ func newTestService(t *testing.T, char *domainchar.Character) (*Service, *fakeCh
 		}
 	}
 	load(models.TablePrsTree,
-		`{"id":1,"cost_stone":100,"next_id":2,"level":1}`,
-		`{"id":2,"cost_stone":200,"next_id":3,"level":2}`)
+		`{"id":1,"cost_stone":100,"next_id":20,"level":1}`,
+		`{"id":20,"cost_stone":200,"next_id":0,"level":2}`)
 	load(models.TablePrsChip,
 		`{"id":5001,"cost_crystal":50,"show_id":8001}`,
 		`{"id":5002,"cost_crystal":80,"show_id":8002}`)
@@ -177,6 +198,11 @@ func TestAddSoulTreeLvl_ProgressesAndCaps(t *testing.T) {
 	if data["tid"] != "1" {
 		t.Fatalf("tid = %v, want \"1\"", data["tid"])
 	}
+	for _, key := range []string{"actArr", "actLimitObj", "useSid", "chipBag", "excBag", "isShow"} {
+		if _, ok := data[key]; !ok {
+			t.Fatalf("level callback missing full-state key %q: %#v", key, data)
+		}
+	}
 	if charRepo.chars[1].RealSoulStone != 900 {
 		t.Fatalf("stone after lvl1 = %d, want 900 (1000-100)", charRepo.chars[1].RealSoulStone)
 	}
@@ -184,12 +210,67 @@ func TestAddSoulTreeLvl_ProgressesAndCaps(t *testing.T) {
 	if _, err := svc.AddSoulTreeLvl(ctx, 1); err != nil {
 		t.Fatalf("AddSoulTreeLvl 2: %v", err)
 	}
+	state, err := svc.loadState(ctx, 1)
+	if err != nil || state.Tid != "20" {
+		t.Fatalf("second level followed tid+1 instead of checked next_id: state=%+v err=%v", state, err)
+	}
 	if charRepo.chars[1].RealSoulStone != 700 {
 		t.Fatalf("stone after lvl2 = %d, want 700 (900-200)", charRepo.chars[1].RealSoulStone)
 	}
 
 	if _, err := svc.AddSoulTreeLvl(ctx, 1); !errors.Is(err, ErrMaxTree) {
 		t.Fatalf("past max tree: want ErrMaxTree, got %v", err)
+	}
+}
+
+func TestAddSoulTreeLvl_RestoresCurrencyWhenStateSaveFails(t *testing.T) {
+	char := &domainchar.Character{ID: 1, RealSoulStone: 1000}
+	svc, charRepo := newTestService(t, char)
+	repo := svc.featureRepo.(*fakeFeatureRepo)
+	repo.upsertErr = errors.New("state unavailable")
+
+	if _, err := svc.AddSoulTreeLvl(context.Background(), 1); err == nil {
+		t.Fatal("expected state save failure")
+	}
+	if got := charRepo.chars[1].RealSoulStone; got != 1000 {
+		t.Fatalf("stone after failed PRS save = %d, want restored 1000", got)
+	}
+}
+
+func TestAddSoulTreeLvl_ConcurrentRequestsSerializeWithoutLostUpdate(t *testing.T) {
+	char := &domainchar.Character{ID: 1, RealSoulStone: 1000}
+	svc, charRepo := newTestService(t, char)
+	repo := svc.featureRepo.(*fakeFeatureRepo)
+	repo.listStarted = make(chan struct{})
+	release := make(chan struct{})
+	repo.listRelease = release
+
+	type result struct {
+		data map[string]interface{}
+		err  error
+	}
+	results := make(chan result, 2)
+	go func() {
+		data, err := svc.AddSoulTreeLvl(context.Background(), 1)
+		results <- result{data: data, err: err}
+	}()
+	<-repo.listStarted
+	go func() {
+		data, err := svc.AddSoulTreeLvl(context.Background(), 1)
+		results <- result{data: data, err: err}
+	}()
+
+	close(release)
+	tids := map[interface{}]bool{}
+	for i := 0; i < 2; i++ {
+		got := <-results
+		if got.err != nil {
+			t.Fatalf("serialized result %d: data=%#v err=%v", i, got.data, got.err)
+		}
+		tids[got.data["tid"]] = true
+	}
+	if !tids["1"] || !tids["20"] || charRepo.updates != 2 || charRepo.chars[1].RealSoulStone != 700 {
+		t.Fatalf("tids/updates/stone = %v/%d/%d, want 1+20, two updates and 700", tids, charRepo.updates, charRepo.chars[1].RealSoulStone)
 	}
 }
 
@@ -236,6 +317,19 @@ func TestExchangeChip_InsufficientCrystal(t *testing.T) {
 	svc, _ := newTestService(t, &domainchar.Character{ID: 1, RealSoulCrystal: 10})
 	if _, _, err := svc.ExchangeChip(context.Background(), 1, 5001); !errors.Is(err, ErrInsufficientCrystal) {
 		t.Fatalf("want ErrInsufficientCrystal, got %v", err)
+	}
+}
+
+func TestExchangeChip_RestoresCrystalWhenStateSaveFails(t *testing.T) {
+	char := &domainchar.Character{ID: 1, RealSoulCrystal: 500}
+	svc, charRepo := newTestService(t, char)
+	svc.featureRepo.(*fakeFeatureRepo).upsertErr = errors.New("state unavailable")
+
+	if _, _, err := svc.ExchangeChip(context.Background(), 1, 5001); err == nil {
+		t.Fatal("expected state save failure")
+	}
+	if got := charRepo.chars[1].RealSoulCrystal; got != 500 {
+		t.Fatalf("crystal after failed PRS save = %d, want restored 500", got)
 	}
 }
 

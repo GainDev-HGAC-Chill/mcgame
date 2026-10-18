@@ -53,6 +53,12 @@ func (s *stubDecoHoleGameData) GetDecoHole(id int) *models.DecoHoleTemplate {
 	return s.templates[id]
 }
 
+func (s *stubDecoHoleGameData) GetDecoRune(int) *models.DecoRuneTemplate { return nil }
+func (s *stubDecoHoleGameData) GetDecoShow(int) *models.DecoShowTemplate { return nil }
+func (s *stubDecoHoleGameData) GetDecoShowsBySuitID(int) []*models.DecoShowTemplate {
+	return nil
+}
+
 func newDecoHoleSvc(char *domainchar.Character, templates map[int]*models.DecoHoleTemplate, updateErr error, seed int64) (*DecoHoleService, *stubDecoHoleCharRepo) {
 	charRepo := &stubDecoHoleCharRepo{char: char, updateErr: updateErr}
 	svc := &DecoHoleService{
@@ -69,10 +75,11 @@ func TestDecoHoleService_SuccessfulUpgrade_DeductsCurrencyAndAdvancesState(t *te
 	char := domainchar.NewCharacter(uuid.New(), "tester", 1, 0)
 	char.ID = 2001
 	char.DecoSilver = 100
+	char.MoneyBind = 100
 
 	templates := map[int]*models.DecoHoleTemplate{
-		1: {ID: 1, CostSil: 10, Rate: 80, NextID: 2, Level: 1},
-		2: {ID: 2, Level: 2},
+		1: {ID: 1, Position: 1, CostNum: 10, CostSil: 20, Rate: 80, NextID: 2, Level: 1},
+		2: {ID: 2, Position: 1, Level: 2},
 	}
 	svc, charRepo := newDecoHoleSvc(char, templates, nil, 0)
 
@@ -86,6 +93,9 @@ func TestDecoHoleService_SuccessfulUpgrade_DeductsCurrencyAndAdvancesState(t *te
 	if result.DecoSilverAfter != 90 {
 		t.Fatalf("DecoSilverAfter = %d, want 90", result.DecoSilverAfter)
 	}
+	if result.SpentMoneyBind != 20 || result.MoneyBindAfter != 80 {
+		t.Fatalf("bound silver spend/after = %d/%d, want 20/80", result.SpentMoneyBind, result.MoneyBindAfter)
+	}
 	if charRepo.updateCount != 1 {
 		t.Fatalf("charRepo.Update calls = %d, want 1", charRepo.updateCount)
 	}
@@ -93,8 +103,8 @@ func TestDecoHoleService_SuccessfulUpgrade_DeductsCurrencyAndAdvancesState(t *te
 	if hole.Hid != 2 {
 		t.Fatalf("hid = %d, want 2 after upgrade", hole.Hid)
 	}
-	if hole.ShowLvl != 2 {
-		t.Fatalf("showLvl = %d, want 2 after upgrade", hole.ShowLvl)
+	if hole.ShowLvl != 0 {
+		t.Fatalf("showLvl = %d, want visual tier unchanged", hole.ShowLvl)
 	}
 }
 
@@ -102,10 +112,11 @@ func TestDecoHoleService_RngFail_DeductsCurrencyDoesNotChangeHid(t *testing.T) {
 	char := domainchar.NewCharacter(uuid.New(), "tester", 1, 0)
 	char.ID = 2002
 	char.DecoSilver = 100
+	char.MoneyBind = 100
 
 	templates := map[int]*models.DecoHoleTemplate{
-		1: {ID: 1, CostSil: 10, Rate: 80, NextID: 2, Level: 1},
-		2: {ID: 2, Level: 2},
+		1: {ID: 1, Position: 1, CostNum: 10, CostSil: 20, Rate: 80, NextID: 2, Level: 1},
+		2: {ID: 2, Position: 1, Level: 2},
 	}
 	svc, charRepo := newDecoHoleSvc(char, templates, nil, 1)
 
@@ -128,11 +139,12 @@ func TestDecoHoleService_RngFail_PropagatesUpdateError(t *testing.T) {
 	char := domainchar.NewCharacter(uuid.New(), "tester", 1, 0)
 	char.ID = 2003
 	char.DecoSilver = 100
+	char.MoneyBind = 100
 
 	dbErr := errors.New("db timeout")
 	templates := map[int]*models.DecoHoleTemplate{
-		1: {ID: 1, CostSil: 10, Rate: 80, NextID: 2, Level: 1},
-		2: {ID: 2, Level: 2},
+		1: {ID: 1, Position: 1, CostNum: 10, CostSil: 20, Rate: 80, NextID: 2, Level: 1},
+		2: {ID: 2, Position: 1, Level: 2},
 	}
 	svc, _ := newDecoHoleSvc(char, templates, dbErr, 1)
 
@@ -149,10 +161,11 @@ func TestDecoHoleService_InsufficientBalance_ReturnsErrNoUpdate(t *testing.T) {
 	char := domainchar.NewCharacter(uuid.New(), "tester", 1, 0)
 	char.ID = 2004
 	char.DecoSilver = 5
+	char.MoneyBind = 100
 
 	templates := map[int]*models.DecoHoleTemplate{
-		1: {ID: 1, CostSil: 10, Rate: 80, NextID: 2, Level: 1},
-		2: {ID: 2, Level: 2},
+		1: {ID: 1, Position: 1, CostNum: 10, CostSil: 20, Rate: 80, NextID: 2, Level: 1},
+		2: {ID: 2, Position: 1, Level: 2},
 	}
 	svc, charRepo := newDecoHoleSvc(char, templates, nil, 0)
 
