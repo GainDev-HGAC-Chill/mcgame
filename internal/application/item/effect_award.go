@@ -455,7 +455,10 @@ func normalizePetAwardQuality(quality float64) float64 {
 	if quality <= 0 {
 		return 0
 	}
-	return quality / 10
+	if quality >= 10 {
+		return quality / 10
+	}
+	return quality
 }
 
 func (h *awardEffectHandler) grantTitleAward(ctx context.Context, charID int64, titleID int) (*GrantedTitleResult, error) {

@@ -1,5 +1,29 @@
 # MCGame Fix History
 
+## FIX-2026-10-18-20 — Audit và sửa pipeline thuộc tính Pet
+
+- Hiện tượng: Bạch Hổ ID 168 hiển thị tư chất lực khoảng 70k nhưng công vật lý khoảng 29k; một số base prop và passive Pet không có hiệu lực.
+- Nguyên nhân dữ liệu: Pet lưu `grow_rate=15.000` từ award-quality encoded 15 từng bị truyền như raw 15.0; catalog đúng là 1.5. Local DB có 14 row legacy cùng dấu hiệu 15.000/19.000. Pet 168 thực tế có `aptStrengthEx=0`; `finalStrength=129` là 50 template + 79 cấp, không phải 100 điểm đã phân phối.
+- Nguyên nhân code: recalculate đọc aptitude từ template thay vì cột persisted; bỏ direct creature props; 12 passive Kích Thích Tiềm Năng 3744–3755 có công thức trong mô tả nhưng `prop1..6=0`; normalization `/10` tuyệt đối lại làm raw quality 1.5 thành 0.15.
+- Sửa: dùng aptitude persisted; seed hit/dodge/speed/critical/combo/counter/defy/reborn/resiDefy từ template; áp exact quality-scaled formulas cho 3744–3755; quality `>=10` mới chia 10, raw decimal giữ nguyên. Không đổi shared coefficients và không sửa dữ liệu người chơi.
+- Test: full domain/application Pet, item, combat và Pet/item/combat handlers PASS; targeted vet, gameserver build và scoped diff-check PASS. Broad internal chỉ còn Quest registry `235 want 227` và hai chat-stat baseline ngoài phạm vi.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; 14 row legacy chưa được remediation.
+
+## FIX-2026-10-18-19 — Nâng Man Lực Pet và skill nhân vật lỗi RPC
+
+- Hiện tượng: `petUpSkill(168,4)` trả `Not found`; `skillLearnByClient("2216", null)` và `("2226", null)` trả `invalid arguments`.
+- Nguyên nhân Pet: resolver sách 2242 chọn ngẫu nhiên giữa các skill cùng tên/cấp, đã ghi special `60903` (`useEnv=-1`, không có level kế) thay vì chuỗi Pet `4172→4171→4170`. Da Kháng Tính có collision tương tự `3808` với chuỗi Pet bắt đầu ở `3812`.
+- Sửa Pet: name resolver chỉ nhận skill dùng trong môi trường 0/1, fail-closed khi level thấp nhất vẫn mơ hồ; exact compatibility source sửa các slot cũ `60903→4172` và `3808→3812` trong lần nâng hợp lệ tiếp theo, rồi vẫn dùng cost/manual/rollback hiện có.
+- Nguyên nhân và sửa skill nhân vật: Flash gửi skill ID dạng numeric string và position `null`; handler nay nhận string số bên cạnh AMF number, vẫn từ chối chuỗi không hợp lệ.
+- Test: full Pet, character-skill và combat handler PASS; targeted vet, gameserver build và scoped diff-check PASS. Không restart/deploy hoặc trực tiếp sửa player/Pet data.
+
+## FIX-2026-10-18-18 — Hổ Khiếu Sơn Lâm bị loại trước combat nên không AOE
+
+- Hiện tượng: runtime nhận lệnh Pet dùng 7026/7028 nhưng log `Rejected skill command: pet does not know skill`; skill không vào effect engine nên trông như mất AOE. DTO cùng phiên vẫn có skill trong `skill1..skill15`.
+- Nguyên nhân: `OwnedSkillLevel` đọc legacy `property.skills`, trong khi learn/upgrade/DTO và persistence hiện dùng các slot canonical `skill1..skill15`.
+- Sửa: authority combat đọc `LearnedSkillSlots()` và lấy level thật từ `TBL_SKILL`; vẫn kiểm tra exact ID nên skill chưa sở hữu tiếp tục bị từ chối.
+- Test: focused ownership regression, full Pet/combat application và domain combat, combat handler, targeted vet, gameserver build và diff-check PASS. Chưa restart/deploy hoặc mutate Pet/player data.
+
 ## FIX-2026-10-17-17 — Bí kíp Mật Bảo, item Cây Ước Nguyện và buff bánh
 
 - Hiện tượng: bí kíp chế tạo Mật Bảo trả `life skill recipe not found`; item claim từ Kho Ước Nguyện đã vào DB nhưng chỉ hiện sau `bagSort`; bánh type 502 bị tiêu hao nhưng không có buff.

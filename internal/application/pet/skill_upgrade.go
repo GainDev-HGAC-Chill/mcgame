@@ -20,6 +20,11 @@ var petSkillUpgradeItems = map[int]int{
 	3: 1367,
 }
 
+var legacyPetSkillUpgradeSources = map[int]int{
+	3808:  3812,
+	60903: 4172,
+}
+
 type PetSkillUpgradeResult struct {
 	Pet             *domainpet.Pet
 	SlotKey         string
@@ -41,6 +46,9 @@ func (s *Service) UpgradePetSkill(ctx context.Context, charID int64, petID int64
 	ensurePetSkillSlots(p)
 	currentSkillID := petSkillSlotValue(p, slot)
 	currentSkill := s.gameDataManager.GetSkill(currentSkillID)
+	if canonicalID, ok := legacyPetSkillUpgradeSources[currentSkillID]; ok {
+		currentSkill = s.gameDataManager.GetSkill(canonicalID)
+	}
 	if currentSkill == nil || currentSkill.CodeName == "" || int(currentSkill.Level) < 1 || int(currentSkill.Level) >= 3 {
 		return nil, pkgerrors.ErrInvalidInput
 	}

@@ -96,11 +96,16 @@ func (s *Service) OwnedSkillLevel(ctx context.Context, charID int64, petID int64
 	if err != nil {
 		return 0, false, err
 	}
-	for _, learned := range p.GetSkills() {
+	for _, learned := range p.LearnedSkillSlots() {
 		if learned.ID != skillID {
 			continue
 		}
 		level := learned.Level
+		if s.gameDataManager != nil {
+			if template := s.gameDataManager.GetSkill(skillID); template != nil {
+				level = int(template.Level)
+			}
+		}
 		if level < 1 {
 			level = 1
 		}

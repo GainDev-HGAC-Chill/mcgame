@@ -478,8 +478,8 @@ func newPetSkillBookGameData(t *testing.T) *gamedata.Manager {
 		`{"id":4000,"name":"Táo","kind":5,"type":550,"use_type":1,"prop_type":0,"skill_id":0}`,
 	)
 	loadTable(models.TableSkill,
-		`{"id":5527,"name":"Thụ Bì Ngoại Sáo Siêu Cấp","code_name":"thu_bi_ngoai_sao_super","buff_id":2113,"level":1,"cre_kind":"3|3"}`,
-		`{"id":5528,"name":"Thụ Bì Ngoại Sáo Siêu Cấp","code_name":"thu_bi_ngoai_sao_super","buff_id":2114,"level":2,"cre_kind":"3|3"}`,
+		`{"id":5527,"name":"Thụ Bì Ngoại Sáo Siêu Cấp","code_name":"thu_bi_ngoai_sao_super","buff_id":2113,"kind":2,"level":1,"cre_kind":"3|3","use_env":1}`,
+		`{"id":5528,"name":"Thụ Bì Ngoại Sáo Siêu Cấp","code_name":"thu_bi_ngoai_sao_super","buff_id":2114,"kind":2,"level":2,"cre_kind":"3|3","use_env":1}`,
 	)
 	loadTable(models.TableBuff,
 		`{"id":2113,"percent_flag":1,"prop1":1,"prop_num1":22}`,
@@ -513,4 +513,29 @@ func addUniversalPetSkillBookGameData(t *testing.T, manager *gamedata.Manager) {
 	loadTable(models.TableBuff,
 		`{"id":2200,"percent_flag":0,"prop1":4,"prop_num1":12}`,
 	)
+}
+
+func TestResolvePetSkillBookSkillExcludesNonPetDuplicateName(t *testing.T) {
+	manager := newPetSkillBookGameData(t)
+	cache := manager.GetCache()
+	if err := cache.LoadTable(models.TableItemTemplate, []json.RawMessage{
+		json.RawMessage(`{"id":2242,"name":"Man Lực","type":506,"use_type":2,"skill_id":0}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.LoadTable(models.TableSkill, []json.RawMessage{
+		json.RawMessage(`{"id":4172,"name":"Man Lực","code_name":"SKILL505701","kind":2,"level":1,"use_env":1}`),
+		json.RawMessage(`{"id":4171,"name":"Man Lực","code_name":"SKILL505701","kind":2,"level":2,"use_env":1}`),
+		json.RawMessage(`{"id":4170,"name":"Man Lực","code_name":"SKILL505701","kind":2,"level":3,"use_env":1}`),
+		json.RawMessage(`{"id":60903,"name":"Man Lực","code_name":"SKILL1010703","kind":2,"level":1,"use_env":-1}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(nil, zap.NewNop())
+	service.SetGameDataManager(manager)
+
+	resolved := service.resolvePetSkillBookSkill(manager.GetItem(2242))
+	if resolved == nil || resolved.GetID() != 4172 {
+		t.Fatalf("resolvePetSkillBookSkill(Man Lực) = %#v, want skill 4172", resolved)
+	}
 }

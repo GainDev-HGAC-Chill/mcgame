@@ -158,7 +158,11 @@ func (s *Service) syncPetSkillBonuses(p *domainpet.Pet) {
 			continue
 		}
 		skill := s.gameDataManager.GetSkill(skillID)
-		if skill == nil || int(skill.BuffID) <= 0 {
+		if skill == nil {
+			continue
+		}
+		addPetPotentialSkillBonuses(&bonuses, skillID, p.GrowRate+p.GrowRateAdd)
+		if int(skill.BuffID) <= 0 {
 			continue
 		}
 		buff := s.gameDataManager.GetBuff(int(skill.BuffID))
@@ -264,15 +268,23 @@ func (s *Service) resolvePetSkillBookSkill(bookTemplate *models.ItemTemplateTemp
 	}
 
 	var selected *models.SkillTemplate
+	ambiguous := false
 	for _, skill := range s.gameDataManager.GetAllSkills() {
-		if skill == nil || skill.Name != bookTemplate.Name {
+		if skill == nil || skill.Name != bookTemplate.Name || (int(skill.UseEnv) != 0 && int(skill.UseEnv) != 1) || int(skill.Level) < 1 {
 			continue
 		}
 		if selected == nil || int(skill.Level) < int(selected.Level) {
 			selected = skill
+			ambiguous = false
+			continue
+		}
+		if int(skill.Level) == int(selected.Level) && skill.ID != selected.ID {
+			ambiguous = true
 		}
 	}
-
+	if ambiguous {
+		return nil
+	}
 	return selected
 }
 

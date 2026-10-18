@@ -592,13 +592,8 @@ func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		return nil, pkgerrors.ErrInvalidArgs
 	}
 
-	var skillID int
-	switch v := args[0].(type) {
-	case float64:
-		skillID = int(v)
-	case int:
-		skillID = v
-	default:
+	skillID, ok := parseSkillLearnID(args[0])
+	if !ok {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
 
@@ -659,6 +654,20 @@ func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		zap.Int("skill_id", skillID))
 
 	return true, nil
+}
+
+func parseSkillLearnID(value interface{}) (int, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return int(typed), true
+	case int:
+		return typed, true
+	case string:
+		parsed, err := strconv.Atoi(typed)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }
 
 func parseSkillLearnPosition(args []interface{}) (*int, bool, error) {

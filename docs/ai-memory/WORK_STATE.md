@@ -18,6 +18,9 @@
 - Đã sửa đồng bộ cường hóa Pet: `petStar` roll đúng bảng Flash 100/100/90/80/70/60/50/30/30/30/30/20% cho sao đích 1→12, hỗ trợ Nội Đơn Chúc Phúc giữ sao khi thất bại từ 8+, và phát refresh nested `property` để bảng Pet dùng cùng `GrowRate + GrowRateAdd`; chưa deploy/Flash smoke-test.
 - Đã sửa inventory: `addtItemFromBag`/`addmxFromBag` dùng handler riêng để decode vị trí túi tiện dụng thay vì parse thành equipment SID; sort temp/MX giữ index 1-based. Reward sự kiện không còn gửi raw Go `*Item` vào `onAddCharactorSlot`, mà gửi Flash slot DTO đầy đủ; shop path đã có changed-stack DTO snapshot đúng.
 - Đã code-fix ba lỗi item mới: bí kíp chế tạo Mật Bảo type 516, item Cây Ước Nguyện claim vào túi nhưng chưa render, và bánh type 502 bị tiêu hao mà không cấp long-buff.
+- Đã sửa runtime Hổ Khiếu Sơn Lâm không AOE: log 19:28–19:31 xác nhận lệnh skill Pet 7026/7028 bị ownership gate loại bỏ trước combat dù DTO Pet có skill ở slot canonical. `OwnedSkillLevel` nay đọc `skill1..skill15` qua `LearnedSkillSlots()` và lấy level từ `TBL_SKILL`, vẫn từ chối exact ID chưa sở hữu.
+- Đã sửa hai lỗi nâng skill runtime 19:45–19:46: sách Pet Man Lực 2242 không còn chọn nhầm special skill 60903 (`useEnv=-1`) thay vì chuỗi Pet 4172→4171→4170; slot cũ 60903 được repair trong lần nâng hợp lệ. `skillLearnByClient` nay nhận ID dạng chuỗi (`"2216"`, `"2226"`) và position `null` đúng payload Flash.
+- Đang audit pipeline thuộc tính Pet sau báo cáo Bạch Hổ có tư chất lực khoảng 70k nhưng công vật lý khoảng 29k. Đã xác định Pet ID 168 lưu `grow_rate=15.000`, trong khi túi 6974 và contract hiện tại biểu diễn phẩm chất 1.5; row này được tạo 2026-10-15 trong giai đoạn award-quality legacy từng truyền 15 trực tiếp trước fix `/10`, nên 70k là hiển thị từ dữ liệu phẩm chất sai thang đo, không phải aptitude server chuẩn.
 
 ## Đã hoàn thành
 
@@ -36,6 +39,11 @@
 - Cây Ước Nguyện bước 2: `ClaimSingle`/`ClaimAll` nay trả các item thực tế được grant; lotto handler dedupe stack theo instance ID và push DTO chuẩn qua `onAddCharactorSlot` trước khi refresh `updateLottoBag`/bag tương ứng. Vì vậy item mới hoặc stack tăng hiện ngay, không cần `bagSort`. Focused lotto application/handler tests PASS; lỗi bánh còn đang xử lý.
 - Bánh buff bước 3: type 502 nay có exact catalog 33 item→buff cho các họ Bánh Trôi/Bánh Ú/Bánh Nhân/Bánh Trung Thu/Bánh Thanh Minh/Giáng Sinh và Táo Bình An, với duration theo mô tả 15m/30m/1h/6h. Use cấp/persist timed long-buff, phát callback buff và refresh stat; multi-use giữ final buff callback. Food `i1/i2=0` ngoài catalog bị chặn trước tiêu hao thay vì success giả. Focused food tests PASS.
 - Pet skill damage/playback: xác định plan executor đã trừ HP đúng nhiều target nhưng chỉ sinh skill/death action, thiếu Hurt/Idle. `BuildPlaybackRounds` xóa `tSObj.hHp` khỏi AoE opener rồi không có Hurt round để gắn lại, gây quái mất HP/chết mà không hiện số; khi chỉ có một target thì không qua cluster nên hiện bình thường. Đã bổ sung canonical Hurt và Die/Idle sau mọi direct/fixed Pet damage hit dương; pure support và miss vẫn không giả damage. Area resolver cũng lọc target chết trước khi cap, tránh slot chết gần làm mất target sống xa hơn.
+- Hổ Khiếu ownership: combat authority trước đây đọc legacy `property.skills` rỗng thay vì các slot Pet thật, nên command bị bỏ trước effect engine. Đã chuyển sang canonical slots và giữ exact-ID gate; catalog/target resolver hiện vẫn là toàn bộ địch tối đa 10.
+- Nâng skill Pet/nhân vật: name resolver Pet giới hạn candidate ở `useEnv` 0/1 và chặn ambiguity; exact legacy aliases 60903/3808 tự đi vào canonical Man Lực/Da Kháng Tính khi nâng. Character handler parse được numeric string ID từ Flash và giữ `null` position là hợp lệ.
+- Pet stat audit safe fix: `Pet.RecalculateStats` dùng năm aptitude persisted thay vì bản sao template trong `CreatureData`, nên evolution/admin aptitude có hiệu lực; đồng thời cộng các base prop có authority trực tiếp từ `TBL_CREATURE` vào hit/dodge/speed/critical/combo/counter/defy/reborn/resiDefy trước equipment và passive skill. Không đổi shared coefficient hay tự sửa `grow_rate` legacy.
+- Bổ sung 12 passive `Kích Thích Tiềm Năng` exact-ID 3744–3755 theo trị số catalog `TBL_BUFF`: Cân Bằng, Ngưng Tụ, Bão Tố và Nhiệt Huyết nhân trực tiếp với `GrowRate + GrowRateAdd`, rồi nhập vào cùng bonus pipeline. Trước đó các buff này có `prop1..6=0` nên bị bỏ qua hoàn toàn dù mô tả định lượng đầy đủ; riêng skill 3755 của Pet 168 nay có authority cho MP, công vật lý/pháp và bạo kích.
+- Sửa normalization Pet award quality hỗn hợp: catalog lưu cả encoded `15/19/20/25` và raw decimal `1.5`; giá trị từ 10 trở lên mới chia 10, còn raw `<10` giữ nguyên. Vì vậy không tạo mới Pet `15.0/19.0`, đồng thời không làm row raw `1.5` thành `0.15`.
 - Launcher: `cmd/game` luôn truyền `supabase db push --include-all`, nên migration local chưa có trong history dù timestamp cũ hơn migration cuối vẫn được áp mà không reset/reseed database hiện hữu. Wrapper không còn báo nhầm là thiếu CLI cho mọi lỗi push. `MCGAME.bat` thêm mục `F` gọi command `client30`; launcher 30 FPS riêng vẫn được giữ nguyên.
 - Quest Trung Cấp 3-1: audit xác định đủ sáu ID `143/287/639/640/643/644` đều là type 1, không có requirement row nên bị completion authority fail-closed. Đã thêm exact fingerprint policy riêng, yêu cầu đúng class, `class_rank == 1` và ở gần NPC 600; rank thấp/cao hơn, sai class/map hoặc catalog drift tiếp tục bị chặn. Persisted objective cũ bị loại và bước 3-1 không tự tăng class rank.
 - Quest Admin active-use: đã gỡ khóa structural fields/nút lưu trên trang quest, đổi cảnh báo thành cho phép lưu có rủi ro, và thêm migration thay `quest_admin_save` để bỏ riêng guard `ACTIVE_QUEST_IN_USE`; guard loop dùng chung giữ nguyên. Không tự sửa/reset progress. Migration chưa apply local vì `supabase-db` đang `Exited (0)` và assistant không tự restart.
@@ -63,6 +71,7 @@
 - Nhóm quest abandonment: `internal/application/quest/client_presentation.go`, `service.go`, `loop_service_test.go`, `presentation_sort_test.go`; memory tại `quest-loop-system.md`, `npc-quest-system.md`, `FIX_HISTORY.md` và file này. Không chạm nhóm STH activity/migration đang tồn tại song song.
 - HEAD `2b550d0` đã chứa nhóm Pet/blood-bag/transport/shop và bộ nhớ trước đó; không commit/push thêm.
 - Working tree còn nhóm character-delete/client artifact do luồng khác để lại và cập nhật bộ nhớ phiên này. Không reset hoặc ghi đè nhóm này.
+- Nhóm Hổ Khiếu hiện chỉ sửa `internal/application/pet/service.go`, thêm `skill_ownership_test.go` và checkpoint; hai file Quest đang sửa sẵn là ngoài phạm vi, không ghi đè.
 
 ## Kiểm tra đã chạy
 
@@ -81,6 +90,12 @@
 - Fairy Units G–I final verification: Fairy/combat application, domain combat, Fairy handler and `cmd/gameserver` focused tests PASS; matching targeted vet PASS; PVE/PVP profile attachment included. `go build -o bin/gameserver.exe ./cmd/gameserver` PASS and `git diff --check` has no whitespace errors (line-ending warnings only). Broad internal retains only known out-of-scope failures: item award-quality/starter-gift, Quest registry `235 want 227`, and two chat-stat tests.
 - Quest abandonment: focused type-1 delete và client-presentation regressions PASS; quest/NPC handler PASS; targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS. Full application quest chỉ fail baseline conversation registry `234 want 227` ngoài phạm vi.
 - Pet skill damage/playback: full `internal/domain/combat`, `internal/application/combat` và combat handler PASS; AoE damage+dispel ba target đều mất HP và có popup riêng; fixed lethal AoE có popup trước death cho từng target; dead-slot target-cap regression PASS; pure support vẫn không gây damage; legacy multi-target playback vẫn PASS. Catalog invariant, targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS.
+- Hổ Khiếu ownership: focused canonical-slot regression, full `internal/application/pet`, `internal/application/combat`, `internal/domain/combat` và combat handler PASS; targeted vet và `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; scoped diff-check sạch ngoài cảnh báo LF→CRLF.
+- Nâng skill: full `internal/application/pet`, `internal/application/skill` và combat handler PASS; regression xác nhận Man Lực book chọn 4172 thay vì 60903, slot legacy nâng thành 4171, và payload `skillLearnByClient("2216", null)` parse đúng. Targeted vet/build PASS.
+- Pet stat safe fix: full `internal/domain/pet`, `internal/application/pet`, `internal/application/combat`, Pet handler và combat handler PASS. Regression mới xác nhận aptitude persisted thay đổi công thức và chín direct creature props không còn bị reset về 0.
+- Potential passive regression: đủ 12 ID 3744–3755 được kiểm tra theo representative prop ở quality 2; 3755 được kiểm tra đủ MP/Atk/MAtk/Crit tại quality 2.33. Full `internal/application/pet` PASS sau thay đổi.
+- Pet award quality focused: encoded 15→1.5, raw 3→3 và raw decimal 1.5→1.5 PASS; domain/application Pet vẫn PASS.
+- Pet stat audit final verification: full domain/application Pet, application item/combat, Pet/item/combat handlers PASS; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; scoped diff-check sạch ngoài line-ending warnings. Broad `go test ./internal/... -count=1` chỉ còn Quest registry `235 want 227` và hai chat-stat baseline ngoài phạm vi; full item hiện PASS sau quality normalization.
 - Launcher: `go test ./cmd/game`, `go vet ./cmd/game`, build `bin/game.exe` PASS; CLI `db push --include-all --dry-run` xác nhận chỉ pending `20261016040000_findback_bounty_verification.sql` và `20261016090000_sth_progress.sql`, seeds rỗng; hai asset Flash 30 FPS tồn tại; scoped diff-check sạch.
 - Quest Trung Cấp 3-1 focused policy/runtime regressions PASS cho đủ sáu class, gồm completion thật và xác nhận rank vẫn là 1 sau bước 3-1; quest/NPC handler PASS; targeted vet và build `bin/gameserver.exe` PASS; scoped diff-check sạch (chỉ cảnh báo line-ending). Full application quest và `cmd/questaudit` vẫn fail baseline conversation registry `234 want 227` từ thay đổi ngoài phạm vi.
 - Quest Admin active-use: dashboard `corepack pnpm typecheck` PASS; quest editor/validation/permission tests 20 PASS, 1 live test SKIP; scoped Prettier và diff-check PASS.
@@ -127,6 +142,10 @@
 - Compose DB local có 862 row `data.data_tbl_boss_loot` từ seed mới; gameserver đang chạy chưa reload cache nên chưa dùng các row này. Không thay đổi bảng dữ liệu người chơi.
 - Không có migration mới: blood bag dùng bảng wallet/stat-feature hiện có.
 - Không live-test và không thay đổi dữ liệu người chơi.
+- Runtime compose do operator khởi động đang chạy image tạo lúc 18:50; assistant chỉ đọc log. Không restart/deploy và không mutate Pet/người chơi. Root cause hiện tại là `OwnedSkillLevel` đọc legacy `Property["skills"]`, trong khi Pet học skill được lưu canonical ở `skill1..skill15`.
+- Binary mới đã build vào `bin/gameserver.exe` nhưng container đang chạy chưa được assistant restart, nên runtime vẫn còn lỗi ownership cũ cho tới lần deploy/restart được phép.
+- Binary mới cũng gồm fix nâng skill Pet/nhân vật; container chưa được assistant restart nên hai lỗi runtime vừa báo vẫn còn cho tới deploy/restart được phép. Không trực tiếp sửa slot Pet/player data; compatibility path chỉ chạy khi người chơi chủ động nâng sau deploy.
+- Audit Pet chỉ đọc DB/log: ID 168 có template 2290, level 80, `grow_rate=15.000`, `grow_rate_add=0.830`; item 6974 mô tả phẩm chất 1.5 và code hiện tại chuẩn hóa quality 15 thành 1.5. Không sửa row Pet, không dùng item và không restart/deploy.
 - Nhóm voucher/Quest Admin mới không có migration hoặc thay đổi dữ liệu; chưa deploy/restart/smoke-test.
 
 ## Rủi ro/chưa xác minh
@@ -138,6 +157,7 @@
 - Nguồn authority vẫn thiếu nên phải fail-closed: Card draw/reward, sweep task/cost/reward transaction, HMTXLS room/timing/cost/reward, PPVE floor-enemy roster, Ma Tâm economy/combine và Hồn Khí effect ngoài checked catalog. Thuật ngữ đã được operator chốt: Đấu Pet = lineup/AI + Pet Arena; trang 2 Chân Hồn = outer tab Thăng Cấp, không mở rộng `activePRSShowSpe`.
 - Quest abandonment fix chưa deploy/restart hoặc Flash smoke-test. Active type-1 quest sẽ hiển thị trong nhóm nhiệm vụ chính để vượt hard-coded client lock; cần xác nhận nút Hủy, callback xóa quest khỏi panel và NPC state refresh sau deploy bằng quest test không phải Quest 166.
 - Pet damage popup/AoE fix chưa deploy/restart hoặc Flash smoke-test; cần thử đại diện all-enemy, horizontal/cross, damage+debuff, lethal AoE, miss và DoT tick để xác nhận animation thực tế.
+- Hổ Khiếu ownership fix chưa deploy/restart; sau deploy chỉ smoke-test bằng Pet test có exact skill ID thật trong slot, không gắn level-row chưa sở hữu và không dùng Pet/người chơi thật.
 - Quest Trung Cấp 3-1 chưa deploy/restart hoặc Flash smoke-test; hai bước dùng chung 3-2 (645) và 3-3 (677) chưa được thay đổi vì có semantics riêng cần kiểm chứng nếu tiếp tục lỗi.
 - Quest Admin active-use migration chưa được parser/live RPC verify vì local `supabase-db` dừng trước lúc apply; cần apply migration rồi chạy transactional rollback test trên một quest active không phải Quest 166 trước deploy.
 - Runtime 07:22 boss 707 thất bại do channel 0 đã được code-fix và regression-test, nhưng chưa Flash retest sau khi deploy binary mới.
@@ -156,6 +176,7 @@
 - Đã chốt Nuốt Chửng hồi 10/15/20% max HP+MP; Tự Nhiên Thuẫn đơn/quần HoT bằng 65%/25% MagicAttack; Pháo Kích chỉ P100% + stun. Plan triển khai đã Approved tại `docs/plans/2026-10-14_01_PET_ACTIVE_SKILLS_COMBAT.md`.
 - Trong lúc audit xuất hiện thay đổi ngoài luồng ở `turn_executor.go`, item/quest/EXP helpers; không ghi đè. Diff combat mới chỉ đổi cách resolve target cho đánh thường, không thay đổi kết luận skill audit.
 - Character/Fairy/crystal Units A–I safe scope đã code/build/test nhưng chưa deploy/restart hoặc Flash smoke-test. Chín Fairy mechanics thiếu timing/formula vẫn unsupported; runtime hiện tại có thể chưa nạp award 5948 hoặc binary mới.
+- Pet stat audit đã sửa các sai lệch input/direct prop và potential passive có authority. Shared coefficients và thành phần `1 + aptitude/1000` vẫn giữ nguyên vì chưa có legacy server output/formula authority; 14 Pet local có base quality legacy 15.000/19.000 chưa được sửa vì không có quyền mutation dữ liệu người chơi.
 - Ba fix Mật Bảo/Cây Ước Nguyện/bánh chưa deploy/restart hoặc Flash smoke-test. Không có migration hay player-data mutation; bánh type 502 zero-effect ngoài 33 mapping exact nay trả cannot-use và không tiêu hao.
 
 ## Bước tiếp theo
@@ -177,6 +198,7 @@
 9. Sau khi được phép deploy, smoke-test riêng ba voucher bằng item test và mở/lưu Quest Admin khi không có session đăng nhập; không dùng vật phẩm người chơi thật.
 10. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
 11. Sau khi được phép deploy/restart, dùng item/character test để kiểm tra một bí kíp Mật Bảo mới và duplicate, claim single/all Cây Ước Nguyện vào stack mới/cũ, cùng bánh 15m/30m/1h; không dùng vật phẩm hoặc người chơi thật.
+12. Pet stat fix chỉ cần deploy/restart để có hiệu lực cho recalculation mới. Data remediation 14 row quality legacy phải có phê duyệt riêng, checkpoint và mapping review trước khi update; không tự sửa Pet 168 hay bất kỳ row người chơi nào.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 

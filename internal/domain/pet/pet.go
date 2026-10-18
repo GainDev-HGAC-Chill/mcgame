@@ -204,11 +204,11 @@ func (p *Pet) RecalculateStats() {
 	attInt := creatureDataFloat(p.CreatureData, "attIntelligence") + levelBonus
 	attEng := creatureDataFloat(p.CreatureData, "attEnergy") + levelBonus
 
-	aptStr := creatureDataFloat(p.CreatureData, "aptStrength")
-	aptAgi := creatureDataFloat(p.CreatureData, "aptAgility")
-	aptStam := creatureDataFloat(p.CreatureData, "aptStamina")
-	aptInt := creatureDataFloat(p.CreatureData, "aptIntelligence")
-	aptEng := creatureDataFloat(p.CreatureData, "aptEnergy")
+	aptStr := float64(p.AptStrength)
+	aptAgi := float64(p.AptAgility)
+	aptStam := float64(p.AptStamina)
+	aptInt := float64(p.AptIntelligence)
+	aptEng := float64(p.AptEnergy)
 
 	profile := stats.Profile{
 		SeedHP:          20,
@@ -226,6 +226,10 @@ func (p *Pet) RecalculateStats() {
 		AptStamina:      aptStam,
 		AptIntelligence: aptInt,
 		AptEnergy:       aptEng,
+		PropHit:         creatureDataFloat(p.CreatureData, "propHit"),
+		PropDodge:       creatureDataFloat(p.CreatureData, "propDodge"),
+		PropSpeed:       creatureDataFloat(p.CreatureData, "propSpeed"),
+		PropCritical:    creatureDataFloat(p.CreatureData, "propCritical"),
 	}
 	result := stats.BuildBaseStats(profile)
 
@@ -265,6 +269,11 @@ func (p *Pet) RecalculateStats() {
 	for _, k := range zeroKeys {
 		p.Property[k] = 0
 	}
+	p.Property["finalCombo"] = int(creatureDataFloat(p.CreatureData, "propCombo"))
+	p.Property["finalCounter"] = int(creatureDataFloat(p.CreatureData, "propCounter"))
+	p.Property["finalDefy"] = int(creatureDataFloat(p.CreatureData, "propDefy"))
+	p.Property["finalRebornRate"] = int(creatureDataFloat(p.CreatureData, "propReborn"))
+	p.Property["finalResiDefy"] = int(creatureDataFloat(p.CreatureData, "resiDefy"))
 	p.Property["lastPoint"] = p.AttrPoints
 	if _, ok := p.Property["ee"]; !ok {
 		p.Property["ee"] = "0"

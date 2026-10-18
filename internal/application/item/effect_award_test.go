@@ -153,8 +153,8 @@ func TestAwardEffectHandler_Apply_UsesPetAwardQualityWhenConfigured(t *testing.T
 	if petService.quality != 0 {
 		t.Fatalf("expected scaled description quality 0, got %d", petService.quality)
 	}
-	if petService.awardQuality != 15 {
-		t.Fatalf("expected raw award quality 15, got %v", petService.awardQuality)
+	if petService.awardQuality != 1.5 {
+		t.Fatalf("expected encoded award quality 15 to normalize to 1.5, got %v", petService.awardQuality)
 	}
 	if len(petService.templateIDs) != 2 || petService.templateIDs[0] != 701 || petService.templateIDs[1] != 701 {
 		t.Fatalf("ContractPetsWithAwardQuality() templateIDs = %v, want [701 701]", petService.templateIDs)
@@ -199,6 +199,12 @@ func TestAwardEffectHandler_Apply_UsesRawPetAwardQualityWhenConfigured(t *testin
 	}
 	if len(result.Pets) != 1 {
 		t.Fatalf("expected 1 pet, got %d", len(result.Pets))
+	}
+}
+
+func TestNormalizePetAwardQuality_PreservesDecimalCatalogValue(t *testing.T) {
+	if got := normalizePetAwardQuality(1.5); got != 1.5 {
+		t.Fatalf("normalizePetAwardQuality(1.5) = %v, want 1.5", got)
 	}
 }
 

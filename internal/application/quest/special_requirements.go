@@ -54,6 +54,49 @@ func (s *Service) syncSpecialRequirements(ctx context.Context, qp *quest.QuestPr
 		}
 		qp.CompletionBlocked = false
 		return nil
+	case PolicyCurrencyBalance:
+    if tpl == nil ||
+        s.charRepo == nil ||
+        len(qp.Objectives) != 0 ||
+        tpl.FinishNPC <= 0 ||
+        tpl.FinishNPC != float64(int(tpl.FinishNPC)) {
+        return nil
+    }
+
+    char, err := s.GetCharacter(ctx, qp.CharacterID)
+    if err != nil {
+        return err
+    }
+
+    if char == nil || char.ID != qp.CharacterID {
+        return nil
+    }
+
+    // Lấy số tiền yêu cầu từ database
+    requiredAmount := int64(tpl.Rn)
+
+    var balance int64
+
+    switch int(tpl.Rt) {
+    case 1:
+        balance = char.MoneyBind
+    case 2:
+        balance = char.Money
+    case 3:
+        balance = char.GoldBind
+    case 4:
+        balance = char.Gold
+    default:
+        return nil
+    }
+
+    // Kiểm tra số dư và NPC trả nhiệm vụ
+    qp.CompletionBlocked =
+        balance < requiredAmount ||
+        !s.atQuestNPC(ctx, qp.CharacterID, int(tpl.FinishNPC))
+
+    return nil
+		
 	case PolicyConversation:
 		qp.CompletionBlocked = !s.atQuestNPC(ctx, qp.CharacterID, required)
 		return nil

@@ -20,6 +20,7 @@ const (
 	PolicyUnconfigured   = "unconfigured"
 	PolicyCurrency       = "unsupported_currency_condition"
 	PolicyInvalid        = "invalid_catalog"
+	PolicyCurrencyBalance = "currency_balance"
 )
 
 func ClassifyQuestCompletion(tpl *models.QuestTemplate, requirements []*models.QuestRequireTemplate) (string, int) {
@@ -27,8 +28,19 @@ func ClassifyQuestCompletion(tpl *models.QuestTemplate, requirements []*models.Q
 		return PolicyInvalid, 0
 	}
 	if tpl.Rn != 0 {
+		// Hỗ trợ nhiệm vụ chỉ yêu cầu số dư tiền tệ.
+		// Các nhiệm vụ có thêm yêu cầu khác vẫn giữ trạng thái chặn.
+		if len(requirements) == 0 &&
+			tpl.Rn > 0 &&
+			tpl.Rn <= 9007199254740991 &&
+			tpl.Rn == float64(int64(tpl.Rn)) &&
+			(tpl.Rt == 1 || tpl.Rt == 2 ||
+				tpl.Rt == 3 || tpl.Rt == 4) {
+			return PolicyCurrencyBalance, 0
+		}
+
 		return PolicyCurrency, 0
-	}
+	}	
 	if len(requirements) > 0 {
 		for _, row := range requirements {
 			if row == nil || row.ItemID <= 0 || row.ItemID != float64(int(row.ItemID)) || row.Num <= 0 || row.Num != float64(int(row.Num)) {

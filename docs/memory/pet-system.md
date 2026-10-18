@@ -138,6 +138,10 @@ Summon books enter this same follow contract through item use. Flash additionall
   - buff template `2113`
   - effect: `hpMax` and `finalHp` increase by `22%`
 
+Battle skill ownership must use these same canonical `skill1..skill15` slots through `Pet.LearnedSkillSlots()`. The older `property.skills` array is not populated by the current learn/upgrade flows and must not be used as combat authority. After exact skill-ID ownership succeeds, the authoritative level comes from that skill row in `TBL_SKILL`; a different level-row ID that is not present in a Pet slot remains rejected.
+
+Name-based Pet-book resolution must exclude unrelated template rows outside `useEnv` 0/1 and fail closed if the lowest eligible level is still ambiguous. In particular, book 2242 `Man Lực` resolves to `4172→4171→4170`, not special row `60903`; book 1883 `Da Kháng Tính` starts at `3812→3813`, not row `3808`. Legacy slots produced by the old resolver use those two exact aliases as upgrade sources so the next legitimate `petUpSkill` repairs the slot while preserving normal manual cost and rollback behavior.
+
 ## Pet Skill Eligibility Rule
 
 `TBL_SKILL.cre_kind` is not only a quality flag for pet skill books. For class-bound pet skills it encodes `classIds|qLevel`.
@@ -217,6 +221,12 @@ Pet bag summon items are part of the normal item RPC flow, not a separate pet RP
 - the new pet batch path lives in `pet.Service.ContractPets`
 
 ## Pet Stat Bonus Channels (parity with character)
+
+Base stat audit details and the reported Bạch Hổ case are recorded in `docs/research/2026-10-18_02_PET_STAT_FORMULA_AUDIT.md`. Creature-backed Pet stats use persisted aptitude, template `att* + level - 1`, and flat `GrowRate + GrowRateAdd`; template direct hit/dodge/speed/critical/combo/counter/defy/reborn/resiDefy values must survive recalculation.
+
+The twelve `Kích Thích Tiềm Năng` passive rows 3744–3755 are a catalog-backed exception to ordinary `TBL_BUFF.prop1..6` loading: their prop slots are zero, while descriptions give exact quality-scaled values for Cân Bằng, Ngưng Tụ, Bão Tố, and Nhiệt Huyết. Apply those exact IDs against `GrowRate + GrowRateAdd`; do not infer formulas for other empty-prop buffs.
+
+Pet award quality uses two checked encodings. Values `15/19/20/25` are tenths and normalize to `1.5/1.9/2.0/2.5`; raw positive decimals below 10 remain unchanged. Do not auto-rewrite legacy player Pets with `15.000/19.000` without explicit data-remediation permission.
 
 Pet `EquipmentStatBonuses` mirrors the character struct: `Flat`, `Percent`, `Float`. The aggregation pipeline routes raw equipment-template prop ids the same way characters do:
 
