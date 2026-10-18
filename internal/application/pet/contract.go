@@ -108,6 +108,9 @@ func (s *Service) seedDefaultPetSkills(p *domainpet.Pet) {
 	if p == nil || s.gameDataManager == nil {
 		return
 	}
+	if s.seedNamedPetDefaultSkills(p) {
+		return
+	}
 	creatureSkills := s.gameDataManager.GetCreatureSkills(int(p.TemplateID))
 	for index, creatureSkill := range creatureSkills {
 		slot := index + 1
