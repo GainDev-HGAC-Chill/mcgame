@@ -21,6 +21,7 @@
 - Đã sửa runtime Hổ Khiếu Sơn Lâm không AOE: log 19:28–19:31 xác nhận lệnh skill Pet 7026/7028 bị ownership gate loại bỏ trước combat dù DTO Pet có skill ở slot canonical. `OwnedSkillLevel` nay đọc `skill1..skill15` qua `LearnedSkillSlots()` và lấy level từ `TBL_SKILL`, vẫn từ chối exact ID chưa sở hữu.
 - Đã sửa hai lỗi nâng skill runtime 19:45–19:46: sách Pet Man Lực 2242 không còn chọn nhầm special skill 60903 (`useEnv=-1`) thay vì chuỗi Pet 4172→4171→4170; slot cũ 60903 được repair trong lần nâng hợp lệ. `skillLearnByClient` nay nhận ID dạng chuỗi (`"2216"`, `"2226"`) và position `null` đúng payload Flash.
 - Đang audit pipeline thuộc tính Pet sau báo cáo Bạch Hổ có tư chất lực khoảng 70k nhưng công vật lý khoảng 29k. Đã xác định Pet ID 168 lưu `grow_rate=15.000`, trong khi túi 6974 và contract hiện tại biểu diễn phẩm chất 1.5; row này được tạo 2026-10-15 trong giai đoạn award-quality legacy từng truyền 15 trực tiếp trước fix `/10`, nên 70k là hiển thị từ dữ liệu phẩm chất sai thang đo, không phải aptitude server chuẩn.
+- Khảo sát và lập kế hoạch dashboard quản lý NPC, gồm hội thoại ambient, quan hệ nhiệm vụ start/finish/loop và shop chuẩn `TBL_SHOP`/`TBL_SHOP_SLOT`; chưa triển khai code/schema hoặc thay đổi catalog.
 
 ## Đã hoàn thành
 
@@ -63,6 +64,7 @@
 - Đã thêm application path riêng cho đúng template `654` Ngân Phiếu Lễ, `1064` Hoàng Kim Lễ và `3848` Thẻ Kim Phiếu; hỗ trợ dùng đơn/nhiều, kiểm tra level/target/count/overflow, tiêu hao rồi cộng đúng ví khóa và phát `granted_currencies`.
 - Quest Admin API không còn yêu cầu Supabase Auth/admin session; mọi request được cấp quyền editor nội bộ cố định, còn PATCH vẫn bắt buộc same-origin.
 - Audit 5.530 quest xác định 227 nhiệm vụ đối thoại tin cậy cao: 67 ID hiện tại (Quest 46 được operator xác nhận) và 160 ứng viên mới type 2/4. Registry lưu exact name/type/startNPC/finishNPC từ checked `TBL_QUEST.json`; catalog drift, requirement, `rt/rn`, thiếu dialogue/NPC tiếp tục fail closed. Giữ chặn 711 ứng viên mơ hồ, 77 ứng viên mâu thuẫn và 669 empty definition khác.
+- NPC Admin research hoàn tất tại `docs/research/2026-10-19_01_NPC_ADMIN_DASHBOARD_RESEARCH.md`; draft plan tại `docs/plans/2026-10-19_01_NPC_ADMIN_DASHBOARD.md`. Xác nhận chưa có trang/API NPC; quan hệ quest canonical là reverse join `start_npc`/`finish_npc`/loop `nid`, không phải `npc.qid`; direct shop phải giữ `onOpenShop` + `TBL_SHOP_SLOT`. Plan đang chờ operator duyệt, chưa code/migration.
 
 ## File đang sửa/chưa commit
 
@@ -147,6 +149,7 @@
 - Binary mới cũng gồm fix nâng skill Pet/nhân vật; container chưa được assistant restart nên hai lỗi runtime vừa báo vẫn còn cho tới deploy/restart được phép. Không trực tiếp sửa slot Pet/player data; compatibility path chỉ chạy khi người chơi chủ động nâng sau deploy.
 - Audit Pet chỉ đọc DB/log: ID 168 có template 2290, level 80, `grow_rate=15.000`, `grow_rate_add=0.830`; item 6974 mô tả phẩm chất 1.5 và code hiện tại chuẩn hóa quality 15 thành 1.5. Không sửa row Pet, không dùng item và không restart/deploy.
 - Nhóm voucher/Quest Admin mới không có migration hoặc thay đổi dữ liệu; chưa deploy/restart/smoke-test.
+- Khảo sát NPC Admin chỉ đọc source/catalog checked-in. Không query/mutate player data, không apply SQL, không restart/deploy. Working tree trước bước này sạch theo `git status --short`; chỉ thêm research/plan và cập nhật checkpoint.
 
 ## Rủi ro/chưa xác minh
 
@@ -178,6 +181,7 @@
 - Character/Fairy/crystal Units A–I safe scope đã code/build/test nhưng chưa deploy/restart hoặc Flash smoke-test. Chín Fairy mechanics thiếu timing/formula vẫn unsupported; runtime hiện tại có thể chưa nạp award 5948 hoặc binary mới.
 - Pet stat audit đã sửa các sai lệch input/direct prop và potential passive có authority. Shared coefficients và thành phần `1 + aptitude/1000` vẫn giữ nguyên vì chưa có legacy server output/formula authority; 14 Pet local có base quality legacy 15.000/19.000 chưa được sửa vì không có quyền mutation dữ liệu người chơi.
 - Ba fix Mật Bảo/Cây Ước Nguyện/bánh chưa deploy/restart hoặc Flash smoke-test. Không có migration hay player-data mutation; bánh type 502 zero-effect ngoài 33 mapping exact nay trả cannot-use và không tiêu hao.
+- NPC Admin activation boundary: ambient dialogue cần server scene payload thêm `onServiceText`; shop slot có protocol động `getShopConfig` nhưng server hiện trả rỗng; quest catalog structural activation vẫn BLOCKED theo audit Flash trước đó. Không được hứa rằng restart/relogin tự đồng bộ quest.
 
 ## Bước tiếp theo
 
@@ -199,6 +203,7 @@
 10. Sau khi được phép deploy/restart riêng server, Flash smoke-test quest 46 cùng một quest type 2/type 4 mới tại/xa finish NPC và xác nhận một quest mơ hồ vẫn bị chặn.
 11. Sau khi được phép deploy/restart, dùng item/character test để kiểm tra một bí kíp Mật Bảo mới và duplicate, claim single/all Cây Ước Nguyện vào stack mới/cũ, cùng bánh 15m/30m/1h; không dùng vật phẩm hoặc người chơi thật.
 12. Pet stat fix chỉ cần deploy/restart để có hiệu lực cho recalculation mới. Data remediation 14 row quality legacy phải có phê duyệt riêng, checkpoint và mapping review trước khi update; không tự sửa Pet 168 hay bất kỳ row người chơi nào.
+13. Chờ operator duyệt hoặc chỉnh phạm vi plan `2026-10-19_01_NPC_ADMIN_DASHBOARD.md`. Chỉ sau khi plan chuyển `Approved` mới triển khai dashboard/SQL/runtime presentation; checkpoint và backup trước mọi compose schema operation.
 
 ## 2026-10-14 - Pet active skill implementation checkpoint
 
