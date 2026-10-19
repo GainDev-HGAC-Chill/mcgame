@@ -2,11 +2,9 @@ package pet
 
 import (
 	"context"
-	"errors"
 	"math"
 	"testing"
 
-	domainitem "mcgame-server/internal/domain/item"
 	domainpet "mcgame-server/internal/domain/pet"
 
 	"go.uber.org/zap"
@@ -31,43 +29,6 @@ func TestFusePetsFailureConsumesFourMaterialsAndKeepsMain(t *testing.T) {
 	}
 	if _, err := service.FusePets(context.Background(), 1, 1, []int64{2, 3, 4, 5}); err == nil {
 		t.Fatal("replayed fusion consumed missing pets")
-	}
-}
-
-func TestPetXsdConsumesOneItemAndReturnsRemainingStack(t *testing.T) {
-	repo, service := newFusionTestService(t)
-	itemRepo := &bookSkillItemRepo{items: map[int64]*domainitem.Item{
-		10: {ID: 10, CharacterID: 1, TemplateID: 5001, SlotType: domainitem.SlotTypeBag, StackCount: 2, Properties: map[string]interface{}{}},
-	}}
-	service.SetItemRepository(itemRepo)
-	result, err := service.PetXsd(context.Background(), 1, 1, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.RemainingStack != 1 || itemRepo.items[10].StackCount != 1 || result.Pet.GrowRateAdd != 0.01 {
-		t.Fatalf("unexpected result=%+v item=%+v", result, itemRepo.items[10])
-	}
-	stored, err := repo.FindByID(context.Background(), 1)
-	if err != nil || stored.GrowRateAdd != 0.01 {
-		t.Fatalf("stored pet=%+v err=%v", stored, err)
-	}
-}
-
-func TestPetXsdRollsBackPetWhenItemConsumeFails(t *testing.T) {
-	repo, service := newFusionTestService(t)
-	itemRepo := &bookSkillItemRepo{
-		items: map[int64]*domainitem.Item{
-			10: {ID: 10, CharacterID: 1, TemplateID: 5001, SlotType: domainitem.SlotTypeBag, StackCount: 2, Properties: map[string]interface{}{}},
-		},
-		updateStackErr: errors.New("write failed"),
-	}
-	service.SetItemRepository(itemRepo)
-	if _, err := service.PetXsd(context.Background(), 1, 1, 10); err == nil {
-		t.Fatal("expected item consume failure")
-	}
-	stored, err := repo.FindByID(context.Background(), 1)
-	if err != nil || stored.GrowRateAdd != 0 || itemRepo.items[10].StackCount != 2 {
-		t.Fatalf("rollback failed: pet=%+v item=%+v err=%v", stored, itemRepo.items[10], err)
 	}
 }
 

@@ -199,15 +199,21 @@ func (h *Handler) PetXsd(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 		zap.Int64("pet_id", petID))
 
 	sendPetItemUseRefresh(ctx, result)
+	if result.Before != result.AppliedValue {
+		_ = ctx.Connection.SendCallback("onUpdatePet", float64(result.Pet.ID), result.Property, result.AppliedValue)
+		sendPetPropRefresh(ctx, result.Pet)
+	}
 	return map[string]interface{}{
-		"f":      true,
-		"p":      result.Pet.ID,
-		"t":      result.Property,
-		"num":    result.After,
-		"i":      result.ItemID,
-		"n":      result.RemainingStack,
-		"before": result.Before,
-		"after":  result.After,
+		"f":       true,
+		"p":       result.Pet.ID,
+		"t":       result.Property,
+		"num":     result.AppliedValue,
+		"i":       result.ItemID,
+		"n":       result.RemainingStack,
+		"before":  result.Before,
+		"after":   result.After,
+		"type":    result.Property,
+		"aptHigh": result.AptHigh,
 	}, nil
 }
 

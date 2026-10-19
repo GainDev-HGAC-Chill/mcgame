@@ -21,6 +21,8 @@ type PetItemUseResult struct {
 	SafeItemID     int64
 	SafeItemSID    int
 	SafeRemaining  int
+	AptHigh        bool
+	AppliedValue   float64
 }
 
 var petStarSuccessRates = [...]int{0, 100, 100, 90, 80, 70, 60, 50, 30, 30, 30, 30, 20}

@@ -29,6 +29,7 @@ type Service struct {
 	fusionRoll           func(int) bool
 	fusionGrowth         func(int, int) int
 	starRoll             func(int) bool
+	washRoll             func(int, int) int
 }
 
 const (
@@ -43,6 +44,7 @@ func NewService(petRepo domainpet.Repository, logger *zap.Logger) *Service {
 		fusionRoll:   defaultPetFusionRoll,
 		fusionGrowth: defaultPetFusionGrowth,
 		starRoll:     defaultPetStarRoll,
+		washRoll:     petWashRoll,
 	}
 }
 
@@ -781,34 +783,6 @@ func (s *Service) UseCultivationItem(ctx context.Context, charID int64, petID in
 	result.Property = "aptStrength"
 	result.Before = float64(original.AptStrengthEx)
 	result.After = float64(p.AptStrengthEx)
-	return result, nil
-}
-
-func (s *Service) PetXsd(ctx context.Context, charID int64, petID int64, itemID int64) (*PetItemUseResult, error) {
-	it, err := s.loadPetFunctionItem(ctx, charID, itemID)
-	if err != nil {
-		return nil, err
-	}
-	p, err := s.getPetAndValidate(ctx, charID, petID)
-	if err != nil {
-		return nil, err
-	}
-	original := p.Clone()
-
-	p.GrowRateAdd += 0.01
-	p.RecalculateStats()
-
-	s.logger.Info("Pet XSD performed",
-		zap.Int64("character_id", charID),
-		zap.Int64("pet_id", petID))
-
-	result, err := s.finishPetItemUse(ctx, original, p, it)
-	if err != nil {
-		return nil, err
-	}
-	result.Property = "growRateAdd"
-	result.Before = original.GrowRateAdd
-	result.After = p.GrowRateAdd
 	return result, nil
 }
 
