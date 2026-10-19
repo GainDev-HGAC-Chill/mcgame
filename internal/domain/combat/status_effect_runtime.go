@@ -125,6 +125,11 @@ func (m *StatusEffectManager) ApplyDamage(participantID string, damage int, magi
 }
 
 func (m *StatusEffectManager) RemoveRandomEffect(participantID string, polarity EffectPolarity, rng *rand.Rand) bool {
+	removed, _ := m.RemoveRandomEffectWithBuffID(participantID, polarity, rng)
+	return removed
+}
+
+func (m *StatusEffectManager) RemoveRandomEffectWithBuffID(participantID string, polarity EffectPolarity, rng *rand.Rand) (bool, int) {
 	effects := m.effects[participantID]
 	eligible := make([]int, 0)
 	for i, effect := range effects {
@@ -133,26 +138,36 @@ func (m *StatusEffectManager) RemoveRandomEffect(participantID string, polarity 
 		}
 	}
 	if len(eligible) == 0 {
-		return false
+		return false, 0
 	}
 	index := eligible[rng.Intn(len(eligible))]
+	buffID := effects[index].BuffID
 	m.effects[participantID] = append(effects[:index], effects[index+1:]...)
-	return true
+	return true, buffID
 }
 
 func (m *StatusEffectManager) RemoveAllEffects(participantID string, polarity EffectPolarity) int {
+	removed, _ := m.RemoveAllEffectsWithBuffIDs(participantID, polarity)
+	return removed
+}
+
+func (m *StatusEffectManager) RemoveAllEffectsWithBuffIDs(participantID string, polarity EffectPolarity) (int, []int) {
 	effects := m.effects[participantID]
 	remaining := make([]*StatusEffect, 0, len(effects))
 	removed := 0
+	buffIDs := make([]int, 0, len(effects))
 	for _, effect := range effects {
 		if effect.Removable && effect.Polarity == polarity {
 			removed++
+			if effect.BuffID > 0 {
+				buffIDs = append(buffIDs, effect.BuffID)
+			}
 			continue
 		}
 		remaining = append(remaining, effect)
 	}
 	m.effects[participantID] = remaining
-	return removed
+	return removed, buffIDs
 }
 
 func (m *StatusEffectManager) TauntTarget(participantID string) string {
@@ -164,16 +179,21 @@ func (m *StatusEffectManager) TauntTarget(participantID string) string {
 	return ""
 }
 
-func (m *StatusEffectManager) ProcessTurnEnd(participantID string) {
+func (m *StatusEffectManager) ProcessTurnEnd(participantID string) []int {
 	effects := m.effects[participantID]
 	remaining := make([]*StatusEffect, 0, len(effects))
+	expiredBuffIDs := make([]int, 0, len(effects))
 	for _, effect := range effects {
 		if effect.Family != "" && effect.Tick() {
+			if effect.BuffID > 0 {
+				expiredBuffIDs = append(expiredBuffIDs, effect.BuffID)
+			}
 			continue
 		}
 		remaining = append(remaining, effect)
 	}
 	m.effects[participantID] = remaining
+	return expiredBuffIDs
 }
 
 func (m *StatusEffectManager) SortedEffects(participantID string) []*StatusEffect {

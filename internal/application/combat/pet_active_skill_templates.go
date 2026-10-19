@@ -4,6 +4,15 @@ package combat
 import domaincombat "mcgame-server/internal/domain/combat"
 
 var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
+	7002: uMinhHuyenVuPlan(1, 4, 0.15, 0.50),
+	7003: uMinhHuyenVuPlan(2, 6, 0.20, 0.55),
+	7004: uMinhHuyenVuPlan(3, 8, 0.25, 0.60),
+	7005: uMinhHuyenVuPlan(1, 4, 0.20, 0.55),
+	7006: uMinhHuyenVuPlan(2, 6, 0.25, 0.60),
+	7007: uMinhHuyenVuPlan(3, 8, 0.27, 0.65),
+	7008: uMinhHuyenVuPlan(1, 4, 0.25, 0.60),
+	7009: uMinhHuyenVuPlan(2, 6, 0.27, 0.65),
+	7010: uMinhHuyenVuPlan(3, 8, 0.30, 0.70),
 	6712: bianStrikePlan(1, 1.4, 6724),
 	6713: bianStrikePlan(2, 1.7, 6727),
 	6714: bianStrikePlan(3, 2.0, 6730),
@@ -40,6 +49,20 @@ var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
 	6748: followUpStrikePlan(4.0),
 	6749: followUpStrikePlan(4.0),
 	6750: followUpStrikePlan(4.0),
+}
+
+func uMinhHuyenVuPlan(level, targetCount int, maxHPRatio, soulLossChance float64) domaincombat.SkillPlan {
+	return domaincombat.SkillPlan{
+		Family:      "U Minh Huyền Vũ",
+		Level:       level,
+		Target:      domaincombat.TargetEnemy,
+		Area:        domaincombat.AreaHorizontalRows,
+		TargetCount: targetCount,
+		Effects: []domaincombat.SkillEffect{
+			{Kind: domaincombat.EffectPhysicalDamage, Coefficient: 0.25, CasterMaxHPRatio: maxHPRatio},
+			{Kind: domaincombat.EffectStatus, Chance: soulLossChance, Duration: 1, Polarity: domaincombat.PolarityHarmful, Removable: true, Family: "U Minh Huyền Vũ:Thất Hồn", Control: domaincombat.ControlEffect{Stun: true}, BuffID: 14},
+		},
+	}
 }
 
 func petActiveSkillPlanByTemplateID(id int) *domaincombat.SkillPlan {

@@ -41,11 +41,12 @@ const (
 type AreaType string
 
 const (
-	AreaNone       AreaType = ""
-	AreaVertical   AreaType = "V"
-	AreaHorizontal AreaType = "H"
-	AreaCross      AreaType = "C"
-	AreaRandom     AreaType = "R"
+	AreaNone           AreaType = ""
+	AreaVertical       AreaType = "V"
+	AreaHorizontal     AreaType = "H"
+	AreaCross          AreaType = "C"
+	AreaRandom         AreaType = "R"
+	AreaHorizontalRows AreaType = "HR"
 )
 
 const (
@@ -340,6 +341,8 @@ func (r *TargetResolver) areaPatternTargets(center *Participant, predicate targe
 		return r.verticalTargets(center, predicate)
 	case AreaHorizontal:
 		return r.horizontalTargets(center, predicate)
+	case AreaHorizontalRows:
+		return r.horizontalRowTargets(center, predicate)
 	case AreaCross:
 		return r.crossTargets(center, predicate)
 	case AreaRandom:
@@ -375,6 +378,36 @@ func (r *TargetResolver) horizontalTargets(center *Participant, predicate target
 		}
 		if right := r.participantAtCoord(centerCoord.X+delta, centerCoord.Y, predicate, center.ID); right != nil {
 			targets = append(targets, right)
+		}
+	}
+	return targets
+}
+
+func (r *TargetResolver) horizontalRowTargets(center *Participant, predicate targetPredicate) []*Participant {
+	centerCoord := battleGridCoord(center.Position)
+	targets := r.targetsAcrossRow(centerCoord.Y, center, predicate)
+	pairedRow := verticalNeighborY(centerCoord.Y)
+	targets = append(targets, r.targetsAcrossRow(pairedRow, center, predicate)...)
+	return targets
+}
+
+func (r *TargetResolver) targetsAcrossRow(y int, center *Participant, predicate targetPredicate) []*Participant {
+	targets := make([]*Participant, 0, BattleGridWidth)
+	centerCoord := battleGridCoord(center.Position)
+	if y == centerCoord.Y {
+		targets = append(targets, center)
+	}
+	for delta := 1; delta < BattleGridWidth; delta++ {
+		if left := r.participantAtCoord(centerCoord.X-delta, y, predicate, center.ID); left != nil {
+			targets = append(targets, left)
+		}
+		if right := r.participantAtCoord(centerCoord.X+delta, y, predicate, center.ID); right != nil {
+			targets = append(targets, right)
+		}
+	}
+	if y != centerCoord.Y {
+		if aligned := r.participantAtCoord(centerCoord.X, y, predicate, center.ID); aligned != nil {
+			targets = append([]*Participant{aligned}, targets...)
 		}
 	}
 	return targets

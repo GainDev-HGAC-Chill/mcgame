@@ -121,3 +121,27 @@ func TestBuildSkillInfoFromGamedata_UsesExactTrungKichFollowUpPlan(t *testing.T)
 		t.Fatalf("damage effect = %#v, want physical x4.0", effect)
 	}
 }
+
+func TestBuildSkillInfoFromGamedata_UsesExactUMinhTemplatePlan(t *testing.T) {
+	tpl := &gamedatamodels.SkillTemplate{
+		ID:         7008,
+		Name:       "ㄨU Minh Huyền Vũㄨ",
+		Kind:       1,
+		Level:      1,
+		Type:       float64(gamedataTypeClose),
+		TargetType: 4,
+		TargetNum:  4,
+		AreaAttack: 1,
+		BuffID:     14,
+		BuffRate:   60,
+	}
+	info := buildSkillInfoFromGamedata(tpl)
+	if info.Plan == nil || info.Plan.Area != domaincombat.AreaHorizontalRows || info.Plan.TargetCount != 4 || len(info.Plan.Effects) != 2 {
+		t.Fatalf("plan = %#v, want exact U Minh four-target horizontal-row plan", info.Plan)
+	}
+	damage := info.Plan.Effects[0]
+	status := info.Plan.Effects[1]
+	if damage.Coefficient != .25 || damage.CasterMaxHPRatio != .25 || status.Chance != .60 || status.BuffID != 14 {
+		t.Fatalf("U Minh effects = %#v / %#v", damage, status)
+	}
+}

@@ -273,7 +273,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 			}
 
 			if !currentActor.IsAlive {
-				tp.statusManager.ProcessTurnEnd(currentActor.ID)
+				tp.appendTurnEndStatusActions(result, currentActor)
 				if ended, winner := tp.battle.CheckVictory(); ended {
 					result.BattleEnded = true
 					result.Winner = winner
@@ -294,7 +294,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 				Effects:        []string{GetStatusEffectName(turnResult.BlockingEffect)},
 			}
 			result.Actions = append(result.Actions, skipAction)
-			tp.statusManager.ProcessTurnEnd(currentActor.ID)
+			tp.appendTurnEndStatusActions(result, currentActor)
 			continue
 		}
 
@@ -314,7 +314,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 				tp.battle.AddAction(action)
 			}
 		}
-		tp.statusManager.ProcessTurnEnd(currentActor.ID)
+		tp.appendTurnEndStatusActions(result, currentActor)
 
 		if tp.battle.HasPlayerFled() {
 			result.PlayerFled = true
@@ -432,7 +432,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 			}
 
 			if !currentActor.IsAlive {
-				tp.statusManager.ProcessTurnEnd(currentActor.ID)
+				tp.appendTurnEndStatusActions(result, currentActor)
 				if ended, winner := tp.battle.CheckVictory(); ended {
 					result.BattleEnded = true
 					result.Winner = winner
@@ -454,7 +454,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 				Effects:        []string{GetStatusEffectName(turnResult.BlockingEffect)},
 			}
 			result.Actions = append(result.Actions, skipAction)
-			tp.statusManager.ProcessTurnEnd(currentActor.ID)
+			tp.appendTurnEndStatusActions(result, currentActor)
 			continue
 		}
 
@@ -474,7 +474,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 				tp.battle.AddAction(action)
 			}
 		}
-		tp.statusManager.ProcessTurnEnd(currentActor.ID)
+		tp.appendTurnEndStatusActions(result, currentActor)
 
 		if tp.battle.HasPlayerFled() {
 			result.PlayerFled = true
@@ -550,6 +550,19 @@ func (tp *TurnProcessor) applyTurnStartRecovery(actor *Participant, result *Turn
 		return nil
 	}
 	return &BattleAction{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeAuto, TargetNewHP: actor.CurrentHP, TargetNewMP: actor.CurrentMP, TargetState: map[string]interface{}{"rHp": actor.CurrentHP, "rMp": actor.CurrentMP}, Effects: []string{"periodic_recovery"}}
+}
+
+func (tp *TurnProcessor) appendTurnEndStatusActions(result *RoundResult, actor *Participant) {
+	if result == nil || actor == nil {
+		return
+	}
+	buffIDs := tp.statusManager.ProcessTurnEnd(actor.ID)
+	if len(buffIDs) == 0 {
+		return
+	}
+	action := &BattleAction{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeAuto, SourceState: map[string]interface{}{"buffColDel": buffIDs}}
+	result.Actions = append(result.Actions, action)
+	tp.battle.AddAction(action)
 }
 
 func (tp *TurnProcessor) applyTurnStartDamage(actor *Participant, result *TurnStartResult) []*BattleAction {

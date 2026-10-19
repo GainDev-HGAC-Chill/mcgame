@@ -150,7 +150,11 @@ func (tp *TurnProcessor) applyPlannedEffect(actor, target *Participant, skillID 
 		return []*BattleAction{tp.stateAction(actor, actor, skillID, tpl, 0)}, true
 	case EffectStatus:
 		tp.addPlannedStatus(actor, target, skillID, effect)
-		return []*BattleAction{tp.stateAction(actor, target, skillID, tpl, 0)}, true
+		action := tp.stateAction(actor, target, skillID, tpl, 0)
+		if effect.BuffID > 0 {
+			action.TargetState = map[string]interface{}{"buffAdd": map[string]interface{}{"id": effect.BuffID}}
+		}
+		return []*BattleAction{action}, true
 	case EffectRevive:
 		if target.IsAlive {
 			return nil, false
@@ -163,15 +167,23 @@ func (tp *TurnProcessor) applyPlannedEffect(actor, target *Participant, skillID 
 		if target.Side == actor.Side {
 			polarity = PolarityHarmful
 		}
-		removed := tp.statusManager.RemoveRandomEffect(target.ID, polarity, tp.rng)
-		return []*BattleAction{tp.stateAction(actor, target, skillID, tpl, 0)}, removed
+		removed, buffID := tp.statusManager.RemoveRandomEffectWithBuffID(target.ID, polarity, tp.rng)
+		action := tp.stateAction(actor, target, skillID, tpl, 0)
+		if buffID > 0 {
+			action.TargetState = map[string]interface{}{"buffDel": buffID}
+		}
+		return []*BattleAction{action}, removed
 	case EffectRemoveAll:
 		polarity := PolarityBeneficial
 		if target.Side == actor.Side {
 			polarity = PolarityHarmful
 		}
-		removed := tp.statusManager.RemoveAllEffects(target.ID, polarity)
-		return []*BattleAction{tp.stateAction(actor, target, skillID, tpl, 0)}, removed > 0
+		removed, buffIDs := tp.statusManager.RemoveAllEffectsWithBuffIDs(target.ID, polarity)
+		action := tp.stateAction(actor, target, skillID, tpl, 0)
+		if len(buffIDs) > 0 {
+			action.TargetState = map[string]interface{}{"buffColDel": buffIDs}
+		}
+		return []*BattleAction{action}, removed > 0
 	case EffectTransfer:
 		return []*BattleAction{tp.applyTransfer(actor, target, skillID, tpl, effect)}, true
 	default:
@@ -181,7 +193,7 @@ func (tp *TurnProcessor) applyPlannedEffect(actor, target *Participant, skillID 
 
 func (tp *TurnProcessor) applyPlannedDamage(actor, target *Participant, skillID int, tpl *skill.SkillTemplate, effect SkillEffect) []*BattleAction {
 	damageTemplate := *tpl
-	damageTemplate.BaseDamage = 0
+	damageTemplate.BaseDamage = int(float64(actor.MaxHP) * effect.CasterMaxHPRatio)
 	damageTemplate.Multiplier = effect.Coefficient
 	if effect.Kind == EffectMagicDamage {
 		damageTemplate.SkillType = skill.SkillTypeMagic
@@ -276,7 +288,7 @@ func (tp *TurnProcessor) addPlannedStatus(actor, target *Participant, skillID in
 	if actor.ID == target.ID {
 		duration++
 	}
-	status := &StatusEffect{Type: statusType, Duration: duration, Power: power, SourceID: actor.ID, TemplateID: skillID, Family: effect.Family, Polarity: effect.Polarity, Removable: effect.Removable, Modifiers: append([]StatModifier(nil), effect.Modifiers...), Periodic: effect.Periodic, Control: control, StackCount: 1}
+	status := &StatusEffect{Type: statusType, Duration: duration, Power: power, SourceID: actor.ID, TemplateID: skillID, BuffID: effect.BuffID, Family: effect.Family, Polarity: effect.Polarity, Removable: effect.Removable, Modifiers: append([]StatModifier(nil), effect.Modifiers...), Periodic: effect.Periodic, Control: control, StackCount: 1}
 	if effect.ShieldHits > 0 {
 		status.Shield = &ShieldEffect{MagicOnly: effect.ShieldMagicOnly, Pool: int(float64(actor.MaxMP) * effect.ShieldPercentMaxMP), Hits: effect.ShieldHits}
 	}

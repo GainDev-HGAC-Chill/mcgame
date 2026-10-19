@@ -27,6 +27,11 @@ func buildPetActiveSkillCatalog() map[string]petSkillLevels {
 	status := func(family string, chance float64, duration int, polarity domaincombat.EffectPolarity, modifiers ...domaincombat.StatModifier) domaincombat.SkillEffect {
 		return domaincombat.SkillEffect{Kind: domaincombat.EffectStatus, Family: family, Chance: chance, Duration: duration, Polarity: polarity, Removable: true, Modifiers: modifiers}
 	}
+	statusBuff := func(buffID int, family string, chance float64, duration int, polarity domaincombat.EffectPolarity, modifiers ...domaincombat.StatModifier) domaincombat.SkillEffect {
+		effect := status(family, chance, duration, polarity, modifiers...)
+		effect.BuffID = buffID
+		return effect
+	}
 	modifier := func(stat domaincombat.CombatStat, percent float64, flat int) domaincombat.StatModifier {
 		return domaincombat.StatModifier{Stat: stat, Percent: percent, Flat: flat}
 	}
@@ -68,14 +73,14 @@ func buildPetActiveSkillCatalog() map[string]petSkillLevels {
 		{damage(physical, 1.2), {Kind: domaincombat.EffectRemoveOne, Chance: .5}},
 	})
 	add("Thợ Săn Sát Thủ", domaincombat.TargetAllTeam, domaincombat.AreaNone, []int{10}, [][]domaincombat.SkillEffect{
-		{status("Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .1, 0), modifier(domaincombat.StatAccuracy, 0, 10))},
-		{status("Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .15, 0), modifier(domaincombat.StatAccuracy, 0, 15))},
-		{status("Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .2, 0), modifier(domaincombat.StatAccuracy, 0, 20))},
+		{statusBuff(80118, "Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .1, 0), modifier(domaincombat.StatAccuracy, .1, 0))},
+		{statusBuff(80119, "Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .15, 0), modifier(domaincombat.StatAccuracy, .15, 0))},
+		{statusBuff(80120, "Thợ Săn Sát Thủ", 0, 5, domaincombat.PolarityBeneficial, modifier(domaincombat.StatSpeed, .2, 0), modifier(domaincombat.StatAccuracy, .2, 0))},
 	})
 	add("Tứ Phương Khiếp Đảm", domaincombat.TargetRandomEnemy, domaincombat.AreaNone, []int{4, 6, 8}, [][]domaincombat.SkillEffect{
-		{status("Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.05, 0), modifier(domaincombat.StatMagicAttack, -.05, 0), modifier(domaincombat.StatSpeed, -.05, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .1}},
-		{status("Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.08, 0), modifier(domaincombat.StatMagicAttack, -.08, 0), modifier(domaincombat.StatSpeed, -.08, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .2}},
-		{status("Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.12, 0), modifier(domaincombat.StatMagicAttack, -.12, 0), modifier(domaincombat.StatSpeed, -.12, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .3}},
+		{statusBuff(80121, "Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.05, 0), modifier(domaincombat.StatMagicAttack, -.05, 0), modifier(domaincombat.StatSpeed, -.05, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .1}},
+		{statusBuff(80122, "Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.08, 0), modifier(domaincombat.StatMagicAttack, -.08, 0), modifier(domaincombat.StatSpeed, -.08, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .2}},
+		{statusBuff(80123, "Tứ Phương Khiếp Đảm", 0, 1, domaincombat.PolarityHarmful, modifier(domaincombat.StatAttack, -.12, 0), modifier(domaincombat.StatMagicAttack, -.12, 0), modifier(domaincombat.StatSpeed, -.12, 0)), {Kind: domaincombat.EffectRemoveAll, Chance: .3}},
 	})
 
 	addDamageStatus := func(name string, kind domaincombat.EffectKind, area domaincombat.AreaType, counts []int, coefficients, chances []float64, durations []int, stat domaincombat.CombatStat, percents []float64) {

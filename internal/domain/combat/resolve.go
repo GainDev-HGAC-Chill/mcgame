@@ -134,6 +134,9 @@ func resolveOneHit(def *Participant, aStats, dStats *stats.EffectiveStats, sk *S
 	}
 
 	dmg := stats.MulPM(baseAtk, skillMulPM)
+	if sk != nil && sk.Template.BaseDamage > 0 {
+		dmg += int64(sk.Template.BaseDamage)
+	}
 	dmg = stats.MulPM(dmg, finalDelta)
 
 	penChance := stats.ClampPM(aStats.Get(defPropPen) - dStats.Get(stats.PropResistDefy))

@@ -113,6 +113,7 @@ type ControlEffect struct {
 type SkillEffect struct {
 	Kind                    EffectKind
 	Coefficient             float64
+	CasterMaxHPRatio        float64
 	Fixed                   int
 	Chance                  float64
 	Duration                int
@@ -131,4 +132,5 @@ type SkillEffect struct {
 	RequiresPreviousSuccess bool
 	ResourceBasis           ResourceType
 	ApplyToTarget           bool
+	BuffID                  int
 }

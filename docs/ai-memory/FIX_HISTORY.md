@@ -88,6 +88,15 @@
 - Test: đủ ba exact config, deterministic success cleanse periodic debuff trước damage, giữ locked/beneficial effect, effective resistance 150 và xác suất 40%→30% khi attacker hit 50; deterministic failure xóa resistance cũ. Full domain/application combat và combat handler, targeted vet, gameserver build và diff-check PASS.
 - Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
 
+## FIX-2026-10-20-01 — Ba skill Huyền Minh Linh Vũ sai target/damage và không hiện buff
+
+- Hiện tượng: `U Minh Huyền Vũ` chỉ đánh một mục tiêu, chưa cộng MaxHP Pet và thiếu `Thất Hồn`; `Thợ Săn Sát Thủ`/`Tứ Phương Khiếp Đảm` không có logo xác nhận và bị cảm nhận là không tác dụng.
+- Nguyên nhân: chuỗi exact `7002..7010` chưa có audited plan nên rơi vào fallback; TSST cộng Accuracy phẳng thay vì phần trăm; planned status không mang buff ID ra wire. Bộ gom AoE còn xóa `tSObj` của status-only segment, nên dù modifier battle-local tồn tại, Flash không nhận `buffAdd`.
+- Sửa U Minh: exact chín plan target selected enemy rồi mở rộng hai hàng ngang tới cap 4/6/8; damage `25% Attack + 15..30% caster MaxHP` đi qua cùng defense/crit/element/position/modifier pipeline. `Thất Hồn` buff 14 có base chance đúng từng row 50..70%, sau đó cộng debuff/stun hit và trừ generic/stun resistance.
+- Sửa buff/debuff: TSST dùng Speed và Accuracy +10/15/20% trong 5 lượt với IDs `80118..80120`; TPKĐ giữ giảm hai Attack + Speed 5/8/12% trong 1 lượt với IDs `80121..80123`. Status phát `buffAdd`; expiry và dispel phát `buffDel`/`buffColDel`; AoE có target-state round riêng nên icon không bị mất hoặc treo.
+- Test: đủ chín exact mapping U Minh, adapter ID 7008, target tám enemy hai hàng, legacy và per-mille composite damage, 60% Thất Hồn trừ 100 generic + 200 stun resistance còn 30%; TSST effective Speed/Hit 110/110 và icon 80118; TPKĐ effective stats 95/95/95, icon 80121 và expiry remove. Full domain/application combat + combat handler, targeted vet, gameserver build và diff-check PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+
 ## FIX-2026-10-16-28 — Không thể chủ động bỏ nhiệm vụ type 1 đã nhận
 
 - Hiện tượng: cả Flash QuestManager và QuestPanel tự khóa nút Hủy khi active DTO có `data.type == 1`; nếu gọi RPC trực tiếp, service cũng từ chối toàn bộ type 1 bằng `ErrQuestNotAvailable`.

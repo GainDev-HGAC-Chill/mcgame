@@ -157,8 +157,11 @@ func TestSpecialPetSupportSkillPlans(t *testing.T) {
 		if effect.Duration != 5 || effect.Polarity != domaincombat.PolarityBeneficial {
 			t.Fatalf("Thợ Săn Sát Thủ level %d effect = %#v", level+1, effect)
 		}
+		if effect.BuffID != 80118+level {
+			t.Fatalf("Thợ Săn Sát Thủ level %d buff ID = %d, want %d", level+1, effect.BuffID, 80118+level)
+		}
 		assertPlanModifier(t, effect, domaincombat.StatSpeed, float64(amount)/100, 0)
-		assertPlanModifier(t, effect, domaincombat.StatAccuracy, 0, amount)
+		assertPlanModifier(t, effect, domaincombat.StatAccuracy, float64(amount)/100, 0)
 	}
 	for level, amount := range []int{5, 8, 12} {
 		plan := petActiveSkillPlan("Tứ Phương Khiếp Đảm", level+1)
@@ -171,11 +174,41 @@ func TestSpecialPetSupportSkillPlans(t *testing.T) {
 		if status.Duration != 1 || status.Polarity != domaincombat.PolarityHarmful {
 			t.Fatalf("Tứ Phương Khiếp Đảm level %d status = %#v", level+1, status)
 		}
+		if status.BuffID != 80121+level {
+			t.Fatalf("Tứ Phương Khiếp Đảm level %d buff ID = %d, want %d", level+1, status.BuffID, 80121+level)
+		}
 		for _, stat := range []domaincombat.CombatStat{domaincombat.StatAttack, domaincombat.StatMagicAttack, domaincombat.StatSpeed} {
 			assertPlanModifier(t, status, stat, -float64(amount)/100, 0)
 		}
 		if plan.Effects[1].Kind != domaincombat.EffectRemoveAll || plan.Effects[1].Chance != wantChance {
 			t.Fatalf("Tứ Phương Khiếp Đảm level %d dispel = %#v", level+1, plan.Effects[1])
+		}
+	}
+}
+
+func TestUMinhHuyenVuExactTemplatePlans(t *testing.T) {
+	want := map[int]struct {
+		level      int
+		targets    int
+		hpRatio    float64
+		soulChance float64
+	}{
+		7002: {1, 4, .15, .50}, 7003: {2, 6, .20, .55}, 7004: {3, 8, .25, .60},
+		7005: {1, 4, .20, .55}, 7006: {2, 6, .25, .60}, 7007: {3, 8, .27, .65},
+		7008: {1, 4, .25, .60}, 7009: {2, 6, .27, .65}, 7010: {3, 8, .30, .70},
+	}
+	for id, expected := range want {
+		plan := petActiveSkillPlanByTemplateID(id)
+		if plan == nil || plan.Level != expected.level || plan.Target != domaincombat.TargetEnemy || plan.Area != domaincombat.AreaHorizontalRows || plan.TargetCount != expected.targets || len(plan.Effects) != 2 {
+			t.Fatalf("template %d plan = %#v", id, plan)
+		}
+		damage := plan.Effects[0]
+		if damage.Kind != domaincombat.EffectPhysicalDamage || damage.Coefficient != .25 || damage.CasterMaxHPRatio != expected.hpRatio {
+			t.Fatalf("template %d damage = %#v", id, damage)
+		}
+		status := plan.Effects[1]
+		if status.Kind != domaincombat.EffectStatus || status.Chance != expected.soulChance || status.Duration != 1 || status.BuffID != 14 || !status.Control.Stun {
+			t.Fatalf("template %d Thất Hồn = %#v", id, status)
 		}
 	}
 }

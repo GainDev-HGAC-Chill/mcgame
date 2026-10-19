@@ -155,6 +155,32 @@ func buildMultiTargetSkillRounds(segments []multiTargetSkillSegment) [][]map[str
 		rounds = append(rounds, projectileRound)
 	}
 
+	stateRound := make([]map[string]interface{}, 0, len(segments))
+	for _, segment := range segments {
+		if segment.hurt != nil {
+			continue
+		}
+		openerDTO, ok := playbackDTO(segment.opener)
+		if !ok {
+			continue
+		}
+		targetState := cloneStateMap(openerDTO["tSObj"])
+		if len(targetState) == 0 {
+			continue
+		}
+		stateRound = append(stateRound, map[string]interface{}{
+			"sid":   openerDTO["sid"],
+			"tid":   openerDTO["tid"],
+			"bid":   0,
+			"sSObj": map[string]interface{}{},
+			"tSObj": targetState,
+			"delay": 0,
+		})
+	}
+	if len(stateRound) > 0 {
+		rounds = append(rounds, stateRound)
+	}
+
 	hurtRound := make([]map[string]interface{}, 0, len(segments))
 	for _, segment := range segments {
 		if segment.hurt == nil {

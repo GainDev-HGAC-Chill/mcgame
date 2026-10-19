@@ -32,6 +32,7 @@ type StatusEffect struct {
 	Power      int
 	SourceID   string
 	TemplateID int
+	BuffID     int
 	Family     string
 	Polarity   EffectPolarity
 	Removable  bool
@@ -111,6 +112,7 @@ func (e *StatusEffect) GetAccuracyModifier() float64 {
 func (e *StatusEffect) ToDTO() map[string]interface{} {
 	return map[string]interface{}{
 		"type":     int(e.Type),
+		"id":       e.BuffID,
 		"duration": e.Duration,
 		"power":    e.Power,
 		"stacks":   e.StackCount,

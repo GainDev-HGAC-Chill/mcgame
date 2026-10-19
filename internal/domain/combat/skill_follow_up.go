@@ -74,7 +74,24 @@ func (tp *TurnProcessor) plannedEffectChance(actor, target *Participant, effect 
 	attacker := tp.statusManager.EffectiveParticipant(actor)
 	defender := tp.statusManager.EffectiveParticipant(target)
 	chance += float64(attacker.EffStats.Get(stats.PropDebuffHit)-defender.EffStats.Get(stats.PropResistDebuff)) / float64(stats.PerMille)
+	accuracyProp, resistanceProp := plannedControlProps(effect.Control)
+	if accuracyProp != 0 && resistanceProp != 0 {
+		chance += float64(attacker.EffStats.Get(accuracyProp)-defender.EffStats.Get(resistanceProp)) / float64(stats.PerMille)
+	}
 	return min(1.0, max(0.0, chance))
+}
+
+func plannedControlProps(control ControlEffect) (stats.PropID, stats.PropID) {
+	switch {
+	case control.Stun:
+		return stats.PropStunAcc, stats.PropResistStun
+	case control.Confusion:
+		return stats.PropConfuseAcc, stats.PropResistConfuse
+	case control.Sleep:
+		return stats.PropSleepAcc, stats.PropResistSleep
+	default:
+		return 0, 0
+	}
 }
 
 func (tp *TurnProcessor) plannedEffectSucceeds(actor, target *Participant, effect SkillEffect) bool {
