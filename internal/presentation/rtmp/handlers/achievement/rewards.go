@@ -1,136 +1,104 @@
 // Open-sourced by BaoLT
 
+// Achievement reward grants fail closed and return errors to claim orchestration.
 package achievement
 
 import (
+	"fmt"
+
+	appachievement "mcgame-server/internal/application/achievement"
 	domainitem "mcgame-server/internal/domain/item"
-	"mcgame-server/internal/gamedata/models"
 	"mcgame-server/internal/infrastructure/rtmp"
 	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
-
-	"go.uber.org/zap"
 )
 
-const (
-	achievementRewardMoney = 1
-	achievementRewardGold  = 2
-	achievementRewardItem  = 3
-	achievementRewardTitle = 4
+func (h *Handler) grantReward(ctx *rtmp.RPCContext, characterID, achievementID int64) error {
+	reward, ok := appachievement.RewardForAchievement(achievementID)
+	if !ok {
+		return appachievement.ErrAchievementRewardUnknown
+	}
+	if reward.TemplateID <= 0 || reward.Quantity <= 0 {
+		return fmt.Errorf("invalid achievement reward definition")
+	}
 
-	currencyKindMoney = "money"
-	currencyKindGold  = "gold"
-)
-
-func (h *Handler) grantStructuredReward(ctx *rtmp.RPCContext, characterID int64, template *models.AchievementTemplate) {
-	if template == nil || template.RewardType == nil {
-		return
-	}
-	rewardType := *template.RewardType
-	rewardID := 0
-	if template.RewardID != nil {
-		rewardID = *template.RewardID
-	}
-	rewardQty := 0
-	if template.RewardQty != nil {
-		rewardQty = *template.RewardQty
-	}
-	switch rewardType {
-	case achievementRewardMoney:
-		h.grantCurrency(ctx, characterID, currencyKindMoney, int64(rewardQty))
-	case achievementRewardGold:
-		h.grantCurrency(ctx, characterID, currencyKindGold, int64(rewardQty))
-	case achievementRewardItem:
-		h.grantItem(ctx, characterID, rewardID, rewardQty)
-	case achievementRewardTitle:
-		h.grantTitleByID(ctx, characterID, rewardID)
+	switch reward.Kind {
+	case appachievement.RewardKindItem:
+		return h.grantItem(ctx, characterID, reward.TemplateID, reward.Quantity)
+	case appachievement.RewardKindTitle:
+		return h.grantTitle(ctx, characterID, reward.TemplateID)
+	case appachievement.RewardKindMedal:
+		return h.grantMedal(ctx, characterID, reward.TemplateID, reward.Quantity)
 	default:
-		h.logger.Warn("Unknown achievement reward type",
-			zap.Int64("character_id", characterID),
-			zap.Int64("achievement_id", template.ID),
-			zap.Int("reward_type", rewardType))
+		return fmt.Errorf("unsupported achievement reward kind")
 	}
 }
 
-func (h *Handler) grantCurrency(ctx *rtmp.RPCContext, characterID int64, kind string, amount int64) {
-	if h.charService == nil || amount <= 0 {
-		return
+func (h *Handler) grantItem(ctx *rtmp.RPCContext, characterID int64, templateID, quantity int) error {
+	if h.itemService == nil {
+		return fmt.Errorf("achievement item service not configured")
 	}
-	char, err := h.charService.GetCharacter(ctx.Context, characterID)
-	if err != nil || char == nil {
-		h.logger.Warn("Achievement currency reward: character not found",
-			zap.Int64("character_id", characterID), zap.Error(err))
-		return
+	if h.gameDataManager == nil || h.gameDataManager.GetItem(templateID) == nil {
+		return fmt.Errorf("achievement item %d not found", templateID)
 	}
-	var balance *int64
-	switch kind {
-	case currencyKindMoney:
-		balance = &char.Money
-	case currencyKindGold:
-		balance = &char.Gold
-	default:
-		return
+	added, err := h.itemService.AddItemToSlot(ctx.Context, characterID, templateID, domainitem.ItemTypeConsumable, quantity, false, domainitem.SlotTypeBag)
+	if err != nil {
+		return err
 	}
-	*balance += amount
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		h.logger.Warn("Achievement currency reward: update failed",
-			zap.Int64("character_id", characterID), zap.Error(err))
-		return
+	if added == nil {
+		return fmt.Errorf("achievement item grant returned no item")
 	}
 	if ctx.Connection != nil {
-		_ = ctx.Connection.SendCallback("onAddMoney", float64(characterID), kind, float64(amount), float64(*balance))
+		template := h.gameDataManager.GetItem(templateID)
+		_ = ctx.Connection.SendCallback("onAddItem", map[string]interface{}{
+			"i":  templateID,
+			"q":  quantity,
+			"s":  "",
+			"c":  added.ColorCode,
+			"t":  28,
+			"n":  template.Name,
+			"tt": int(template.Kind),
+		})
+		_ = ctx.Connection.SendCallback("onAddCharactorSlot", added.ToDTO())
 	}
+	return nil
 }
 
-func (h *Handler) grantItem(ctx *rtmp.RPCContext, characterID int64, templateID int, qty int) {
-	if h.itemService == nil || templateID <= 0 || qty <= 0 {
-		return
+func (h *Handler) grantTitle(ctx *rtmp.RPCContext, characterID int64, titleID int) error {
+	if h.titleService == nil {
+		return fmt.Errorf("achievement title service not configured")
 	}
-	added, err := h.itemService.AddItemToSlot(ctx.Context, characterID, templateID, domainitem.ItemTypeQuest, qty, false, domainitem.SlotTypeBag)
+	if h.gameDataManager == nil || h.gameDataManager.GetTitle(titleID) == nil {
+		return fmt.Errorf("achievement title %d not found", titleID)
+	}
+	result, err := h.titleService.GrantTitle(ctx.Context, characterID, titleID)
 	if err != nil {
-		h.logger.Warn("Achievement item reward: add failed",
-			zap.Int64("character_id", characterID),
-			zap.Int("item_id", templateID),
-			zap.Int("qty", qty),
-			zap.Error(err))
-		return
+		return err
 	}
-	if added == nil || ctx.Connection == nil {
-		return
+	if result.Added && ctx.Connection != nil {
+		template := h.gameDataManager.GetTitle(titleID)
+		rtmputils.SendTitleGrantedCallback(ctx.Connection, titleID, result.Titles, result.SpecialTitles, result.IsSpecial)
+		_ = ctx.Connection.SendCallback("onAchieveTitle", template.N)
 	}
-	itemName := ""
-	itemKind := 0
-	if h.gameDataManager != nil {
-		if tpl := h.gameDataManager.GetItem(templateID); tpl != nil {
-			itemName = tpl.Name
-			itemKind = int(tpl.Kind)
-		}
-	}
-	_ = ctx.Connection.SendCallback("onAddItem", map[string]interface{}{
-		"i":  templateID,
-		"q":  qty,
-		"s":  "",
-		"c":  added.ColorCode,
-		"t":  28,
-		"n":  itemName,
-		"tt": itemKind,
-	})
-	_ = ctx.Connection.SendCallback("onAddCharactorSlot", added.ToDTO())
+	return nil
 }
 
-func (h *Handler) grantTitleByID(ctx *rtmp.RPCContext, characterID int64, titleID int) {
-	if h.titleService == nil || titleID <= 0 {
-		return
+func (h *Handler) grantMedal(ctx *rtmp.RPCContext, characterID int64, templateID, quantity int) error {
+	if h.medalService == nil {
+		return fmt.Errorf("achievement medal service not configured")
 	}
-	grantResult, err := h.titleService.GrantTitle(ctx.Context, characterID, titleID)
+	if h.gameDataManager == nil || h.gameDataManager.GetMedal(templateID) == nil {
+		return fmt.Errorf("achievement medal %d not found", templateID)
+	}
+	slot, count, err := h.medalService.AddMedalToBag(ctx.Context, characterID, templateID, quantity)
 	if err != nil {
-		h.logger.Warn("Achievement title reward: grant failed",
-			zap.Int64("character_id", characterID),
-			zap.Int("title_id", titleID),
-			zap.Error(err))
-		return
+		return err
 	}
-	if !grantResult.Added || ctx.Connection == nil {
-		return
+	if ctx.Connection != nil {
+		_ = ctx.Connection.SendCallback("updateMedalInBag", map[string]interface{}{
+			"i": slot,
+			"t": templateID,
+			"n": count,
+		})
 	}
-	rtmputils.SendTitleGrantedCallback(ctx.Connection, titleID, grantResult.Titles, grantResult.SpecialTitles, grantResult.IsSpecial)
+	return nil
 }

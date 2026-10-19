@@ -3,6 +3,7 @@
 package quest
 
 import (
+	appachievement "mcgame-server/internal/application/achievement"
 	appchar "mcgame-server/internal/application/character"
 	appevents "mcgame-server/internal/application/events"
 	appitem "mcgame-server/internal/application/item"
@@ -15,14 +16,15 @@ import (
 )
 
 type Handler struct {
-	questService    *appquest.Service
-	charService     *appchar.Service
-	itemService     *appitem.Service
-	petService      *apppet.Service
-	gameDataManager *gamedata.Manager
-	questNotify     *QuestNotifyHelper
-	eventBus        *appevents.Bus
-	logger          *zap.Logger
+	questService       *appquest.Service
+	charService        *appchar.Service
+	itemService        *appitem.Service
+	petService         *apppet.Service
+	gameDataManager    *gamedata.Manager
+	questNotify        *QuestNotifyHelper
+	eventBus           *appevents.Bus
+	achievementService *appachievement.Service
+	logger             *zap.Logger
 }
 
 func NewHandler(questService *appquest.Service, logger *zap.Logger) *Handler {
@@ -51,6 +53,10 @@ func (h *Handler) SetQuestNotifyHelper(qnh *QuestNotifyHelper) {
 
 func (h *Handler) SetEventBus(bus *appevents.Bus) {
 	h.eventBus = bus
+}
+
+func (h *Handler) SetAchievementService(service *appachievement.Service) {
+	h.achievementService = service
 }
 
 func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {

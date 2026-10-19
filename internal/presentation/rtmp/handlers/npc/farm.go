@@ -33,8 +33,6 @@ const (
 	farmPlantVigorCost          = 25
 	farmHarvestPlantMasteryGain = 20
 	farmPlantSkillType          = 15
-	farmHarvestAchieveType      = 2
-	farmHarvestAchieveReqID     = 294
 )
 
 func (h *Handler) handleFarmScriptAction(ctx *rtmp.RPCContext, characterID int64, funcID string) (bool, error) {
@@ -659,14 +657,6 @@ func (h *Handler) harvestOwnerCharacterID(ctx *rtmp.RPCContext, characterID int6
 	return h.viewedFarmCharacterID(ctx, characterID)
 }
 
-func (h *Handler) nextFarmHarvestAchieveProgress(characterID int64) int {
-	h.farmAchieveMu.Lock()
-	defer h.farmAchieveMu.Unlock()
-
-	h.farmAchieves[characterID]++
-	return h.farmAchieves[characterID]
-}
-
 func (h *Handler) replaceFarmHarvestTask(connID uint32, task *farmHarvestTask) *farmHarvestTask {
 	h.farmHarvestMu.Lock()
 	defer h.farmHarvestMu.Unlock()
@@ -796,7 +786,6 @@ func (h *Handler) finishFarmHarvest(ctx *rtmp.RPCContext, characterID int64, plo
 		if result.AddedInventoryItem != nil {
 			_ = ctx.Connection.SendCallback("onAddCharactorSlot", result.AddedInventoryItem.ToDTO())
 		}
-		_ = ctx.Connection.SendCallback("onUpdateAchieve", farmHarvestAchieveType, farmHarvestAchieveReqID, map[string]interface{}{"progress": h.nextFarmHarvestAchieveProgress(characterID)})
 	}
 
 	if h.skillService != nil {

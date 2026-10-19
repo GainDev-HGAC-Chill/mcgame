@@ -12,12 +12,21 @@ import (
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 type achievementTestRepo struct {
-	rows       []*domainachievement.Progress
-	claimedIDs []int64
+	rows         []*domainachievement.Progress
+	requirements []*domainachievement.RequirementProgress
+	claimedIDs   []int64
+	reserved     bool
+	events       []achievementTestEvent
+}
+
+type achievementTestEvent struct {
+	key     string
+	updates []domainachievement.RequirementUpdate
 }
 
 func (r *achievementTestRepo) GetProgressByCharacter(ctx context.Context, characterID int64) ([]*domainachievement.Progress, error) {
@@ -47,6 +56,52 @@ func (r *achievementTestRepo) MarkClaimed(ctx context.Context, characterID, achi
 
 func (r *achievementTestRepo) ListClaimedCounts(ctx context.Context, characterID int64) (map[int64]int, error) {
 	return nil, nil
+}
+
+func (r *achievementTestRepo) ListRequirementProgress(ctx context.Context, characterID int64) ([]*domainachievement.RequirementProgress, error) {
+	return r.requirements, nil
+}
+
+func (r *achievementTestRepo) RecordEvent(ctx context.Context, characterID int64, eventKey string, updates []domainachievement.RequirementUpdate, occurredAt time.Time) (domainachievement.ProgressUpdate, error) {
+	r.events = append(r.events, achievementTestEvent{key: eventKey, updates: updates})
+	return domainachievement.ProgressUpdate{
+		Requirements: []*domainachievement.RequirementProgress{},
+		Completed:    []domainachievement.CompletionEntry{},
+	}, nil
+}
+
+func (r *achievementTestRepo) ReserveClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reservedAt time.Time) (bool, error) {
+	if r.reserved {
+		return false, nil
+	}
+	for _, row := range r.rows {
+		if row != nil && row.AchievementID == achievementID && row.IsCompleted && !row.IsClaimed {
+			r.reserved = true
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *achievementTestRepo) FinalizeClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, claimedAt time.Time) (*domainachievement.Progress, error) {
+	if !r.reserved {
+		return nil, nil
+	}
+	for _, row := range r.rows {
+		if row != nil && row.AchievementID == achievementID {
+			row.IsClaimed = true
+			row.ClaimedAt = &claimedAt
+			r.claimedIDs = append(r.claimedIDs, achievementID)
+			r.reserved = false
+			return row, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *achievementTestRepo) ReleaseClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID) error {
+	r.reserved = false
+	return nil
 }
 
 func TestLoadSnapshotBuildsClientMaps(t *testing.T) {
@@ -89,6 +144,9 @@ func TestLoadSnapshotBuildsClientMaps(t *testing.T) {
 			IsCompleted:   false,
 			IsClaimed:     false,
 		},
+	}, requirements: []*domainachievement.RequirementProgress{
+		{CharacterID: 99, RequirementID: 1, AchievementID: 1001, Progress: 10, Target: 10, Done: true},
+		{CharacterID: 99, RequirementID: 2, AchievementID: 1002, Progress: 3, Target: 8, Done: false},
 	}}
 
 	service := NewService(repo, zap.NewNop())
@@ -109,19 +167,19 @@ func TestLoadSnapshotBuildsClientMaps(t *testing.T) {
 		t.Fatalf("TakeAchieveAwardLog[1001] = %v, want 1", got)
 	}
 
-	progressEntry, ok := snapshot.AchieveReqLog["1002"].(map[string]interface{})
+	progressEntry, ok := snapshot.AchieveReqLog["2"].(map[string]interface{})
 	if !ok {
-		t.Fatalf("AchieveReqLog[1002] type = %T, want map[string]interface{}", snapshot.AchieveReqLog["1002"])
+		t.Fatalf("AchieveReqLog[2] type = %T, want map[string]interface{}", snapshot.AchieveReqLog["2"])
 	}
-	if got := progressEntry["done"]; got != 8 {
-		t.Fatalf("AchieveReqLog[1002][done] = %v, want 8", got)
+	if got := progressEntry["done"]; got != 0 {
+		t.Fatalf("AchieveReqLog[2][done] = %v, want 0", got)
 	}
 	if got := progressEntry["progress"]; got != 3 {
-		t.Fatalf("AchieveReqLog[1002][progress] = %v, want 3", got)
+		t.Fatalf("AchieveReqLog[2][progress] = %v, want 3", got)
 	}
 }
 
-func TestClaimRewardMarksCompletedAchievementClaimed(t *testing.T) {
+func TestClaimReservationFinalizesCompletedAchievement(t *testing.T) {
 	repo := &achievementTestRepo{rows: []*domainachievement.Progress{{
 		ID:            1,
 		CharacterID:   99,
@@ -133,15 +191,12 @@ func TestClaimRewardMarksCompletedAchievementClaimed(t *testing.T) {
 	}}}
 
 	service := NewService(repo, zap.NewNop())
-	result, err := service.ClaimReward(context.Background(), 99, 1008)
-	if err != nil {
-		t.Fatalf("ClaimReward() error = %v", err)
+	token := uuid.New()
+	if err := service.ReserveClaim(context.Background(), 99, 1008, token); err != nil {
+		t.Fatalf("ReserveClaim() error = %v", err)
 	}
-	if result.AchievementID != 1008 {
-		t.Fatalf("AchievementID = %d, want 1008", result.AchievementID)
-	}
-	if result.ClaimCount != 1 {
-		t.Fatalf("ClaimCount = %d, want 1", result.ClaimCount)
+	if err := service.FinalizeClaim(context.Background(), 99, 1008, token); err != nil {
+		t.Fatalf("FinalizeClaim() error = %v", err)
 	}
 	if len(repo.claimedIDs) != 1 || repo.claimedIDs[0] != 1008 {
 		t.Fatalf("claimedIDs = %#v, want [1008]", repo.claimedIDs)
@@ -151,7 +206,7 @@ func TestClaimRewardMarksCompletedAchievementClaimed(t *testing.T) {
 	}
 }
 
-func TestClaimRewardRejectsAlreadyClaimedAchievement(t *testing.T) {
+func TestClaimReservationRejectsAlreadyClaimedAchievement(t *testing.T) {
 	repo := &achievementTestRepo{rows: []*domainachievement.Progress{{
 		ID:            1,
 		CharacterID:   99,
@@ -163,12 +218,106 @@ func TestClaimRewardRejectsAlreadyClaimedAchievement(t *testing.T) {
 	}}}
 
 	service := NewService(repo, zap.NewNop())
-	_, err := service.ClaimReward(context.Background(), 99, 1021)
+	err := service.ReserveClaim(context.Background(), 99, 1021, uuid.New())
 	if err == nil {
-		t.Fatalf("ClaimReward() error = nil, want already claimed error")
+		t.Fatalf("ReserveClaim() error = nil, want already claimed error")
 	}
 	if len(repo.claimedIDs) != 0 {
 		t.Fatalf("claimedIDs = %#v, want empty", repo.claimedIDs)
+	}
+}
+
+func TestRecordLoginUsesCanonicalLevelAndDailyRequirements(t *testing.T) {
+	repo := &achievementTestRepo{}
+	service := NewService(repo, zap.NewNop())
+	now := time.Date(2026, 10, 19, 9, 30, 0, 0, time.UTC)
+
+	if _, err := service.RecordLogin(context.Background(), 99, 52, now); err != nil {
+		t.Fatalf("RecordLogin() error = %v", err)
+	}
+	if len(repo.events) != 2 {
+		t.Fatalf("events = %d, want 2", len(repo.events))
+	}
+	if repo.events[0].key != "level:v1:52" {
+		t.Fatalf("level event key = %q", repo.events[0].key)
+	}
+	if len(repo.events[0].updates) != 4 || repo.events[0].updates[1].RequirementID != 2 || repo.events[0].updates[1].Absolute == nil || *repo.events[0].updates[1].Absolute != 52 {
+		t.Fatalf("level updates = %#v", repo.events[0].updates)
+	}
+	if repo.events[1].key != "login-day:v1:2026-10-19" {
+		t.Fatalf("login event key = %q", repo.events[1].key)
+	}
+	if len(repo.events[1].updates) != 6 || repo.events[1].updates[0].RequirementID != 53 || repo.events[1].updates[5].RequirementID != 424 {
+		t.Fatalf("login updates = %#v", repo.events[1].updates)
+	}
+}
+
+func TestRecordBattleEndedAddsArenaRequirementsOnlyForWins(t *testing.T) {
+	repo := &achievementTestRepo{}
+	service := NewService(repo, zap.NewNop())
+	now := time.Date(2026, 10, 19, 9, 30, 0, 0, time.UTC)
+
+	if _, err := service.RecordBattleEnded(context.Background(), 99, "battle-1", 3, true, now); err != nil {
+		t.Fatalf("RecordBattleEnded() error = %v", err)
+	}
+	if len(repo.events) != 1 || repo.events[0].key != "battle:v1:battle-1" {
+		t.Fatalf("events = %#v", repo.events)
+	}
+	if len(repo.events[0].updates) != 9 || repo.events[0].updates[5].RequirementID != 151 {
+		t.Fatalf("arena updates = %#v", repo.events[0].updates)
+	}
+	if _, err := service.RecordBattleEnded(context.Background(), 99, "battle-2", 3, false, now); err != nil {
+		t.Fatalf("lost RecordBattleEnded() error = %v", err)
+	}
+	if len(repo.events) != 1 {
+		t.Fatalf("lost battle recorded an event")
+	}
+}
+
+func TestOfficialRewardRegistry(t *testing.T) {
+	expected := map[int64]RewardDefinition{
+		1008: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 2},
+		1015: {Kind: RewardKindMedal, TemplateID: 449, Quantity: 1},
+		1021: {Kind: RewardKindTitle, TemplateID: 277, Quantity: 1},
+		1032: {Kind: RewardKindMedal, TemplateID: 328, Quantity: 1},
+		1035: {Kind: RewardKindMedal, TemplateID: 361, Quantity: 1},
+		2012: {Kind: RewardKindMedal, TemplateID: 111, Quantity: 1},
+		2013: {Kind: RewardKindTitle, TemplateID: 257, Quantity: 1},
+		2015: {Kind: RewardKindMedal, TemplateID: 23, Quantity: 1},
+		2017: {Kind: RewardKindTitle, TemplateID: 256, Quantity: 1},
+		2019: {Kind: RewardKindMedal, TemplateID: 1, Quantity: 1},
+		2032: {Kind: RewardKindMedal, TemplateID: 155, Quantity: 1},
+		4004: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 2},
+		4013: {Kind: RewardKindTitle, TemplateID: 275, Quantity: 1},
+		5050: {Kind: RewardKindTitle, TemplateID: 279, Quantity: 1},
+		6026: {Kind: RewardKindMedal, TemplateID: 394, Quantity: 1},
+		6030: {Kind: RewardKindTitle, TemplateID: 276, Quantity: 1},
+		6078: {Kind: RewardKindTitle, TemplateID: 278, Quantity: 1},
+		6092: {Kind: RewardKindTitle, TemplateID: 273, Quantity: 1},
+		6096: {Kind: RewardKindMedal, TemplateID: 383, Quantity: 1},
+		6102: {Kind: RewardKindMedal, TemplateID: 416, Quantity: 1},
+		6103: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 2},
+		6150: {Kind: RewardKindMedal, TemplateID: 317, Quantity: 1},
+		6153: {Kind: RewardKindMedal, TemplateID: 133, Quantity: 1},
+		6170: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 3},
+		6172: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 2},
+		6187: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 1},
+		6190: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 1},
+		6191: {Kind: RewardKindItem, TemplateID: 3984, Quantity: 3},
+		6192: {Kind: RewardKindItem, TemplateID: 4029, Quantity: 5},
+	}
+
+	if len(achievementRewards) != len(expected) {
+		t.Fatalf("reward count = %d, want %d", len(achievementRewards), len(expected))
+	}
+	for achievementID, want := range expected {
+		got, ok := RewardForAchievement(achievementID)
+		if !ok || got != want {
+			t.Fatalf("reward %d = %#v, %v; want %#v", achievementID, got, ok, want)
+		}
+	}
+	if _, ok := RewardForAchievement(6066); ok {
+		t.Fatalf("achievement 6066 must fail closed without canonical title ID")
 	}
 }
 

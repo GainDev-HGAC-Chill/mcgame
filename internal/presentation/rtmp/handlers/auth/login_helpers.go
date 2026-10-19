@@ -125,7 +125,7 @@ func propInt(value interface{}, fallback int) int {
 	}
 }
 
-func (h *Handler) loadAchievementSnapshot(ctx context.Context, charID int64) domainachievement.Snapshot {
+func (h *Handler) loadAchievementSnapshot(ctx context.Context, charID int64, level int) domainachievement.Snapshot {
 	snapshot := domainachievement.Snapshot{
 		AchieveLog:          map[string]interface{}{},
 		AchieveReqLog:       map[string]interface{}{},
@@ -134,6 +134,15 @@ func (h *Handler) loadAchievementSnapshot(ctx context.Context, charID int64) dom
 
 	if h.achievementState == nil {
 		return snapshot
+	}
+	if recorder, ok := h.achievementState.(interface {
+		RecordLogin(context.Context, int64, int, time.Time) (domainachievement.ProgressUpdate, error)
+	}); ok {
+		if _, err := recorder.RecordLogin(ctx, charID, level, time.Now().UTC()); err != nil {
+			h.logger.Warn("Failed to reconcile achievement login progress",
+				zap.Int64("character_id", charID),
+				zap.Error(err))
+		}
 	}
 
 	loadedSnapshot, err := h.achievementState.LoadSnapshot(ctx, charID)

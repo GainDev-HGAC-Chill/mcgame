@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"mcgame-server/internal/infrastructure/rtmp"
-	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -25,42 +25,46 @@ func (h *Handler) GetAchieveAward(ctx *rtmp.RPCContext, args []interface{}) (int
 	if err != nil {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
-
 	characterID, err := strconv.ParseInt(ctx.CharacterID, 10, 64)
 	if err != nil {
 		return nil, pkgerrors.ErrUnauthorized
 	}
-
 	template := h.gameDataManager.GetAchievement(int(achievementID))
 	if template == nil || int(template.IsAward) <= 0 {
 		return map[string]interface{}{"flag": false}, nil
 	}
 
-	claimResult, err := h.achievementService.ClaimReward(ctx.Context, characterID, achievementID)
-	if err != nil {
-		h.logger.Warn("Failed to claim achievement reward",
+	token := uuid.New()
+	if err := h.achievementService.ReserveClaim(ctx.Context, characterID, achievementID, token); err != nil {
+		h.logClaimFailure(characterID, achievementID, "reserve", err)
+		h.sendClaimFailure(ctx)
+		return map[string]interface{}{"flag": false}, nil
+	}
+	if err := h.grantReward(ctx, characterID, achievementID); err != nil {
+		releaseErr := h.achievementService.ReleaseClaim(ctx.Context, characterID, achievementID, token)
+		h.logClaimFailure(characterID, achievementID, "grant", err)
+		if releaseErr != nil {
+			h.logClaimFailure(characterID, achievementID, "release", releaseErr)
+		}
+		h.sendClaimFailure(ctx)
+		return map[string]interface{}{"flag": false}, nil
+	}
+	if err := h.achievementService.FinalizeClaim(ctx.Context, characterID, achievementID, token); err != nil {
+		h.logger.Error("Achievement reward granted but claim finalization failed; reservation retained",
 			zap.Int64("character_id", characterID),
 			zap.Int64("achievement_id", achievementID),
+			zap.String("claim_token", token.String()),
 			zap.Error(err))
-		_ = ctx.Connection.SendCallback("onRedMsg", "Khong the nhan phan thuong thanh tuu.")
+		h.sendClaimFailure(ctx)
 		return map[string]interface{}{"flag": false}, nil
 	}
 
-	claimCount := claimResult.ClaimCount
-	if claimCount <= 0 {
-		claimCount = 1
+	if ctx.Connection != nil {
+		_ = ctx.Connection.SendCallback("updateAchieveAwardLog", map[string]interface{}{
+			"aid": achievementID,
+			"num": 1,
+		})
 	}
-	_ = ctx.Connection.SendCallback("updateAchieveAwardLog", map[string]interface{}{
-		"aid": achievementID,
-		"num": claimCount,
-	})
-
-	if int(template.IsAward) == 2 {
-		h.sendTitleRewardCallbacks(ctx, characterID, template.Name)
-	}
-
-	h.grantStructuredReward(ctx, characterID, template)
-
 	return map[string]interface{}{"flag": true, "aid": achievementID}, nil
 }
 
@@ -77,31 +81,16 @@ func parseAchievementID(value interface{}) (int64, error) {
 	}
 }
 
-func (h *Handler) sendTitleRewardCallbacks(ctx *rtmp.RPCContext, characterID int64, achievementName string) {
-	if h.titleService == nil || h.gameDataManager == nil || ctx == nil || ctx.Connection == nil {
-		return
-	}
+func (h *Handler) logClaimFailure(characterID, achievementID int64, stage string, err error) {
+	h.logger.Warn("Failed to claim achievement reward",
+		zap.Int64("character_id", characterID),
+		zap.Int64("achievement_id", achievementID),
+		zap.String("stage", stage),
+		zap.Error(err))
+}
 
-	titleTemplate := h.gameDataManager.FindUniqueTitleByName(achievementName)
-	if titleTemplate == nil {
-		h.logger.Warn("Skipped achievement title reward because title lookup was ambiguous",
-			zap.Int64("character_id", characterID),
-			zap.String("achievement_name", achievementName))
-		return
+func (h *Handler) sendClaimFailure(ctx *rtmp.RPCContext) {
+	if ctx != nil && ctx.Connection != nil {
+		_ = ctx.Connection.SendCallback("onRedMsg", "Không thể nhận phần thưởng thành tựu.")
 	}
-
-	grantResult, err := h.titleService.GrantTitle(ctx.Context, characterID, int(titleTemplate.ID))
-	if err != nil {
-		h.logger.Warn("Failed to grant achievement title reward",
-			zap.Int64("character_id", characterID),
-			zap.Int64("title_id", titleTemplate.ID),
-			zap.Error(err))
-		return
-	}
-	if !grantResult.Added {
-		return
-	}
-
-	rtmputils.SendTitleGrantedCallback(ctx.Connection, int(titleTemplate.ID), grantResult.Titles, grantResult.SpecialTitles, grantResult.IsSpecial)
-	_ = ctx.Connection.SendCallback("onAchieveTitle", titleTemplate.N)
 }

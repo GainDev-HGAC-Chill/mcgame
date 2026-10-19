@@ -18,14 +18,32 @@ type Progress struct {
 }
 
 type CompletionEntry struct {
-	AchievementID int64
-	DoneAt        int64
+	AchievementID int64 `json:"achievement_id"`
+	DoneAt        int64 `json:"done_at"`
 }
 
 type RequirementProgress struct {
-	RequirementID int64
-	Done          int
-	Progress      int
+	CharacterID   int64     `json:"character_id"`
+	RequirementID int64     `json:"requirement_id"`
+	AchievementID int64     `json:"achievement_id"`
+	Done          bool      `json:"done"`
+	Progress      int       `json:"progress"`
+	Target        int       `json:"target"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type RequirementUpdate struct {
+	RequirementID int64 `json:"requirement_id"`
+	AchievementID int64 `json:"achievement_id"`
+	Delta         int   `json:"delta,omitempty"`
+	Absolute      *int  `json:"absolute,omitempty"`
+	Target        int   `json:"target"`
+	Done          bool  `json:"done,omitempty"`
+}
+
+type ProgressUpdate struct {
+	Requirements []*RequirementProgress `json:"requirements"`
+	Completed    []CompletionEntry      `json:"completed"`
 }
 
 type Snapshot struct {

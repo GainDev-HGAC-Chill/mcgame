@@ -7,6 +7,7 @@ import (
 	appachievement "mcgame-server/internal/application/achievement"
 	appchar "mcgame-server/internal/application/character"
 	appitem "mcgame-server/internal/application/item"
+	appmedal "mcgame-server/internal/application/medal"
 	apptitle "mcgame-server/internal/application/title"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/infrastructure/rtmp"
@@ -18,6 +19,7 @@ type Handler struct {
 	achievementService *appachievement.Service
 	titleService       *apptitle.Service
 	itemService        *appitem.Service
+	medalService       *appmedal.Service
 	charService        *appchar.Service
 	gameDataManager    *gamedata.Manager
 	logger             *zap.Logger
@@ -38,6 +40,10 @@ func (h *Handler) SetItemService(svc *appitem.Service) {
 
 func (h *Handler) SetCharacterService(svc *appchar.Service) {
 	h.charService = svc
+}
+
+func (h *Handler) SetMedalService(svc *appmedal.Service) {
+	h.medalService = svc
 }
 
 func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {

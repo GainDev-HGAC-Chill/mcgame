@@ -6,6 +6,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -13,11 +14,107 @@ import (
 	domainachievement "mcgame-server/internal/domain/achievement"
 	pkgerrors "mcgame-server/pkg/errors"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 type AchievementRepository struct {
 	db *Database
+}
+
+func (r *AchievementRepository) ListRequirementProgress(ctx context.Context, characterID int64) ([]*domainachievement.RequirementProgress, error) {
+	rows, err := r.db.pool.Query(ctx, "select * from player.list_character_achievement_requirements($1)", characterID)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to query achievement requirements")
+	}
+	defer rows.Close()
+
+	result := make([]*domainachievement.RequirementProgress, 0)
+	for rows.Next() {
+		progress := &domainachievement.RequirementProgress{}
+		if err := rows.Scan(
+			&progress.CharacterID,
+			&progress.RequirementID,
+			&progress.AchievementID,
+			&progress.Progress,
+			&progress.Target,
+			&progress.Done,
+			&progress.UpdatedAt,
+		); err != nil {
+			return nil, pkgerrors.Wrap(err, "failed to scan achievement requirement")
+		}
+		result = append(result, progress)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to iterate achievement requirements")
+	}
+	return result, nil
+}
+
+func (r *AchievementRepository) RecordEvent(ctx context.Context, characterID int64, eventKey string, updates []domainachievement.RequirementUpdate, occurredAt time.Time) (domainachievement.ProgressUpdate, error) {
+	result := domainachievement.ProgressUpdate{
+		Requirements: []*domainachievement.RequirementProgress{},
+		Completed:    []domainachievement.CompletionEntry{},
+	}
+	encoded, err := json.Marshal(updates)
+	if err != nil {
+		return result, pkgerrors.Wrap(err, "failed to encode achievement updates")
+	}
+	var raw []byte
+	if err := r.db.pool.QueryRow(ctx,
+		"select player.record_character_achievement_event($1, $2, $3::jsonb, $4)",
+		characterID,
+		eventKey,
+		encoded,
+		occurredAt,
+	).Scan(&raw); err != nil {
+		return result, pkgerrors.Wrap(err, "failed to record achievement event")
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return result, pkgerrors.Wrap(err, "failed to decode achievement event result")
+	}
+	return result, nil
+}
+
+func (r *AchievementRepository) ReserveClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reservedAt time.Time) (bool, error) {
+	var reserved bool
+	if err := r.db.pool.QueryRow(ctx,
+		"select player.reserve_character_achievement_claim($1, $2, $3, $4)",
+		characterID,
+		achievementID,
+		token,
+		reservedAt,
+	).Scan(&reserved); err != nil {
+		return false, pkgerrors.Wrap(err, "failed to reserve achievement claim")
+	}
+	return reserved, nil
+}
+
+func (r *AchievementRepository) FinalizeClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, claimedAt time.Time) (*domainachievement.Progress, error) {
+	row := r.db.pool.QueryRow(ctx,
+		"select * from player.finalize_character_achievement_claim($1, $2, $3, $4)",
+		characterID,
+		achievementID,
+		token,
+		claimedAt,
+	)
+	return scanAchievementProgress(row)
+}
+
+func (r *AchievementRepository) ReleaseClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID) error {
+	var released bool
+	if err := r.db.pool.QueryRow(ctx,
+		"select player.release_character_achievement_claim($1, $2, $3)",
+		characterID,
+		achievementID,
+		token,
+	).Scan(&released); err != nil {
+		return pkgerrors.Wrap(err, "failed to release achievement claim")
+	}
+	if !released {
+		return fmt.Errorf("achievement claim reservation not found")
+	}
+	return nil
 }
 
 func NewAchievementRepository(db *Database) *AchievementRepository {

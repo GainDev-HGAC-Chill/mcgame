@@ -5,6 +5,7 @@ package combat
 
 import (
 	"go.uber.org/zap"
+	appachievement "mcgame-server/internal/application/achievement"
 	appbattle "mcgame-server/internal/application/battle"
 	appbloodbag "mcgame-server/internal/application/bloodbag"
 	appbuff "mcgame-server/internal/application/buff"
@@ -35,6 +36,7 @@ type Handler struct {
 	skillService           *appskill.Service
 	itemService            *appitem.Service
 	petService             *apppet.Service
+	achievementService     *appachievement.Service
 	starInstanceService    *appstarinstance.Service
 	skillAdapter           combatdomain.SkillGetter
 	skillOwnership         skillOwnershipChecker
@@ -104,6 +106,10 @@ func (h *Handler) SetBuffService(buffService *appbuff.Service) {
 func (h *Handler) SetPetService(petService *apppet.Service) {
 	h.petService = petService
 	h.petSkillOwnership = petService
+}
+
+func (h *Handler) SetAchievementService(service *appachievement.Service) {
+	h.achievementService = service
 }
 
 func (h *Handler) SetStarInstanceService(svc *appstarinstance.Service) {

@@ -425,6 +425,18 @@ func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface
 			CharacterRewards: map[int64]*combatdomain.CharacterReward{},
 		}
 	}
+	if h.achievementService != nil {
+		won := result.WinnerSide == combatdomain.SidePlayer
+		update, progressErr := h.achievementService.RecordBattleEnded(ctx.Context, characterID, battleID, battle.BattleType, won, time.Now().UTC())
+		if progressErr != nil {
+			h.logger.Warn("Failed to record battle achievement progress",
+				zap.Int64("character_id", characterID),
+				zap.String("battle_id", battleID),
+				zap.Error(progressErr))
+		} else {
+			rtmputils.SendAchievementProgressCallbacks(ctx.Connection, update)
+		}
+	}
 	characterID, _ = strconv.ParseInt(ctx.CharacterID, 10, 64)
 	rewardDTO := result.ToDTOForCharacter(characterID)
 	playerParticipant := battle.GetParticipant(fmt.Sprintf("%d", characterID))
@@ -451,6 +463,14 @@ func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface
 				if rewardSnapshot != nil {
 					expReward = rewardSnapshot.ExpReward
 					leveledUp = rewardSnapshot.LeveledUp
+				}
+				if leveledUp && h.achievementService != nil {
+					update, progressErr := h.achievementService.RecordLevel(ctx.Context, characterID, char.Level, time.Now().UTC())
+					if progressErr != nil {
+						h.logger.Warn("Failed to record level achievement progress", zap.Error(progressErr))
+					} else {
+						rtmputils.SendAchievementProgressCallbacks(ctx.Connection, update)
+					}
 				}
 				if leveledUp && h.skillService != nil {
 					loadedSkills, skillErr := h.skillService.GetSkillsForCallback(ctx.Context, characterID)

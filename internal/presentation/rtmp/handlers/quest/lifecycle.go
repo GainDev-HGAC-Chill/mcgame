@@ -4,6 +4,7 @@ package quest
 
 import (
 	"strconv"
+	"time"
 
 	domainchar "mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
@@ -231,12 +232,23 @@ func (h *Handler) FinishQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 	if err := h.questService.ValidateQuestTurnIn(ctx.Context, characterID, questID); err != nil {
 		return map[string]interface{}{"flag": false, "info": "Hãy đến đúng NPC trả nhiệm vụ; chưa nhận thưởng."}, nil
 	}
-	_, rewards, err := h.questService.CompleteQuest(ctx.Context, characterID, questID)
+	completed, rewards, err := h.questService.CompleteQuest(ctx.Context, characterID, questID)
 	if err != nil {
 		return map[string]interface{}{"flag": false, "info": err.Error()}, nil
 	}
 
 	h.logger.Info("Quest completed", zap.Int64("character_id", characterID), zap.Int("quest_id", questID), zap.Any("rewards", rewards))
+	if completed != nil && h.achievementService != nil {
+		update, progressErr := h.achievementService.RecordQuestFinished(ctx.Context, characterID, questID, completed.ID, completed.CompletionCount, time.Now().UTC())
+		if progressErr != nil {
+			h.logger.Warn("Failed to record quest achievement progress",
+				zap.Int64("character_id", characterID),
+				zap.Int("quest_id", questID),
+				zap.Error(progressErr))
+		} else {
+			rtmputils.SendAchievementProgressCallbacks(ctx.Connection, update)
+		}
+	}
 
 	if rewards != nil {
 		if consumed, ok := rewards["consumedItems"].([]map[string]interface{}); ok {
@@ -293,6 +305,14 @@ func (h *Handler) FinishQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 				rtmputils.SendExpAndLevelUpCallbacks(ctx.Connection, char, totalExp, isLevelUp)
 			}
 			if isLevelUp && h.eventBus != nil {
+				if h.achievementService != nil {
+					update, progressErr := h.achievementService.RecordLevel(ctx.Context, char.ID, char.Level, time.Now().UTC())
+					if progressErr != nil {
+						h.logger.Warn("Failed to record level achievement progress", zap.Error(progressErr))
+					} else {
+						rtmputils.SendAchievementProgressCallbacks(ctx.Connection, update)
+					}
+				}
 				h.eventBus.EmitLevelUp(ctx.Context, char.ID, preLevel, char.Level)
 			}
 		}

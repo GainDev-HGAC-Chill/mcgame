@@ -310,7 +310,7 @@ func (h *Handler) buildOnChooseCharactorPayload(ctx context.Context, char *chara
 	}
 	cData = appearance.Apply(cData)
 	cData["questLog"] = questLogStr
-	achievementSnapshot := h.loadAchievementSnapshot(ctx, charID)
+	achievementSnapshot := h.loadAchievementSnapshot(ctx, charID, char.Level)
 	cData["achPnt"] = achievementSnapshot.AchievementPoints
 	cData["achPoint"] = strconv.Itoa(achievementSnapshot.AchievementPoints)
 

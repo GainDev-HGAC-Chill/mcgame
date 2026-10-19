@@ -11,6 +11,15 @@
 - Hardening tiếp theo: thêm lookup shop/item/equipment; reject boolean query không hợp lệ, empty/no-op và fractional slot ID; giữ mọi legacy `st` ngoài 0/5 read-only. Code/typecheck/test PASS; function hardening chờ re-apply vì Docker engine bị tắt sau lần apply schema đầu.
 - UI shop tiếp theo: thay form dày bằng lưới ô hàng có ảnh, tên đúng catalog trong game, badge vị trí/trạng thái và giá bán; editor chi tiết chỉ mở cho ô được chọn. Dashboard hydrate metadata chỉ đọc từ catalog và không đưa `displayName/iconCode` vào mutation. Typecheck + 6 focused tests PASS; production compile/static generation PASS trước lỗi symlink Windows baseline.
 
+## FIX-2026-10-19-02 — Nền tảng Thành Tựu end-to-end và claim an toàn
+
+- Hiện tượng: snapshot đánh key requirement bằng achievement ID; schema không lưu được 33 achievement nhiều điều kiện; không có evaluator production; reward columns của toàn bộ catalog trống; claim đánh dấu đã nhận trước khi cấp, nuốt lỗi và có race nhận lặp. Farm còn phát sai requirement 294 từ bộ đếm RAM.
+- Sửa persistence/code: thêm SQL draft lưu từng requirement, event key idempotent, suy ra completion khi đủ mọi điều kiện và claim reservation/finalize/release. Login reconcile cấp độ/ngày đăng nhập; quest hoàn thành và battle thắng dùng business ID chống cộng lặp; snapshot/callback dùng đúng requirement ID và contract ba tham số.
+- Sửa reward: registry ID canonical cho 29/30 reward trong hướng dẫn chính thức, hỗ trợ item tiêu hao, title và Ấn Chương; validate catalog lúc startup. `Giáo Sư Biết Tuốt` fail closed vì không có exact title ID. Grant lỗi release reservation và không claim; finalize lỗi giữ reservation để chặn cấp lặp.
+- Sửa farm: xóa callback requirement 294 sai ngữ nghĩa và bộ đếm volatile; chưa tự suy đoán evaluator “bị trộm cây”.
+- Test: focused achievement/auth/quest/combat/NPC/utils/cmd PASS; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS. Broad `go test ./internal/...` chỉ còn Quest conversation registry `235 want 227` và hai chat-stat baseline ngoài phạm vi.
+- Trạng thái: CODE_FIXED/SQL_DRAFTED — Docker Linux engine tắt nên `supabase/data/achievement_system.sql` chưa apply, chưa sinh migration/fresh replay hoặc chạy DB concurrency test; chưa restart/deploy/smoke-test và không thay đổi player data.
+
 ## FIX-2026-10-18-20 — Audit và sửa pipeline thuộc tính Pet
 
 - Hiện tượng: Bạch Hổ ID 168 hiển thị tư chất lực khoảng 70k nhưng công vật lý khoảng 29k; một số base prop và passive Pet không có hiệu lực.

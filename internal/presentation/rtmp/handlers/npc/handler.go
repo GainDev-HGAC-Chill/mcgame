@@ -45,8 +45,6 @@ type Handler struct {
 	accountRepo         auth.AccountRepository
 	farmHarvestMu       sync.Mutex
 	farmHarvests        map[uint32]*farmHarvestTask
-	farmAchieveMu       sync.Mutex
-	farmAchieves        map[int64]int
 	fishingTaskMu       sync.Mutex
 	fishingTasks        map[uint32]*fishingTask
 	herbTaskMu          sync.Mutex
@@ -64,7 +62,6 @@ func NewHandler(sceneService *appscene.Service, charService *appchar.Service, qu
 		sceneManager: sceneManager,
 		accountRepo:  accountRepo,
 		farmHarvests: make(map[uint32]*farmHarvestTask),
-		farmAchieves: make(map[int64]int),
 		fishingTasks: make(map[uint32]*fishingTask),
 		herbTasks:    make(map[uint32]*herbTask),
 		logger:       logger,

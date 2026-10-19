@@ -32,3 +32,24 @@ The handler is wired in `cmd/gameserver/main.go` via `achievementHandler.SetItem
 - **No backfill from `desc`.** Free-text reward descriptions are not parsed — that's a separate ticket and could invite injection if done carelessly.
 - **No EXP reward type.** EXP grants need level-up handling and aren't covered here.
 - **No double-grant guard beyond `is_claimed`.** Once `repo.MarkClaimed` flips, the structured reward fires once. If the structured reward step itself partially fails (e.g. inventory full), the claim is still recorded as claimed — players have to contact a GM. A future hardening pass should make the reward-grant + mark-claimed pair transactional.
+
+## End-to-end audit correction (2026-10-19)
+
+The minimal slice is not a complete achievement system. Static catalog/Flash/server comparison is recorded in [Achievement System Audit](../research/2026-10-19_02_ACHIEVEMENT_SYSTEM_AUDIT_RESEARCH.md).
+
+- `achieveReqLog` must be keyed by requirement ID; current login code keys it by achievement ID, and the one-row-per-achievement schema cannot represent 33 multi-requirement achievements.
+- No production evaluator writes progress or completion. `achievement.Service.OnLogin` is a no-op and it implements none of the available gameplay event listeners.
+- All 604 seeded achievements have null structured reward columns. Current title fallback searches by achievement name rather than the distinct reward-title name; medal rewards are unsupported.
+- Claim currently records `is_claimed` before best-effort grant, is not atomic, and is vulnerable to concurrent duplicate grant. Do not expose it as production-complete until claim+grant is transactional.
+- The farm requirement-294 callback is volatile and semantically mismatched; it is not valid persisted achievement progress.
+
+## Triển khai sửa nền tảng (2026-10-19)
+
+Phần code mới thay thế flow claim tối thiểu ở trên:
+
+- `achieveReqLog` được dựng từ `player.character_achievement_requirements` và đánh key bằng requirement ID; `done` là cờ `0/1`, `progress` là giá trị thật.
+- SQL draft `supabase/data/achievement_system.sql` thêm tiến độ từng requirement, event key idempotent, completion nhiều điều kiện và claim reservation/finalize/release. Chưa apply/sinh migration vì Docker engine đang tắt.
+- Evaluator có bằng chứng hiện hỗ trợ cấp độ, ngày đăng nhập, tổng nhiệm vụ hoàn thành, tổng trận thắng và thắng Arena. Login reconcile trước snapshot; quest/battle phát `onUpdateAchieve(type,id,data)` đúng contract.
+- Reward registry dùng ID canonical cho 29 reward xác minh được từ website + catalog: item 3984/4029, 8 title và 12 base medal. Achievement 6066 không có exact title `Giáo Sư Biết Tuốt` nên fail closed.
+- Claim lấy reservation trước grant, chỉ finalize sau grant thành công; lỗi grant release reservation, lỗi finalize giữ reservation để chặn nhận lặp. Item dùng `ItemTypeConsumable`; medal dùng `AddMedalToBag`.
+- Callback farm requirement 294 và bộ đếm RAM đã bị xóa vì tăng sai cho người thu hoạch thay vì chủ vườn bị trộm.

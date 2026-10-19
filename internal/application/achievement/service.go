@@ -5,6 +5,7 @@ package achievement
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -13,6 +14,7 @@ import (
 	domainachievement "mcgame-server/internal/domain/achievement"
 	"mcgame-server/internal/gamedata"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -22,10 +24,12 @@ type Service struct {
 	logger          *zap.Logger
 }
 
-type ClaimResult struct {
-	AchievementID int64
-	ClaimCount    int
-}
+var (
+	ErrAchievementNotCompleted  = errors.New("thành tựu chưa hoàn thành")
+	ErrAchievementClaimed       = errors.New("phần thưởng thành tựu đã nhận")
+	ErrAchievementClaimBusy     = errors.New("phần thưởng thành tựu đang được xử lý")
+	ErrAchievementRewardUnknown = errors.New("phần thưởng thành tựu chưa được cấu hình")
+)
 
 func NewService(repo domainachievement.Repository, logger *zap.Logger) *Service {
 	if logger == nil {
@@ -72,11 +76,6 @@ func (s *Service) LoadSnapshot(ctx context.Context, charID int64) (domainachieve
 		}
 
 		key := strconv.FormatInt(progress.AchievementID, 10)
-		target := s.resolveTarget(progress)
-		current := progress.Progress
-		if progress.IsCompleted && current < target {
-			current = target
-		}
 
 		if progress.IsCompleted {
 			snapshot.AchieveLog[key] = s.resolveCompletionTimestamp(progress)
@@ -87,78 +86,84 @@ func (s *Service) LoadSnapshot(ctx context.Context, charID int64) (domainachieve
 			snapshot.TakeAchieveAwardLog[key] = 1
 		}
 
-		if current > 0 || target > 0 {
-			snapshot.AchieveReqLog[key] = map[string]interface{}{
-				"done":     target,
-				"progress": current,
-			}
+	}
+
+	requirements, err := s.repo.ListRequirementProgress(ctx, charID)
+	if err != nil {
+		return snapshot, err
+	}
+	for _, progress := range requirements {
+		if progress == nil {
+			continue
+		}
+		done := 0
+		if progress.Done {
+			done = 1
+		}
+		snapshot.AchieveReqLog[strconv.FormatInt(progress.RequirementID, 10)] = map[string]interface{}{
+			"done":     done,
+			"progress": progress.Progress,
 		}
 	}
 
 	return snapshot, nil
 }
 
-func (s *Service) ClaimReward(ctx context.Context, charID, achievementID int64) (ClaimResult, error) {
-	result := ClaimResult{AchievementID: achievementID}
+func (s *Service) ReserveClaim(ctx context.Context, charID, achievementID int64, token uuid.UUID) error {
 	if s.repo == nil {
-		return result, fmt.Errorf("achievement repository not configured")
+		return fmt.Errorf("achievement repository not configured")
 	}
-
-	progressRows, err := s.repo.GetProgressByCharacter(ctx, charID)
+	if _, ok := RewardForAchievement(achievementID); !ok {
+		return ErrAchievementRewardUnknown
+	}
+	reserved, err := s.repo.ReserveClaim(ctx, charID, achievementID, token, time.Now().UTC())
 	if err != nil {
-		return result, err
+		return err
 	}
-
-	var progress *domainachievement.Progress
-	for _, row := range progressRows {
-		if row != nil && row.AchievementID == achievementID {
-			progress = row
-			break
+	if !reserved {
+		rows, loadErr := s.repo.GetProgressByCharacter(ctx, charID)
+		if loadErr != nil {
+			return ErrAchievementClaimBusy
 		}
+		for _, row := range rows {
+			if row == nil || row.AchievementID != achievementID {
+				continue
+			}
+			if row.IsClaimed {
+				return ErrAchievementClaimed
+			}
+			if !row.IsCompleted {
+				return ErrAchievementNotCompleted
+			}
+			return ErrAchievementClaimBusy
+		}
+		return ErrAchievementNotCompleted
 	}
+	return nil
+}
 
-	if progress == nil {
-		return result, fmt.Errorf("achievement progress not found")
-	}
-	if !progress.IsCompleted {
-		return result, fmt.Errorf("achievement is not completed")
-	}
-	if progress.IsClaimed {
-		return result, fmt.Errorf("achievement reward already claimed")
-	}
-
-	updated, err := s.repo.MarkClaimed(ctx, charID, achievementID, time.Now().UTC())
+func (s *Service) FinalizeClaim(ctx context.Context, charID, achievementID int64, token uuid.UUID) error {
+	updated, err := s.repo.FinalizeClaim(ctx, charID, achievementID, token, time.Now().UTC())
 	if err != nil {
-		return result, err
+		return err
 	}
-	if updated != nil && updated.IsClaimed {
-		result.ClaimCount = 1
+	if updated == nil || !updated.IsClaimed {
+		return fmt.Errorf("achievement claim was not finalized")
 	}
+	return nil
+}
 
-	return result, nil
+func (s *Service) ReleaseClaim(ctx context.Context, charID, achievementID int64, token uuid.UUID) error {
+	return s.repo.ReleaseClaim(ctx, charID, achievementID, token)
 }
 
 func (s *Service) OnLogin(ctx context.Context, charID int64) error {
 	return nil
 }
 
-func (s *Service) resolveTarget(progress *domainachievement.Progress) int {
-	if progress == nil {
-		return 0
-	}
-	if progress.Target > 0 {
-		return progress.Target
-	}
-	if s.gameDataManager == nil {
-		return progress.Progress
-	}
-
-	requirements := s.gameDataManager.GetAchievementRequiresByAchievementID(int(progress.AchievementID))
-	if len(requirements) == 0 {
-		return progress.Progress
-	}
-
-	return int(requirements[0].Num)
+func (s *Service) OnLevelUp(ctx context.Context, charID int64, oldLevel, newLevel int) error {
+	_, err := s.RecordLevel(ctx, charID, newLevel, time.Now().UTC())
+	return err
 }
 
 func (s *Service) resolveCompletionTimestamp(progress *domainachievement.Progress) int64 {
