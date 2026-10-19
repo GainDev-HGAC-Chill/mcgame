@@ -263,6 +263,8 @@ func TestResolveBattlePetSelection_BuildsParticipantForOwnedPet(t *testing.T) {
 					"colorCode": 2,
 				},
 				Property: map[string]interface{}{
+					"skill1":              6712,
+					"skill2":              6723,
 					"finalAttack":         88,
 					"finalDefence":        52,
 					"finalMAttack":        61,
@@ -305,6 +307,9 @@ func TestResolveBattlePetSelection_BuildsParticipantForOwnedPet(t *testing.T) {
 	}
 	if participant.OwnerID != 42 {
 		t.Fatalf("participant.OwnerID = %d, want 42", participant.OwnerID)
+	}
+	if !participant.SkillIDs[6712] || !participant.SkillIDs[6723] {
+		t.Fatalf("participant.SkillIDs = %#v, want canonical active and passive skill IDs", participant.SkillIDs)
 	}
 }
 
@@ -1115,20 +1120,20 @@ func TestCalculateCreatureStats_SeedMPIsLevelBased(t *testing.T) {
 func TestCalculateCreatureStats_LifeActsAsMaxHPPercent(t *testing.T) {
 	level := 5
 	fullLife := CalculateCreatureStats(&models.CreatureTemplate{
-		ID:          5,
-		Name:        "full-life",
-		Life:        10000,
-		AttStamina:  8,
-		AptStamina:  200,
-		GrowBase:    1,
+		ID:         5,
+		Name:       "full-life",
+		Life:       10000,
+		AttStamina: 8,
+		AptStamina: 200,
+		GrowBase:   1,
 	}, level)
 	partialLife := CalculateCreatureStats(&models.CreatureTemplate{
-		ID:          6,
-		Name:        "partial-life",
-		Life:        3500,
-		AttStamina:  8,
-		AptStamina:  200,
-		GrowBase:    1,
+		ID:         6,
+		Name:       "partial-life",
+		Life:       3500,
+		AttStamina: 8,
+		AptStamina: 200,
+		GrowBase:   1,
 	}, level)
 
 	wantLife := fullLife.Life * 3500 / 10000

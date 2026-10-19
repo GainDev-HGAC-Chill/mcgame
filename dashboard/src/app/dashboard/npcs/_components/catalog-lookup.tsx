@@ -15,7 +15,7 @@ export function CatalogLookup({
     onChange,
     onSelect,
 }: {
-    kind: "shop" | "item" | "equipment"
+    kind: "shop" | "item" | "equipment" | "map"
     label: string
     value: number | null
     disabled?: boolean

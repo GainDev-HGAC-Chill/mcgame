@@ -118,6 +118,7 @@ type Participant struct {
 	Element      int
 	ExpReward    int
 	OwnerID      int64
+	SkillIDs     map[int]bool
 
 	Star          int
 	WeaponResCode int64
@@ -127,16 +128,17 @@ type Participant struct {
 	PetColor      int
 
 	DeathImmuneUsed bool
-	EffStats         stats.EffectiveStats
+	EffStats        stats.EffectiveStats
 }
 
 func NewParticipant(id, name string, side Side, isNPC bool) *Participant {
 	return &Participant{
-		ID:      id,
-		Name:    name,
-		Side:    side,
-		IsNPC:   isNPC,
-		IsAlive: true,
+		ID:       id,
+		Name:     name,
+		Side:     side,
+		IsNPC:    isNPC,
+		IsAlive:  true,
+		SkillIDs: make(map[int]bool),
 	}
 }
 

@@ -27,7 +27,15 @@ const slot = {
     iconCode: 123,
 }
 const detail = {
-    npc: { id: 1, name: "NPC", on_service_text: "Chào", shop_id: 2 },
+    npc: {
+        id: 1,
+        name: "NPC",
+        on_service_text: "Chào",
+        shop_id: 2,
+        pos_map_id: 10,
+        pos_x: 100,
+        pos_y: 200,
+    },
     shop: { slots: [slot] },
 }
 
@@ -50,6 +58,23 @@ test("NPC editor turns removal into soft hide", () => {
     assert.deepEqual(buildNpcPatch(detail, { ...detail.npc }, rows), {
         slots: { hideIds: [10] },
     })
+})
+
+test("NPC editor includes changed map coordinates", () => {
+    const rows = draftShopSlots([slot])
+    assert.deepEqual(
+        buildNpcPatch(
+            detail,
+            {
+                ...detail.npc,
+                pos_map_id: 11,
+                pos_x: -20,
+                pos_y: 350,
+            },
+            rows
+        ),
+        { npc: { pos_map_id: 11, pos_x: -20, pos_y: 350 } }
+    )
 })
 
 test("NPC editor never writes derived display metadata", () => {

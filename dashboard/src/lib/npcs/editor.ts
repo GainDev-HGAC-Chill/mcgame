@@ -42,7 +42,14 @@ export function buildNpcPatch(
 ): NpcSavePatch {
     const patch: NpcSavePatch = {}
     const npcPatch: NonNullable<NpcSavePatch["npc"]> = {}
-    for (const field of ["name", "on_service_text", "shop_id"] as const) {
+    for (const field of [
+        "name",
+        "on_service_text",
+        "shop_id",
+        "pos_map_id",
+        "pos_x",
+        "pos_y",
+    ] as const) {
         if (npc[field] !== baseline.npc[field])
             npcPatch[field] = npc[field] as never
     }

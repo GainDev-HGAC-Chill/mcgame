@@ -33,7 +33,9 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 		tp.startSkillCooldown(actor.ID, cmd.SkillID, info.Template.Cooldown)
 	}
 	actions := make([]*BattleAction, 0, len(targets)*2+1)
+	killedTarget := false
 	for _, target := range targets {
+		wasAlive := target.IsAlive
 		previousSuccess := true
 		for _, effect := range plan.Effects {
 			if !target.IsAlive && effect.Kind != EffectRevive {
@@ -42,7 +44,7 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 			if effect.RequiresPreviousSuccess && !previousSuccess {
 				continue
 			}
-			if effect.Chance > 0 && tp.rng.Float64() >= effect.Chance {
+			if !tp.plannedEffectSucceeds(actor, target, effect) {
 				previousSuccess = false
 				continue
 			}
@@ -50,6 +52,12 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 			actions = append(actions, effectActions...)
 			previousSuccess = success
 		}
+		if wasAlive && !target.IsAlive {
+			killedTarget = true
+		}
+	}
+	if killedTarget {
+		actions = append(actions, tp.executeOnKillFollowUp(actor, plan.OnKill)...)
 	}
 	if plan.Sacrifice {
 		before := actor.CurrentHP

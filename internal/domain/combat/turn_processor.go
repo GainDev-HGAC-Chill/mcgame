@@ -257,6 +257,7 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 			continue
 		}
 
+		tp.activateDiHinhHoanVi(currentActor)
 		turnResult := tp.statusManager.ProcessTurnStart(currentActor.ID, currentActor)
 		tp.accuracyModifiers[currentActor.ID] = turnResult.AccuracyModifier
 		if recoveryAction := tp.applyTurnStartRecovery(currentActor, turnResult); recoveryAction != nil {
@@ -265,23 +266,11 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 		}
 
 		if turnResult.DamageTaken > 0 {
-			damage := tp.applyDamage(currentActor, turnResult.PhysicalDamageTaken, false)
-			if currentActor.IsAlive {
-				damage += tp.applyDamage(currentActor, turnResult.MagicDamageTaken, true)
+			dotActions := tp.applyTurnStartDamage(currentActor, turnResult)
+			result.Actions = append(result.Actions, dotActions...)
+			for _, action := range dotActions {
+				tp.battle.AddAction(action)
 			}
-			dotAction := &BattleAction{
-				Round:         tp.battle.CurrentRound,
-				ActorID:       currentActor.ID,
-				ActorPosition: currentActor.Position,
-				ActionType:    ActionTypeAuto,
-				TargetID:      currentActor.ID,
-				Damage:        damage,
-				TargetNewHP:   currentActor.CurrentHP,
-				TargetState:   map[string]interface{}{"hHp": currentActor.CurrentHP},
-				Effects:       []string{"dot"},
-			}
-			result.Actions = append(result.Actions, dotAction)
-			tp.battle.AddAction(dotAction)
 
 			if !currentActor.IsAlive {
 				tp.statusManager.ProcessTurnEnd(currentActor.ID)
@@ -427,6 +416,7 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 			zap.String("name", currentActor.Name),
 			zap.Int("side", int(currentActor.Side)))
 
+		tp.activateDiHinhHoanVi(currentActor)
 		turnResult := tp.statusManager.ProcessTurnStart(currentActor.ID, currentActor)
 		tp.accuracyModifiers[currentActor.ID] = turnResult.AccuracyModifier
 		if recoveryAction := tp.applyTurnStartRecovery(currentActor, turnResult); recoveryAction != nil {
@@ -435,23 +425,11 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 		}
 
 		if turnResult.DamageTaken > 0 {
-			damage := tp.applyDamage(currentActor, turnResult.PhysicalDamageTaken, false)
-			if currentActor.IsAlive {
-				damage += tp.applyDamage(currentActor, turnResult.MagicDamageTaken, true)
+			dotActions := tp.applyTurnStartDamage(currentActor, turnResult)
+			result.Actions = append(result.Actions, dotActions...)
+			for _, action := range dotActions {
+				tp.battle.AddAction(action)
 			}
-			dotAction := &BattleAction{
-				Round:         tp.battle.CurrentRound,
-				ActorID:       currentActor.ID,
-				ActorPosition: currentActor.Position,
-				ActionType:    ActionTypeAuto,
-				TargetID:      currentActor.ID,
-				Damage:        damage,
-				TargetNewHP:   currentActor.CurrentHP,
-				TargetState:   map[string]interface{}{"hHp": currentActor.CurrentHP},
-				Effects:       []string{"dot"},
-			}
-			result.Actions = append(result.Actions, dotAction)
-			tp.battle.AddAction(dotAction)
 
 			if !currentActor.IsAlive {
 				tp.statusManager.ProcessTurnEnd(currentActor.ID)
@@ -572,6 +550,21 @@ func (tp *TurnProcessor) applyTurnStartRecovery(actor *Participant, result *Turn
 		return nil
 	}
 	return &BattleAction{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeAuto, TargetNewHP: actor.CurrentHP, TargetNewMP: actor.CurrentMP, TargetState: map[string]interface{}{"rHp": actor.CurrentHP, "rMp": actor.CurrentMP}, Effects: []string{"periodic_recovery"}}
+}
+
+func (tp *TurnProcessor) applyTurnStartDamage(actor *Participant, result *TurnStartResult) []*BattleAction {
+	damage := tp.applyDamage(actor, result.PhysicalDamageTaken, false)
+	if actor.IsAlive {
+		damage += tp.applyDamage(actor, result.MagicDamageTaken, true)
+	}
+	if damage <= 0 {
+		return nil
+	}
+	actions := []*BattleAction{{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeHurt, Damage: damage, TargetNewHP: actor.CurrentHP, SourceState: map[string]interface{}{"hHp": actor.CurrentHP}, Effects: []string{"dot"}}}
+	if !actor.IsAlive {
+		return append(actions, tp.deathAction(actor))
+	}
+	return append(actions, &BattleAction{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeIdle})
 }
 
 func (tp *TurnProcessor) applyDamage(target *Participant, damage int, magic bool) int {

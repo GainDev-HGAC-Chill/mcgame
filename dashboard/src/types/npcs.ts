@@ -5,6 +5,7 @@ export interface NpcRecord {
     pos_map_id: number | null
     pos_x: number
     pos_y: number
+    map_name?: string | null
     on_service_text: string | null
     shop_id: number | null
     qid: string | null
@@ -119,7 +120,17 @@ export type ShopSlotInsert = Omit<
     "id" | "sid" | "displayName" | "iconCode"
 >
 export interface NpcSavePatch {
-    npc?: Partial<Pick<NpcRecord, "name" | "on_service_text" | "shop_id">>
+    npc?: Partial<
+        Pick<
+            NpcRecord,
+            | "name"
+            | "on_service_text"
+            | "shop_id"
+            | "pos_map_id"
+            | "pos_x"
+            | "pos_y"
+        >
+    >
     slots?: {
         insert?: ShopSlotInsert[]
         update?: { id: number; changes: Partial<ShopSlotInsert> }[]

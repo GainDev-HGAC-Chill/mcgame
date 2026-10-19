@@ -92,6 +92,61 @@ func TestHoKhieuSonLamUsesAllEnemyTargetsAndPerTargetDispel(t *testing.T) {
 	}
 }
 
+func TestBachBienTrungKichExactTemplateDamagePlans(t *testing.T) {
+	want := map[int]float64{
+		6712: 1.4,
+		6713: 1.7,
+		6714: 2.0,
+		6715: 1.6,
+		6716: 1.9,
+		6717: 2.5,
+		6718: 1.9,
+		6719: 2.2,
+		6720: 3.0,
+	}
+	followUpCoefficient := map[int]float64{
+		6712: 2.5,
+		6713: 2.75,
+		6714: 3.0,
+		6715: 2.8,
+		6716: 3.15,
+		6717: 3.5,
+		6718: 3.0,
+		6719: 3.5,
+		6720: 4.0,
+	}
+	followUpStart := map[int]int{6712: 6724, 6713: 6727, 6714: 6730, 6715: 6733, 6716: 6736, 6717: 6739, 6718: 6742, 6719: 6745, 6720: 6748}
+	for id, coefficient := range want {
+		plan := petActiveSkillPlanByTemplateID(id)
+		if plan == nil || plan.Target != domaincombat.TargetEnemy || plan.TargetCount != 1 || len(plan.Effects) != 1 {
+			t.Fatalf("template %d plan = %#v", id, plan)
+		}
+		effect := plan.Effects[0]
+		if effect.Kind != domaincombat.EffectPhysicalDamage || effect.Coefficient != coefficient {
+			t.Fatalf("template %d damage = %#v, want physical coefficient %.1f", id, effect, coefficient)
+		}
+		if plan.OnKill == nil || plan.OnKill.PassiveTargetCounts[6723] != 3 || plan.OnKill.Target != domaincombat.TargetRandomEnemy {
+			t.Fatalf("template %d on-kill plan = %#v", id, plan.OnKill)
+		}
+		for count := 1; count <= 3; count++ {
+			followUpID := followUpStart[id] + count - 1
+			if got := plan.OnKill.TemplateIDs[count]; got != followUpID {
+				t.Fatalf("template %d count %d follow-up ID = %d, want %d", id, count, got, followUpStart[id]+count-1)
+			}
+			followUp := petActiveSkillPlanByTemplateID(followUpID)
+			if followUp == nil || followUp.Family != "Trùng Kích Truy Kích" || len(followUp.Effects) != 1 {
+				t.Fatalf("template %d exact follow-up plan = %#v", followUpID, followUp)
+			}
+			if effect := followUp.Effects[0]; effect.Kind != domaincombat.EffectPhysicalDamage || effect.Coefficient != followUpCoefficient[id] {
+				t.Fatalf("template %d follow-up effect = %#v", followUpID, effect)
+			}
+		}
+	}
+	if plan := petActiveSkillPlanByTemplateID(6721); plan != nil {
+		t.Fatalf("passive template 6721 unexpectedly returned active damage plan: %#v", plan)
+	}
+}
+
 func TestSpecialPetSupportSkillPlans(t *testing.T) {
 	for level, amount := range []int{10, 15, 20} {
 		plan := petActiveSkillPlan("Thợ Săn Sát Thủ", level+1)

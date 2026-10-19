@@ -14,6 +14,13 @@ type SkillPlan struct {
 	RequireHPMax  float64
 	Sacrifice     bool
 	RestTurns     int
+	OnKill        *SkillOnKillFollowUp
+}
+
+type SkillOnKillFollowUp struct {
+	PassiveTargetCounts map[int]int
+	TemplateIDs         map[int]int
+	Target              TargetType
 }
 
 type SkillCost struct {
@@ -70,6 +77,7 @@ const (
 	StatReduceMagic
 	StatIncomingDamage
 	StatEnergy
+	StatDebuffResistance
 )
 
 type StatModifier struct {

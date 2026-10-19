@@ -10,6 +10,7 @@
 - Trạng thái: CODE_FIXED/SCHEMA_APPLIED_LOCAL — chưa restart/deploy gameserver/dashboard hoặc Flash smoke-test.
 - Hardening tiếp theo: thêm lookup shop/item/equipment; reject boolean query không hợp lệ, empty/no-op và fractional slot ID; giữ mọi legacy `st` ngoài 0/5 read-only. Code/typecheck/test PASS; function hardening chờ re-apply vì Docker engine bị tắt sau lần apply schema đầu.
 - UI shop tiếp theo: thay form dày bằng lưới ô hàng có ảnh, tên đúng catalog trong game, badge vị trí/trạng thái và giá bán; editor chi tiết chỉ mở cho ô được chọn. Dashboard hydrate metadata chỉ đọc từ catalog và không đưa `displayName/iconCode` vào mutation. Typecheck + 6 focused tests PASS; production compile/static generation PASS trước lỗi symlink Windows baseline.
+- Follow-up vị trí NPC: bảng tìm kiếm thêm cột tọa độ, map hiển thị ID + tên catalog; tab NPC cho chọn map và sửa X/Y. Save whitelist/validate exact `pos_map_id/pos_x/pos_y`, yêu cầu map tồn tại, tọa độ integer signed 32-bit và giữ revision/request UUID/audit/no-op; legacy placement không chạm được giữ nguyên. Dashboard typecheck + 7 focused tests + production compile/type/static generation PASS; SQL draft/rollback test đã cập nhật nhưng chưa apply vì Docker Linux engine tắt, standalone copy vẫn fail symlink `EPERM` Windows baseline.
 
 ## FIX-2026-10-19-02 — Nền tảng Thành Tựu end-to-end và claim an toàn
 
@@ -51,6 +52,41 @@
 - Sửa: map exact sách `5042..5107` tới Mystery recipe `1..66`, persist `learnedRec`, duplicate no-consume và rollback khi consume fail; trả item thực từ lotto claim rồi push DTO `onAddCharactorSlot`; thêm 33 mapping food→buff timed, stat refresh và chặn zero-effect chưa hỗ trợ trước tiêu hao.
 - Test: full Mystery Treasure/lotto/lotto-handler/item-handler PASS; focused food PASS; targeted vet và build `bin/gameserver.exe` PASS. Full item chỉ còn sáu baseline award-quality/starter-gift đã biết.
 - Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test; không dùng item/người chơi thật và không thay đổi DB/player data.
+
+## FIX-2026-10-19-03 — Tick damage skill Pet hiển thị sai vị trí/số HP
+
+- Hiện tượng: periodic damage của `Độc Thích Đơn Thể`, `Độc Thích Quần Thể` và `Tàn Nhẫn Tư Liệt` đã trừ HP server nhưng playback dùng `ActionTypeAuto`, bỏ trống `TargetPosition` nên mặc định `tid=0`, đồng thời đặt `hHp` trong `tSObj`. Flash vì vậy lấy HP nền của slot 0 để tính popup hoặc hiện số trên sai mục tiêu; lethal tick không có Die action.
+- Sửa: gom cả hai turn-processing path qua một helper, gửi tick dương thành Hurt tại đúng `sid/tid`, đặt HP mới trong `sSObj`, rồi phát Die hoặc Idle. Tick bị shield/vô địch hấp thụ hoàn toàn không tạo popup giả.
+- Test: domain/application combat và combat handler PASS; regression xác nhận tick 300 tại slot 7 gửi `sid=tid=7`, `bid=5`, `sSObj.hHp=700`, không có `tSObj.hHp`; lethal tick phát Hurt → Die. Targeted vet và build `bin/gameserver.exe` PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+
+## FIX-2026-10-19-04 — Bách Biến Trùng Kích chỉ gây 1 damage
+
+- Hiện tượng: active skill của Đại Thánh Chí Tôn, gồm ID gốc `6712` mô tả x1,4 sát thương, chỉ gây 1 damage.
+- Nguyên nhân: chuỗi creature/evolution-only `6712..6720` không thuộc roster suy từ sách Pet và chưa được thêm vào ba special family trước đó. Adapter vì thế dùng fallback `expSkill=1/dexSkill=-1`, tương đương base damage 1 thay vì hệ số công vật lý.
+- Sửa: exact-ID registry cho cả ba nhánh: `1.4/1.7/2.0`, `1.6/1.9/2.5`, `1.9/2.2/3.0`; adapter ưu tiên template ID trước family name để tránh tên catalog có khoảng trắng và ký hiệu `∮`/`ㄨ` không đồng nhất. Chưa đoán random Choáng/Độc/Suy Nhược của `buffId=-2`.
+- Test: regression đủ chín ID và adapter ID 6712 PASS; full application/domain combat và combat handler PASS; targeted vet, gameserver build và scoped diff-check PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+
+## FIX-2026-10-19-05 — Vô Song Loạn Vũ không truy kích sau khi kết liễu
+
+- Hiện tượng: Đại Thánh Chí Tôn sở hữu `Vô Song Loạn Vũ` cấp 3 nhưng sau khi `Bách Biến Trùng Kích` hạ mục tiêu không đánh tiếp ba mục tiêu ngẫu nhiên.
+- Nguyên nhân: battle participant không snapshot canonical `skill1..skill15`; combat plan cũng không có on-kill hook nên passive `6721/6722/6723` không thể được phát hiện hoặc kích hoạt.
+- Sửa: participant Pet mang skill ownership battle-local; Bách Biến exact plan có generic on-kill follow-up. Passive cấp 1/2/3 chọn tối đa 1/2/3 mục tiêu sống ngẫu nhiên khác nhau, dùng exact `Trùng Kích Truy Kích` `6724..6750` và multiplier x2,5..x4 theo nhánh/cấp Bách Biến, không trừ MP lần hai. Chỉ chính Bách Biến kết liễu mới kích hoạt.
+- An toàn: mục tiêu đã chết bị loại; thiếu passive, hit không kết liễu hoặc thiếu exact follow-up template đều fail closed. Bốn debuff ngẫu nhiên của `buffId=-2` chưa được đoán.
+- Test: snapshot skill slot, exact chín mapping follow-up, level-3 truy kích đủ ba mục tiêu distinct, non-lethal/no-passive rejection; full application/domain combat và combat handler PASS; targeted vet, gameserver build và diff-check PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
+- Bổ sung theo xác nhận người dùng: mỗi wave Trùng Kích có ít nhất một mục tiêu chết sẽ kích hoạt wave kế tiếp; dừng khi wave không kết liễu hoặc hết mục tiêu. Playback có separator nội bộ để Flash phát từng wave riêng. Regression năm enemy xác nhận hai wave cấp 3 lần lượt xử lý 3 rồi 2 mục tiêu và phát hai cast.
+- Correction tiếp theo: bỏ damage effect tổng hợp khỏi passive; đăng ký exact active plan cho đủ `6724..6750` và buộc cả wave đầu lẫn wave dây chuyền đọc plan đó. Regression năm hit xác nhận tất cả action mang exact skill ID/name và sát thương x2,5 vượt rõ damage đánh thường.
+
+## FIX-2026-10-19-06 — Di Hình Hoán Vị không giải debuff hoặc tăng kháng
+
+- Hiện tượng: Pet có `Di Hình Hoán Vị` nhưng đầu lượt không có xác suất giải trạng thái và lượng kháng mô tả không tham gia combat.
+- Nguyên nhân: passive `6751/6752/6753` chưa có turn-start hook; status modifier cũng chưa có đường đưa prop 58 `Debuff Kháng` vào xác suất áp hiệu ứng xấu.
+- Sửa: dùng helper exact `6754/6755/6756` làm authority cấp 1/2/3: roll 20/30/40%, khi thành công xóa toàn bộ harmful status removable trước tick/control và thêm 80/120/150 `PropResistDebuff` trong đúng một lượt. Harmful planned status dùng công thức base chance + debuff hit - debuff resistance; base-guaranteed cũng có thể bị kháng.
+- An toàn: effect không removable được giữ; buff có lợi không bị xóa; roll thất bại loại kháng cũ để không tồn tại quá hạn; nếu có nhiều cấp thì chỉ cấp cao nhất có hiệu lực.
+- Test: đủ ba exact config, deterministic success cleanse periodic debuff trước damage, giữ locked/beneficial effect, effective resistance 150 và xác suất 40%→30% khi attacker hit 50; deterministic failure xóa resistance cũ. Full domain/application combat và combat handler, targeted vet, gameserver build và diff-check PASS.
+- Trạng thái: CODE_FIXED — chưa deploy/restart hoặc Flash smoke-test.
 
 ## FIX-2026-10-16-28 — Không thể chủ động bỏ nhiệm vụ type 1 đã nhận
 

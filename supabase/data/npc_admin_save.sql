@@ -9,7 +9,7 @@ declare before_data jsonb; after_data jsonb; before_npc jsonb; old_hash text; re
 begin
  if p_actor_id is null or p_request_id is null or p_expected_revision is null or p_expected_revision !~ '^[a-f0-9]{32}$' or p_expected_shared_count is null or p_expected_shared_count<0 or p_reason is null or length(trim(p_reason)) not between 3 and 1000 or p_patch is null or jsonb_typeof(p_patch)<>'object' or p_patch='{}'::jsonb or pg_column_size(p_patch)>131072 then raise exception using errcode='22023',message='Invalid save envelope'; end if;
  if exists(select 1 from jsonb_object_keys(p_patch) k where k not in ('npc','slots')) then raise exception using errcode='22023',message='Unknown patch group'; end if;
- lock table data.data_tbl_npc,data.data_tbl_shop,data.data_tbl_shop_slot in share row exclusive mode;
+  lock table data.data_tbl_npc,data.data_tbl_shop,data.data_tbl_shop_slot in share row exclusive mode;
  req_hash:=md5(jsonb_build_array(p_id,p_expected_revision,p_expected_shared_count,p_confirm_shared,p_patch,p_reason,p_actor_id)::text);
  select * into prior from data.npc_admin_audit where request_id=p_request_id;
  if found then
@@ -21,11 +21,15 @@ begin
  old_hash:=md5(before_data::text);
  if old_hash<>p_expected_revision then raise exception using errcode='40001',message='NPC revision conflict'; end if;
  before_npc:=before_data->'npc'; npc_patch:=coalesce(p_patch->'npc','{}'::jsonb);
- if jsonb_typeof(npc_patch)<>'object' or exists(select 1 from jsonb_object_keys(npc_patch) k where k not in ('name','on_service_text','shop_id')) then raise exception using errcode='22023',message='Unknown or immutable NPC field'; end if;
+  if jsonb_typeof(npc_patch)<>'object' or exists(select 1 from jsonb_object_keys(npc_patch) k where k not in ('name','on_service_text','shop_id','pos_map_id','pos_x','pos_y')) then raise exception using errcode='22023',message='Unknown or immutable NPC field'; end if;
  if p_patch ? 'npc' and npc_patch='{}'::jsonb then raise exception using errcode='22023',message='Empty NPC patch'; end if;
  if npc_patch ? 'name' and (jsonb_typeof(npc_patch->'name')<>'string' or length(trim(npc_patch->>'name')) not between 1 and 300) then raise exception using errcode='22023',message='Invalid NPC name'; end if;
  if npc_patch ? 'on_service_text' and npc_patch->'on_service_text'<>'null'::jsonb and (jsonb_typeof(npc_patch->'on_service_text')<>'string' or length(npc_patch->>'on_service_text')>16000) then raise exception using errcode='22023',message='Invalid NPC dialogue'; end if;
- if npc_patch ? 'shop_id' and npc_patch->'shop_id'<>'null'::jsonb and (jsonb_typeof(npc_patch->'shop_id')<>'number' or (npc_patch->>'shop_id')::numeric<>trunc((npc_patch->>'shop_id')::numeric) or (npc_patch->>'shop_id')::numeric<0) then raise exception using errcode='22023',message='Invalid shop ID'; end if;
+  if npc_patch ? 'shop_id' and npc_patch->'shop_id'<>'null'::jsonb and (jsonb_typeof(npc_patch->'shop_id')<>'number' or (npc_patch->>'shop_id')::numeric<>trunc((npc_patch->>'shop_id')::numeric) or (npc_patch->>'shop_id')::numeric<0) then raise exception using errcode='22023',message='Invalid shop ID'; end if;
+  if npc_patch ? 'pos_map_id' and (jsonb_typeof(npc_patch->'pos_map_id')<>'number' or (npc_patch->>'pos_map_id')::numeric<>trunc((npc_patch->>'pos_map_id')::numeric) or (npc_patch->>'pos_map_id')::numeric not between 1 and 2147483647) then raise exception using errcode='22023',message='Invalid NPC map ID'; end if;
+  if npc_patch ? 'pos_map_id' and not exists(select 1 from data.data_tbl_map where id=(npc_patch->>'pos_map_id')::integer) then raise exception using errcode='22023',message='Unknown NPC map'; end if;
+  if npc_patch ? 'pos_x' and (jsonb_typeof(npc_patch->'pos_x')<>'number' or (npc_patch->>'pos_x')::numeric<>trunc((npc_patch->>'pos_x')::numeric) or (npc_patch->>'pos_x')::numeric not between -2147483648 and 2147483647) then raise exception using errcode='22023',message='Invalid NPC X coordinate'; end if;
+  if npc_patch ? 'pos_y' and (jsonb_typeof(npc_patch->'pos_y')<>'number' or (npc_patch->>'pos_y')::numeric<>trunc((npc_patch->>'pos_y')::numeric) or (npc_patch->>'pos_y')::numeric not between -2147483648 and 2147483647) then raise exception using errcode='22023',message='Invalid NPC Y coordinate'; end if;
  merged:=before_npc||npc_patch; target_shop:=coalesce((merged->>'shop_id')::numeric,0)::integer;
  if target_shop>0 and not exists(select 1 from data.data_tbl_shop where id=target_shop) then raise exception using errcode='22023',message='Unknown standard shop'; end if;
  slot_delta:=coalesce(p_patch->'slots','{}'::jsonb);

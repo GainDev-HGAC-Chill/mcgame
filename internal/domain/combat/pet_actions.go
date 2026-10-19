@@ -136,6 +136,10 @@ func cloneParticipant(p *Participant) *Participant {
 		return nil
 	}
 	clone := *p
+	clone.SkillIDs = make(map[int]bool, len(p.SkillIDs))
+	for skillID, owned := range p.SkillIDs {
+		clone.SkillIDs[skillID] = owned
+	}
 	return &clone
 }
 

@@ -38,7 +38,14 @@ test("NPC save accepts bounded aggregate patches", () => {
         npcSaveSchema.safeParse({
             ...base,
             patch: {
-                npc: { name: "NPC mới", on_service_text: null, shop_id: 2 },
+                npc: {
+                    name: "NPC mới",
+                    on_service_text: null,
+                    shop_id: 2,
+                    pos_map_id: 10,
+                    pos_x: -203,
+                    pos_y: 4260,
+                },
             },
         }).success,
         true
@@ -70,6 +77,11 @@ test("NPC save rejects ownership and unsafe slot fields", () => {
         { npc: {} },
         { slots: {} },
         { npc: { id: 2 } },
+        { npc: { pos_map_id: null } },
+        { npc: { pos_map_id: 0 } },
+        { npc: { pos_map_id: 1.5 } },
+        { npc: { pos_x: 1.5 } },
+        { npc: { pos_y: 2147483648 } },
         { slots: { update: [{ id: 1, changes: { sid: 2 } }] } },
         { slots: { update: [{ id: 1, changes: { position: 2 } }] } },
         { slots: { insert: [{ ...slot, point: 1 }] } },

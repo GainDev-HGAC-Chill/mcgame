@@ -88,7 +88,10 @@ func buildSkillInfoFromGamedata(tpl *gamedatamodels.SkillTemplate) *combat.Skill
 		BuffDuration: int(tpl.BuffRound),
 	}
 	if int(tpl.Kind) == 1 {
-		plan := petActiveSkillPlan(tpl.Name, int(tpl.Level))
+		plan := petActiveSkillPlanByTemplateID(int(tpl.ID))
+		if plan == nil {
+			plan = petActiveSkillPlan(tpl.Name, int(tpl.Level))
+		}
 		if plan == nil {
 			return info
 		}

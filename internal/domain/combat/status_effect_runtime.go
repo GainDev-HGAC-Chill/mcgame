@@ -13,13 +13,11 @@ func (m *StatusEffectManager) EffectiveParticipant(p *Participant) *Participant 
 		return nil
 	}
 	effective := *p
-	if effective.EffStats.Get(stats.PropHP) > 0 {
-		cloned := stats.NewEffectiveStats()
-		for id, value := range effective.EffStats.All() {
-			cloned.Set(id, value)
-		}
-		effective.EffStats = cloned
+	cloned := stats.NewEffectiveStats()
+	for id, value := range effective.EffStats.All() {
+		cloned.Set(id, value)
 	}
+	effective.EffStats = cloned
 	for _, effect := range m.effects[p.ID] {
 		for _, modifier := range effect.Modifiers {
 			applyStatModifier(&effective, modifier)
@@ -68,7 +66,21 @@ func applyStatModifier(p *Participant, modifier StatModifier) {
 		p.ReduceHurt1 = apply(p.ReduceHurt1)
 	case StatReduceMagic:
 		p.ReduceHurt2 = apply(p.ReduceHurt2)
+	case StatDebuffResistance:
+		base := p.EffStats.Get(stats.PropResistDebuff)
+		p.EffStats.Set(stats.PropResistDebuff, max(0, int64(float64(base)*(1+modifier.Percent))+int64(modifier.Flat)))
 	}
+}
+
+func (m *StatusEffectManager) RemoveFamily(participantID, family string) {
+	effects := m.effects[participantID]
+	remaining := make([]*StatusEffect, 0, len(effects))
+	for _, effect := range effects {
+		if effect.Family != family {
+			remaining = append(remaining, effect)
+		}
+	}
+	m.effects[participantID] = remaining
 }
 
 func (m *StatusEffectManager) IncomingDamageModifier(participantID string) float64 {

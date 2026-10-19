@@ -145,7 +145,7 @@ This does not make quest structural activation safe; the UI must keep that warni
 
 ## 3. Non-goals
 
-- No NPC create/delete, map position, sprite/resource, schedule, transport, combat roster, script, type, or class-gate editor; these affect scene/gameplay systems beyond the request.
+- No NPC create/delete, sprite/resource, schedule, transport, combat roster, script, type, facing direction, or class-gate editor; these affect scene/gameplay systems beyond the request. Map and X/Y position are the only added placement fields authorized by the position-editor addendum below.
 - No quest mutation from the NPC aggregate. Quest Admin remains the only quest writer, preserving its revision/validation/audit and active-progress warning behavior.
 - No claim that Quest Admin edits are Flash-activated; compiled catalog/index publication remains blocked.
 - No new shop container and no container name/type edit because there is no verified dynamic `TBL_SHOP` replacement path.
@@ -153,6 +153,14 @@ This does not make quest structural activation safe; the UI must keep that warni
 - No existing-slot reorder because the Flash override parser ignores `position` updates.
 - No automatic restart/deploy, cache hot swap, online-player disconnect, player inventory/currency/progress write, seed rewrite, or legacy anomaly cleanup.
 - No attempt to make the existing non-atomic shop purchase transaction atomic; that is an independent gameplay task and this editor must not weaken it.
+
+## 3.1 Approved position-editor addendum (2026-10-19)
+
+- The NPC list adds one coordinate column and resolves the current map ID to its catalog name where available.
+- The NPC/dialogue tab may edit canonical `pos_map_id`, `pos_x`, and `pos_y` alongside the existing fields.
+- A changed map must be a positive existing `TBL_MAP` ID. Coordinates must be signed 32-bit integers; unchanged legacy placement anomalies remain preserved.
+- Position changes stay inside the existing revision, request-UUID, before-image audit, idempotency, and no-op protections.
+- Runtime activation still requires a controlled gameserver restart and client map re-entry. No automatic relocation of currently spawned NPC objects is added.
 
 ## 4. Verification
 

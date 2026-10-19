@@ -112,6 +112,59 @@ export function NpcTabs({
                         onChange={value => setNpc({ ...npc, shop_id: value })}
                     />
                 </div>
+                <section className="space-y-3 rounded-md border p-3">
+                    <div>
+                        <h3 className="font-semibold">
+                            Vị trí đứng trên bản đồ
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                            Chỉ có hiệu lực sau khi máy chủ nạp lại catalog và
+                            người chơi vào lại bản đồ.
+                        </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <CatalogLookup
+                            kind="map"
+                            label="Bản đồ"
+                            value={npc.pos_map_id}
+                            disabled={disabled}
+                            onChange={value => {
+                                if (value !== null)
+                                    setNpc({ ...npc, pos_map_id: value })
+                            }}
+                        />
+                        <label className="grid content-start gap-2 text-sm">
+                            Tọa độ X
+                            <Input
+                                type="number"
+                                step={1}
+                                value={npc.pos_x}
+                                disabled={disabled}
+                                onChange={event =>
+                                    setNpc({
+                                        ...npc,
+                                        pos_x: Number(event.target.value),
+                                    })
+                                }
+                            />
+                        </label>
+                        <label className="grid content-start gap-2 text-sm">
+                            Tọa độ Y
+                            <Input
+                                type="number"
+                                step={1}
+                                value={npc.pos_y}
+                                disabled={disabled}
+                                onChange={event =>
+                                    setNpc({
+                                        ...npc,
+                                        pos_y: Number(event.target.value),
+                                    })
+                                }
+                            />
+                        </label>
+                    </div>
+                </section>
                 <label className="grid gap-2 text-sm">
                     Đối thoại ambient (`onServiceText`)
                     <Textarea
@@ -126,12 +179,8 @@ export function NpcTabs({
                         }
                     />
                 </label>
-                <div className="grid gap-2 rounded-md bg-muted p-3 text-sm md:grid-cols-4">
+                <div className="grid gap-2 rounded-md bg-muted p-3 text-sm md:grid-cols-2">
                     <span>ID: {npc.id}</span>
-                    <span>Map: {npc.pos_map_id ?? "—"}</span>
-                    <span>
-                        Vị trí: {npc.pos_x}, {npc.pos_y}
-                    </span>
                     <span>Loại: {npc.type}</span>
                 </div>
                 {npc.shop_id !== detail.npc.shop_id && (

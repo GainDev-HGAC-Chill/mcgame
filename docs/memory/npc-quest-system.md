@@ -4,7 +4,7 @@
 
 The NPC dashboard owns only `name`, `on_service_text`, existing `shop_id` assignment and standard-shop slots. Related quests are derived from `TBL_QUEST.start_npc`/`finish_npc` and `TBL_QUEST_LOOP.nid`, then deep-link to the existing Quest Admin writer. `TBL_NPC.qid` is not used as canonical normal-quest ownership and is shown only as a legacy diagnostic.
 
-Scene `NPCClientData` now carries `OnServiceText`, and `buildNPCList` emits exact `onServiceText`; the dynamic Flash `Npc` object receives it without ActionScript changes. A saved dialogue becomes visible only after the server cache is reloaded and the client re-enters the map. No automatic restart, player-progress rewrite or quest-catalog activation is performed.
+Scene `NPCClientData` now carries `OnServiceText`, and `buildNPCList` emits exact `onServiceText`; the dynamic Flash `Npc` object receives it without ActionScript changes. NPC Admin may also edit canonical `pos_map_id`, `pos_x`, and `pos_y`; map changes require an existing `TBL_MAP` row and all placement writes use the same revision/request UUID/audit transaction. A saved dialogue or position becomes visible only after the server cache is reloaded and the client re-enters the map. No automatic restart, player-progress rewrite or quest-catalog activation is performed.
 
 ## Reviewed dialogue registry expansion (2026-10-14)
 

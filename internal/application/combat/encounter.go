@@ -135,6 +135,9 @@ func (s *Service) buildPetParticipantFromPet(battlePet *domainpet.Pet, charID in
 	petParticipant.Element = domainelement.NormalizeClientElementID(battlePet.Element)
 	petParticipant.Position = position
 	petParticipant.OwnerID = charID
+	for _, learned := range battlePet.LearnedSkillSlots() {
+		petParticipant.SkillIDs[learned.ID] = true
+	}
 
 	if battlePet.CreatureData != nil {
 		petParticipant.ResCode = creatureDataInt(battlePet.CreatureData["resCode"])

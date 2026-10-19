@@ -69,11 +69,11 @@ declare v_result jsonb;
 begin
  if p_page not between 1 and 100000 or p_page_size not between 1 and 100 or length(p_search)>200 then raise exception using errcode='22023',message='Invalid pagination'; end if;
  with filtered as (
-  select n.*,
+  select n.*,m.name map_name,
    (select count(*) from data.data_tbl_quest q where q.start_npc=n.id) offered_count,
    (select count(*) from data.data_tbl_quest q where q.finish_npc=n.id) turn_in_count,
    (select count(*) from data.data_tbl_quest_loop l where l.nid=n.id) loop_count
-  from data.data_tbl_npc n where
+  from data.data_tbl_npc n left join data.data_tbl_map m on m.id=n.pos_map_id where
    (p_search='' or n.name ilike '%'||p_search||'%' or n.id::text=p_search)
    and (p_map_id is null or n.pos_map_id=p_map_id)
    and (p_type is null or n.type=p_type)

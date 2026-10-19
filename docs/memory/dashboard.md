@@ -10,6 +10,8 @@ Shop assignment and slot templates provide paged name/ID lookup for existing sho
 
 The shop tab presents responsive merchandise cards rather than a dense table. Each card shows the game icon, catalog display name, position/state badges and all effective price lines; selecting one opens a grouped editor below for template, pricing and slot controls. The dashboard server hydrates names/icons directly from item/equipment catalogs, and derived `displayName`/`iconCode` fields are explicitly stripped from save deltas.
 
+The NPC list now has a dedicated coordinate column and shows the map catalog name beside its ID when available. The NPC/dialogue tab edits canonical `pos_map_id`, `pos_x`, and `pos_y` through the same revisioned/audited save flow. Changed map IDs must exist in `TBL_MAP`; coordinates are signed 32-bit integers. Unchanged legacy placement anomalies are preserved. Runtime relocation still requires a controlled gameserver restart and client map re-entry.
+
 Migration `20261018232116_npc_admin_dashboard.sql` was generated from a temporary migration-built database and fresh replayed successfully. Compose rollback verification covers stale revision, ownership, shared impact, audit, insert and full catalog restoration. Runtime activation remains explicit: authorized gameserver restart, client reconnect for shop config, and map re-entry for ambient dialogue. Quest structural Flash activation remains blocked.
 
 ## Requested target levels and starter package editor (2026-10-12)

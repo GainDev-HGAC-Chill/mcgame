@@ -121,6 +121,7 @@ export default function NpcListPage() {
                                     <th className="p-3">ID</th>
                                     <th>Tên</th>
                                     <th>Map</th>
+                                    <th>Tọa độ</th>
                                     <th>Loại</th>
                                     <th>Đối thoại</th>
                                     <th>Nhiệm vụ</th>
@@ -139,7 +140,17 @@ export default function NpcListPage() {
                                                 {npc.name || "Không tên"}
                                             </Link>
                                         </td>
-                                        <td>{npc.pos_map_id ?? "—"}</td>
+                                        <td>
+                                            {npc.pos_map_id ?? "—"}
+                                            {npc.map_name && (
+                                                <span className="block text-xs text-muted-foreground">
+                                                    {npc.map_name}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            {npc.pos_x}, {npc.pos_y}
+                                        </td>
                                         <td>{npc.type}</td>
                                         <td>
                                             {npc.on_service_text?.trim()

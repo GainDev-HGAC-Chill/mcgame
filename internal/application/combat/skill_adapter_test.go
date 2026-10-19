@@ -5,6 +5,7 @@ package combat
 import (
 	"testing"
 
+	domaincombat "mcgame-server/internal/domain/combat"
 	gamedatamodels "mcgame-server/internal/gamedata/models"
 )
 
@@ -78,5 +79,45 @@ func TestBuildSkillInfoFromGamedata_NoFallbackForNonDamage(t *testing.T) {
 	info := buildSkillInfoFromGamedata(tpl)
 	if info.Template.SkillEffID != 0 {
 		t.Fatalf("SkillEffID = %d, want 0 (state-add has no default effect)", info.Template.SkillEffID)
+	}
+}
+
+func TestBuildSkillInfoFromGamedata_UsesExactBachBienTemplatePlan(t *testing.T) {
+	tpl := &gamedatamodels.SkillTemplate{
+		ID:       6712,
+		Name:     "Bách Biến Trùng Kích ",
+		Kind:     1,
+		Level:    1,
+		Type:     float64(gamedataTypeClose),
+		ExpSkill: 1,
+		DexSkill: -1,
+	}
+	info := buildSkillInfoFromGamedata(tpl)
+	if info.Plan == nil || len(info.Plan.Effects) != 1 {
+		t.Fatalf("plan = %#v, want exact template plan", info.Plan)
+	}
+	effect := info.Plan.Effects[0]
+	if effect.Kind != domaincombat.EffectPhysicalDamage || effect.Coefficient != 1.4 {
+		t.Fatalf("damage effect = %#v, want physical x1.4", effect)
+	}
+}
+
+func TestBuildSkillInfoFromGamedata_UsesExactTrungKichFollowUpPlan(t *testing.T) {
+	tpl := &gamedatamodels.SkillTemplate{
+		ID:       6750,
+		Name:     "ㄨ Trùng Kích Truy Kích ㄨ",
+		Kind:     1,
+		Level:    3,
+		Type:     float64(gamedataTypeClose),
+		ExpSkill: 1,
+		DexSkill: -1,
+	}
+	info := buildSkillInfoFromGamedata(tpl)
+	if info.Plan == nil || info.Plan.Family != "Trùng Kích Truy Kích" || len(info.Plan.Effects) != 1 {
+		t.Fatalf("plan = %#v, want exact Trùng Kích follow-up plan", info.Plan)
+	}
+	effect := info.Plan.Effects[0]
+	if effect.Kind != domaincombat.EffectPhysicalDamage || effect.Coefficient != 4.0 {
+		t.Fatalf("damage effect = %#v, want physical x4.0", effect)
 	}
 }

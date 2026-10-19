@@ -38,6 +38,7 @@ export const npcLookupQuerySchema = z
     .strict()
 
 const integer = z.number().int().min(0).max(2147483647)
+const coordinate = z.number().int().min(-2147483648).max(2147483647)
 const slotShape = {
     amount: z.number().int().min(-1).max(2147483647),
     gold: integer,
@@ -90,6 +91,9 @@ export const npcSaveSchema = z
                             .nullable()
                             .optional(),
                         shop_id: integer.nullable().optional(),
+                        pos_map_id: integer.min(1).optional(),
+                        pos_x: coordinate.optional(),
+                        pos_y: coordinate.optional(),
                     })
                     .strict()
                     .refine(

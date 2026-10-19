@@ -22,6 +22,16 @@ func (g planSkillGetter) GetCreatureSkillIDs(int) []int {
 	return nil
 }
 
+type mappedPlanSkillGetter map[int]*SkillInfo
+
+func (g mappedPlanSkillGetter) GetSkillInfo(id int) *SkillInfo {
+	return g[id]
+}
+
+func (g mappedPlanSkillGetter) GetCreatureSkillIDs(int) []int {
+	return nil
+}
+
 func TestExecuteSkillPlanPureStatusDealsNoDamage(t *testing.T) {
 	battle, actor, target := planTestBattle()
 	info := testPlanInfo(&SkillPlan{Family: "support", Target: TargetEnemy, TargetCount: 1, Effects: []SkillEffect{{Kind: EffectStatus, Family: "support", Duration: 2, Polarity: PolarityHarmful, Modifiers: []StatModifier{{Stat: StatDefense, Percent: -.2}}}}})
@@ -33,6 +43,156 @@ func TestExecuteSkillPlanPureStatusDealsNoDamage(t *testing.T) {
 	}
 	if len(actions) == 0 || !processor.statusManager.HasEffect(target.ID, StatusNormal) {
 		t.Fatalf("status was not applied")
+	}
+}
+
+func TestBachBienKillTriggersVoSongOnThreeRandomLivingTargets(t *testing.T) {
+	battle, actor, killed := planTestBattle()
+	actor.SkillIDs[6723] = true
+	killed.CurrentHP = 1
+	for index, position := range []int{2, 4, 6} {
+		target := NewParticipant("follow-"+strconv.Itoa(index), "follow", SideEnemy, true)
+		target.Position = position
+		target.MaxHP = 5000
+		target.CurrentHP = 5000
+		target.Defense = 100
+		battle.AddParticipant(target)
+	}
+	primaryPlan := &SkillPlan{
+		Family:      "Bách Biến Trùng Kích",
+		Target:      TargetEnemy,
+		TargetCount: 1,
+		Effects:     []SkillEffect{{Kind: EffectPhysicalDamage, Coefficient: 1.4}},
+		OnKill: &SkillOnKillFollowUp{
+			PassiveTargetCounts: map[int]int{6721: 1, 6722: 2, 6723: 3},
+			TemplateIDs:         map[int]int{1: 6724, 2: 6725, 3: 6726},
+			Target:              TargetRandomEnemy,
+		},
+	}
+	primary := &SkillInfo{Template: &skill.SkillTemplate{ID: 6712, Name: "Bách Biến Trùng Kích", SkillType: skill.SkillTypePhysical, AttackCount: 1, Range: 1}, Plan: primaryPlan}
+	follow := testFollowUpInfo(6726, 2.5)
+	processor := NewTurnProcessor(battle, mappedPlanSkillGetter{6712: primary, 6726: follow})
+	processor.rng = rand.New(rand.NewSource(7))
+	actions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: killed.ID, ActionType: ClientActionSkill, SkillID: 6712})
+
+	if killed.IsAlive {
+		t.Fatal("Bách Biến target survived, want on-kill trigger fixture")
+	}
+	followTargets := make(map[string]bool)
+	for _, action := range actions {
+		if action.ActionType == ActionTypeSkill && action.SkillID == 6726 && action.Damage > 0 {
+			followTargets[action.TargetID] = true
+		}
+	}
+	if len(followTargets) != 3 {
+		t.Fatalf("follow-up targets = %v, want three distinct living enemies", followTargets)
+	}
+	if followTargets[killed.ID] {
+		t.Fatalf("follow-up targeted defeated participant %q", killed.ID)
+	}
+}
+
+func TestBachBienDoesNotTriggerVoSongWithoutKillOrPassive(t *testing.T) {
+	build := func(ownsPassive bool, targetHP int) int {
+		battle, actor, target := planTestBattle()
+		if ownsPassive {
+			actor.SkillIDs[6723] = true
+		}
+		target.CurrentHP = targetHP
+		plan := &SkillPlan{
+			Family:      "Bách Biến Trùng Kích",
+			Target:      TargetEnemy,
+			TargetCount: 1,
+			Effects:     []SkillEffect{{Kind: EffectPhysicalDamage, Coefficient: 1.4}},
+			OnKill: &SkillOnKillFollowUp{
+				PassiveTargetCounts: map[int]int{6723: 3},
+				TemplateIDs:         map[int]int{3: 6726},
+				Target:              TargetRandomEnemy,
+			},
+		}
+		primary := &SkillInfo{Template: &skill.SkillTemplate{ID: 6712, Name: "Bách Biến Trùng Kích", SkillType: skill.SkillTypePhysical, AttackCount: 1}, Plan: plan}
+		follow := testFollowUpInfo(6726, 2.5)
+		processor := NewTurnProcessor(battle, mappedPlanSkillGetter{6712: primary, 6726: follow})
+		actions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: target.ID, ActionType: ClientActionSkill, SkillID: 6712})
+		count := 0
+		for _, action := range actions {
+			if action.SkillID == 6726 {
+				count++
+			}
+		}
+		return count
+	}
+	if count := build(true, 5000); count != 0 {
+		t.Fatalf("non-lethal Bách Biến emitted %d follow-up actions", count)
+	}
+	if count := build(false, 1); count != 0 {
+		t.Fatalf("Bách Biến without Vô Song emitted %d follow-up actions", count)
+	}
+}
+
+func TestVoSongChainsAnotherWaveWhenFollowUpKills(t *testing.T) {
+	battle, actor, killed := planTestBattle()
+	actor.SkillIDs[6723] = true
+	actor.Attack = 1000
+	killed.CurrentHP = 1
+	for index, position := range []int{1, 2, 3, 4, 5} {
+		target := NewParticipant("chain-"+strconv.Itoa(index), "chain", SideEnemy, true)
+		target.Position = position
+		target.MaxHP = 10
+		target.CurrentHP = 10
+		battle.AddParticipant(target)
+	}
+	plan := &SkillPlan{
+		Family:      "Bách Biến Trùng Kích",
+		Target:      TargetEnemy,
+		TargetCount: 1,
+		Effects:     []SkillEffect{{Kind: EffectPhysicalDamage, Coefficient: 1.4}},
+		OnKill: &SkillOnKillFollowUp{
+			PassiveTargetCounts: map[int]int{6723: 3},
+			TemplateIDs:         map[int]int{3: 6726},
+			Target:              TargetRandomEnemy,
+		},
+	}
+	primary := &SkillInfo{Template: &skill.SkillTemplate{ID: 6712, Name: "Bách Biến Trùng Kích", SkillType: skill.SkillTypePhysical, AttackCount: 1}, Plan: plan}
+	follow := testFollowUpInfo(6726, 2.5)
+	processor := NewTurnProcessor(battle, mappedPlanSkillGetter{6712: primary, 6726: follow})
+	processor.rng = rand.New(rand.NewSource(11))
+	actions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: killed.ID, ActionType: ClientActionSkill, SkillID: 6712})
+
+	followTargets := make(map[string]bool)
+	followDamage := make([]int, 0, 5)
+	for _, action := range actions {
+		if action.ActionType == ActionTypeSkill && action.SkillID == 6726 && action.Damage > 0 {
+			followTargets[action.TargetID] = true
+			followDamage = append(followDamage, action.Damage)
+		}
+	}
+	if len(followTargets) != 5 {
+		t.Fatalf("chained follow-up targets = %v, want all five remaining enemies across two waves", followTargets)
+	}
+	if alive := battle.GetAliveParticipants(SideEnemy); len(alive) != 0 {
+		t.Fatalf("alive enemies after chained waves = %#v, want none", alive)
+	}
+	if len(followDamage) != 5 {
+		t.Fatalf("Trùng Kích damage actions = %v, want five exact-skill hits", followDamage)
+	}
+	for index, damage := range followDamage {
+		if damage < actor.Attack*3/2 {
+			t.Fatalf("Trùng Kích hit %d damage = %d, want x2.5 skill damage rather than basic attack damage", index, damage)
+		}
+	}
+	rounds := BuildPlaybackRounds(actions)
+	followUpCasts := 0
+	for _, round := range rounds {
+		for _, action := range round {
+			sourceState, _ := action["sSObj"].(map[string]interface{})
+			if sourceState["skill"] == "Trùng Kích Truy Kích" {
+				followUpCasts++
+			}
+		}
+	}
+	if followUpCasts != 2 {
+		t.Fatalf("follow-up cast playback count = %d, want two distinct waves; rounds=%#v", followUpCasts, rounds)
 	}
 }
 
@@ -139,6 +299,56 @@ func TestTurnStartSeparatesPhysicalAndMagicPeriodicDamage(t *testing.T) {
 	result := manager.ProcessTurnStart(participant.ID, participant)
 	if result.DamageTaken != 300 || result.PhysicalDamageTaken != 100 || result.MagicDamageTaken != 200 {
 		t.Fatalf("periodic split = total %d physical %d magic %d", result.DamageTaken, result.PhysicalDamageTaken, result.MagicDamageTaken)
+	}
+}
+
+func TestTurnStartDamagePlaybackUsesAffectedPositionAndUpdatedHP(t *testing.T) {
+	battle := NewBattle(BattleTypePVE, 1)
+	battle.CurrentRound = 3
+	participant := NewParticipant("poisoned", "poisoned", SideEnemy, true)
+	participant.Position = 7
+	participant.MaxHP = 1000
+	participant.CurrentHP = 1000
+	participant.IsAlive = true
+	battle.AddParticipant(participant)
+	processor := NewTurnProcessor(battle, planSkillGetter{})
+
+	actions := processor.applyTurnStartDamage(participant, &TurnStartResult{DamageTaken: 300, PhysicalDamageTaken: 100, MagicDamageTaken: 200})
+	if participant.CurrentHP != 700 {
+		t.Fatalf("participant HP = %d, want 700", participant.CurrentHP)
+	}
+	if len(actions) != 2 || actions[0].ActionType != ActionTypeHurt || actions[1].ActionType != ActionTypeIdle {
+		t.Fatalf("actions = %#v, want Hurt then Idle", actions)
+	}
+	dto := actions[0].ToDTO()
+	if dto["sid"] != 7 || dto["tid"] != 7 || dto["bid"] != 5 {
+		t.Fatalf("periodic damage route = sid %#v tid %#v bid %#v, want 7/7/5", dto["sid"], dto["tid"], dto["bid"])
+	}
+	sourceState := dto["sSObj"].(map[string]interface{})
+	if sourceState["hHp"] != 700 {
+		t.Fatalf("sSObj[hHp] = %#v, want 700", sourceState["hHp"])
+	}
+	if _, exists := dto["tSObj"].(map[string]interface{})["hHp"]; exists {
+		t.Fatalf("tSObj unexpectedly contains hHp: %#v", dto["tSObj"])
+	}
+}
+
+func TestLethalTurnStartDamagePlaybackEndsWithDeath(t *testing.T) {
+	battle := NewBattle(BattleTypePVE, 1)
+	participant := NewParticipant("poisoned", "poisoned", SideEnemy, true)
+	participant.Position = 4
+	participant.MaxHP = 100
+	participant.CurrentHP = 100
+	participant.IsAlive = true
+	battle.AddParticipant(participant)
+	processor := NewTurnProcessor(battle, planSkillGetter{})
+
+	actions := processor.applyTurnStartDamage(participant, &TurnStartResult{DamageTaken: 150, MagicDamageTaken: 150})
+	if participant.IsAlive || participant.CurrentHP != 0 {
+		t.Fatalf("participant state = alive %v HP %d, want dead at 0", participant.IsAlive, participant.CurrentHP)
+	}
+	if len(actions) != 2 || actions[0].ActionType != ActionTypeHurt || actions[1].ActionType != ActionTypeDie {
+		t.Fatalf("actions = %#v, want Hurt then Die", actions)
 	}
 }
 
@@ -297,6 +507,13 @@ func planTestBattle() (*Battle, *Participant, *Participant) {
 
 func testPlanInfo(plan *SkillPlan) *SkillInfo {
 	return &SkillInfo{Template: &skill.SkillTemplate{ID: 9001, Name: plan.Family, SkillType: skill.SkillTypeBuff, Range: 2, AttackCount: 1}, Plan: plan}
+}
+
+func testFollowUpInfo(id int, coefficient float64) *SkillInfo {
+	return &SkillInfo{
+		Template: &skill.SkillTemplate{ID: id, Name: "Trùng Kích Truy Kích", SkillType: skill.SkillTypePhysical, AttackCount: 1, Range: 1},
+		Plan:     &SkillPlan{Family: "Trùng Kích Truy Kích", Target: TargetEnemy, TargetCount: 1, Effects: []SkillEffect{{Kind: EffectPhysicalDamage, Coefficient: coefficient}}},
+	}
 }
 
 func assertDamagePopupsForTargets(t *testing.T, rounds [][]map[string]interface{}, targets ...*Participant) {
