@@ -478,13 +478,14 @@ func createTestSceneHandler(t *testing.T, charMapID int, npcMapID int) (*Handler
 
 	gameDataManager := gamedata.NewManager(&fakeGameDataRepo{}, logger)
 	npcTemplate := models.NpcTemplate{
-		ID:       int64(npcMapID*100 + 1),
-		Name:     "npc",
-		PosMapID: float64(npcMapID),
-		PosX:     10,
-		PosY:     20,
-		ResCode:  1001,
-		Type:     float64(creature.NPCTypeHeal),
+		ID:            int64(npcMapID*100 + 1),
+		Name:          "npc",
+		OnServiceText: "Xin chào",
+		PosMapID:      float64(npcMapID),
+		PosX:          10,
+		PosY:          20,
+		ResCode:       1001,
+		Type:          float64(creature.NPCTypeHeal),
 	}
 	if err := gameDataManager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustJSON(t, npcTemplate)}); err != nil {
 		t.Fatalf("failed to load npc template: %v", err)
@@ -661,6 +662,22 @@ func TestGetMapNPCsForClient_IncludesNPCType(t *testing.T) {
 	}
 	if npcs[0].Type != int(creature.NPCTypeHeal) {
 		t.Fatalf("expected npc type %d, got %d", creature.NPCTypeHeal, npcs[0].Type)
+	}
+}
+
+func TestBuildNPCListIncludesAmbientDialogue(t *testing.T) {
+	h, _, _ := createTestSceneHandler(t, 200, 200)
+
+	npcList, err := h.buildNPCList(context.Background(), 1, 200, 0)
+	if err != nil {
+		t.Fatalf("buildNPCList: %v", err)
+	}
+	payload, ok := npcList["20001"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("npc payload = %#v", npcList["20001"])
+	}
+	if got := payload["onServiceText"]; got != "Xin chào" {
+		t.Fatalf("onServiceText = %#v, want %q", got, "Xin chào")
 	}
 }
 

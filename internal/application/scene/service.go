@@ -285,13 +285,14 @@ func (s *Service) GetTeleportDestination(sourceGateID int) (*TeleportDestination
 }
 
 type NPCClientData struct {
-	InstanceID int
-	NID        int
-	X          int
-	Y          int
-	Name       string
-	ResCode    int64
-	Type       int
+	InstanceID    int
+	NID           int
+	X             int
+	Y             int
+	Name          string
+	OnServiceText string
+	ResCode       int64
+	Type          int
 }
 
 func (s *Service) GetCharacterForClient(char *character.Character) map[string]interface{} {
@@ -430,13 +431,14 @@ func (s *Service) GetMapNPCsForClient(ctx context.Context, mapID int) ([]NPCClie
 		npcID := npc.GetID()
 
 		data := NPCClientData{
-			InstanceID: npcID,
-			NID:        npcID,
-			X:          posX,
-			Y:          posY,
-			Name:       npc.Name,
-			ResCode:    resCode,
-			Type:       int(npc.Type),
+			InstanceID:    npcID,
+			NID:           npcID,
+			X:             posX,
+			Y:             posY,
+			Name:          npc.Name,
+			OnServiceText: npc.OnServiceText,
+			ResCode:       resCode,
+			Type:          int(npc.Type),
 		}
 
 		result = append(result, data)

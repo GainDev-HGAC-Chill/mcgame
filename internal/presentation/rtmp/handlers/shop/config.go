@@ -4,6 +4,10 @@
 package shop
 
 import (
+	"strconv"
+	"strings"
+
+	"mcgame-server/internal/gamedata/models"
 	"mcgame-server/internal/infrastructure/rtmp"
 
 	"go.uber.org/zap"
@@ -102,13 +106,60 @@ func getCurrencyKey(currencyType int) string {
 }
 
 func (h *Handler) GetShopConfig(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-
-	result := []interface{}{0, "", []interface{}{}}
+	rows := []string{}
+	if h.gameData != nil {
+		rows = buildShopConfigRows(h.gameData.GetAllShopSlots())
+	}
+	result := []interface{}{0, "", rows}
 	if err := ctx.Connection.SendCallback("onGetShopConfig", result); err != nil {
 		h.logger.Error("Failed to send onGetShopConfig callback", zap.Uint32("conn_id", ctx.ConnID), zap.Error(err))
 	}
 
 	return nil, nil
+}
+
+func buildShopConfigRows(slots []*models.ShopSlotTemplate) []string {
+	rows := make([]string, 0, len(slots))
+	for _, slot := range slots {
+		if slot == nil {
+			continue
+		}
+		fields := []struct {
+			name  string
+			value float64
+		}{
+			{"id", float64(slot.ID)},
+			{"amount", slot.Amount},
+			{"gold", slot.Gold},
+			{"gt", slot.Gt},
+			{"itemId", slot.ItemID},
+			{"money", slot.Money},
+			{"pNum1", slot.PNum1},
+			{"pNum2", slot.PNum2},
+			{"pType1", slot.PType1},
+			{"pType2", slot.PType2},
+			{"point", slot.Point},
+			{"position", slot.Position},
+			{"priceAll", slot.PriceAll},
+			{"quality", slot.Quality},
+			{"r", slot.R},
+			{"sale", slot.Sale},
+			{"sid", slot.Sid},
+			{"st", slot.St},
+			{"type", slot.Type},
+		}
+		var row strings.Builder
+		row.WriteString("var obj={};")
+		for _, field := range fields {
+			row.WriteString("obj.")
+			row.WriteString(field.name)
+			row.WriteString("='")
+			row.WriteString(strconv.FormatFloat(field.value, 'f', -1, 64))
+			row.WriteString("';")
+		}
+		rows = append(rows, row.String())
+	}
+	return rows
 }
 
 func (h *Handler) GetLimitShopConfig(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {

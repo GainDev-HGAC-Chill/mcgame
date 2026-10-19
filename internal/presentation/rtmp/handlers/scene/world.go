@@ -107,12 +107,13 @@ func (h *Handler) buildNPCList(ctx context.Context, _ int64, mapID, channelID in
 		}
 		npcByInstance[n.InstanceID] = n
 		npcList[strconv.Itoa(n.InstanceID)] = map[string]interface{}{
-			"nid":     n.NID,
-			"x":       n.X,
-			"y":       n.Y,
-			"name":    n.Name,
-			"resCode": n.ResCode,
-			"type":    n.Type,
+			"nid":           n.NID,
+			"x":             n.X,
+			"y":             n.Y,
+			"name":          n.Name,
+			"onServiceText": n.OnServiceText,
+			"resCode":       n.ResCode,
+			"type":          n.Type,
 		}
 	}
 

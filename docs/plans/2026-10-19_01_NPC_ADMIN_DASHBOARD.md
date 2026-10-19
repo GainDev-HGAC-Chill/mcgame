@@ -1,6 +1,7 @@
 # NPC Admin Dashboard — Implementation Plan
 
-**Date**: 2026-10-19 · **Status**: Draft  
+**Date**: 2026-10-19 · **Status**: Implemented
+**Verification**: Code/tests complete; final SQL hardening re-apply is pending because the compose Docker engine is offline.
 **Goal**: Add a safe Vietnamese dashboard for browsing NPCs, editing ambient dialogue and standard-shop assignment, reviewing linked quests, and managing slots in an existing standard shop without duplicating Quest Admin ownership or changing player state.
 
 Research base (verified 2026-10-19):

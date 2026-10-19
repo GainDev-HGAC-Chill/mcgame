@@ -1264,6 +1264,20 @@ func (c *Cache) GetShopSlot(id int) *models.ShopSlotTemplate {
 	return c.shopSlots[id]
 }
 
+func (c *Cache) GetAllShopSlots() []*models.ShopSlotTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make([]*models.ShopSlotTemplate, 0, len(c.shopSlots))
+	for _, slot := range c.shopSlots {
+		result = append(result, slot)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
+	return result
+}
+
 func (c *Cache) GetPmRight(id int) *models.PmRightTemplate {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

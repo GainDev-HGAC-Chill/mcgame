@@ -223,6 +223,10 @@ func (m *Manager) GetShopSlot(id int) *models.ShopSlotTemplate {
 	return m.cache.GetShopSlot(id)
 }
 
+func (m *Manager) GetAllShopSlots() []*models.ShopSlotTemplate {
+	return m.cache.GetAllShopSlots()
+}
+
 func (m *Manager) GetPmRight(id int) *models.PmRightTemplate {
 	return m.cache.GetPmRight(id)
 }

@@ -69,6 +69,11 @@ const navItems: NavItem[] = [
         icon: ClipboardList,
     },
     {
+        title: "Quản lý NPC",
+        href: "/dashboard/npcs",
+        icon: MapPin,
+    },
+    {
         title: "Bảng vật phẩm rơi",
         href: "/dashboard/loot",
         icon: Swords,
@@ -121,14 +126,20 @@ export function Sidebar({ adminUser }: SidebarProps) {
                 {!collapsed ? (
                     <div className="flex items-center gap-2">
                         <Shield className="h-6 w-6 text-primary" />
-                        <span className="text-lg font-bold">Bảng quản trị GM</span>
+                        <span className="text-lg font-bold">
+                            Bảng quản trị GM
+                        </span>
                     </div>
                 ) : null}
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => setCollapsed(current => !current)}
-                    aria-label={collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
+                    aria-label={
+                        collapsed
+                            ? "Mở rộng thanh điều hướng"
+                            : "Thu gọn thanh điều hướng"
+                    }
                     className="h-8 w-8"
                 >
                     {collapsed ? (

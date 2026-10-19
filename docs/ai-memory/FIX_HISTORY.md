@@ -1,5 +1,16 @@
 # MCGame Fix History
 
+## FIX-2026-10-19-01 — Dashboard quản lý NPC, nhiệm vụ liên kết và shop
+
+- Hiện tượng: dashboard chỉ có Quest Admin, không có nơi quản lý hội thoại ambient, quan hệ NPC↔quest hoặc shop chuẩn; DB shop thay đổi cũng không được `getShopConfig` phát cho Flash.
+- Sửa dashboard/DB: thêm list/detail NPC ba tab, reverse join quest read-only, editor `name/on_service_text/shop_id` và slot type 19/29; mutation có same-origin, validation, revision, idempotency, shared-shop confirmation và audit transaction. Slot xóa bằng `st=5`; không tạo container, không sửa vị trí slot cũ hoặc special `TBL_CREDIT` shop.
+- Sửa runtime: scene phát `onServiceText`; `getShopConfig` serialize toàn bộ slot cache theo field camelCase và thứ tự ID để client cập nhật index `sid/st` khi kết nối.
+- Database: backup catalog local trước schema; apply RPC/audit RLS trên compose; rollback verification PASS; migration `20261018232116_npc_admin_dashboard.sql` được `db diff` sinh từ DB tạm và fresh replay PASS. Không thay đổi player row.
+- Test: focused Go scene/shop/gamedata PASS, targeted vet và gameserver build PASS; dashboard typecheck + 5 validation/editor tests PASS; production compile/type/static generation PASS nhưng standalone copy vẫn fail Windows symlink `EPERM` đã biết.
+- Trạng thái: CODE_FIXED/SCHEMA_APPLIED_LOCAL — chưa restart/deploy gameserver/dashboard hoặc Flash smoke-test.
+- Hardening tiếp theo: thêm lookup shop/item/equipment; reject boolean query không hợp lệ, empty/no-op và fractional slot ID; giữ mọi legacy `st` ngoài 0/5 read-only. Code/typecheck/test PASS; function hardening chờ re-apply vì Docker engine bị tắt sau lần apply schema đầu.
+- UI shop tiếp theo: thay form dày bằng lưới ô hàng có ảnh, tên đúng catalog trong game, badge vị trí/trạng thái và giá bán; editor chi tiết chỉ mở cho ô được chọn. Dashboard hydrate metadata chỉ đọc từ catalog và không đưa `displayName/iconCode` vào mutation. Typecheck + 6 focused tests PASS; production compile/static generation PASS trước lỗi symlink Windows baseline.
+
 ## FIX-2026-10-18-20 — Audit và sửa pipeline thuộc tính Pet
 
 - Hiện tượng: Bạch Hổ ID 168 hiển thị tư chất lực khoảng 70k nhưng công vật lý khoảng 29k; một số base prop và passive Pet không có hiệu lực.

@@ -1,5 +1,11 @@
 # NPC & Quest System
 
+## NPC Admin and ambient dialogue delivery (2026-10-19)
+
+The NPC dashboard owns only `name`, `on_service_text`, existing `shop_id` assignment and standard-shop slots. Related quests are derived from `TBL_QUEST.start_npc`/`finish_npc` and `TBL_QUEST_LOOP.nid`, then deep-link to the existing Quest Admin writer. `TBL_NPC.qid` is not used as canonical normal-quest ownership and is shown only as a legacy diagnostic.
+
+Scene `NPCClientData` now carries `OnServiceText`, and `buildNPCList` emits exact `onServiceText`; the dynamic Flash `Npc` object receives it without ActionScript changes. A saved dialogue becomes visible only after the server cache is reloaded and the client re-enters the map. No automatic restart, player-progress rewrite or quest-catalog activation is performed.
+
 ## Reviewed dialogue registry expansion (2026-10-14)
 
 Dialogue-only completion is now authorized by a 227-entry fingerprint registry: 67 type-1 quests, 67 type-2 quests, and 93 type-4 quests. Each entry records the exact checked `TBL_QUEST.json` ID, name, type, start NPC, and finish NPC. Runtime also requires no ordinary requirement rows, zero `rt/rn`, non-empty start and complete dialogue, and a positive finish NPC. Any fingerprint or dialogue drift fails closed as unconfigured; no Vietnamese text scanning or broad empty-quest inference occurs. Operator-confirmed quest 46 (`Chế Tạo Huy Hiệu`, NPC 430) remains authorized.

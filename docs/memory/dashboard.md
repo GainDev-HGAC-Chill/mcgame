@@ -1,5 +1,17 @@
 # Admin Dashboard
 
+## NPC Admin dashboard (2026-10-19)
+
+`/dashboard/npcs` now lists/filter NPCs by name/ID, map, type, dialogue and standard-shop presence. `/dashboard/npcs/[id]` has NPC/dialogue, related-quest and shop tabs. Quest relationships are reverse joins from `start_npc`, `finish_npc` and loop `nid`; they are read-only links to Quest Admin, while sparse legacy `npc.qid` is diagnostic only.
+
+Writes use service-role-only `npc_admin_*` RPCs with same-origin API guards, strict 128 KiB Zod envelopes, MD5 optimistic revisions, request UUID idempotency, locked global slot-ID allocation and same-transaction before/after audit. Shop edits are limited to existing `TBL_SHOP` containers and type-19/29 slots; shared-shop impact is confirmed, position on existing rows is immutable, removal is `st=5` soft hide, and unsupported legacy statuses remain read-only. No player state is mutated.
+
+Shop assignment and slot templates provide paged name/ID lookup for existing shop, item and equipment catalogs; numeric IDs remain visible for exact operator control. Invalid boolean query strings, empty/no-op mutations and fractional slot IDs fail validation rather than degrading into an unfiltered request or audit-only write.
+
+The shop tab presents responsive merchandise cards rather than a dense table. Each card shows the game icon, catalog display name, position/state badges and all effective price lines; selecting one opens a grouped editor below for template, pricing and slot controls. The dashboard server hydrates names/icons directly from item/equipment catalogs, and derived `displayName`/`iconCode` fields are explicitly stripped from save deltas.
+
+Migration `20261018232116_npc_admin_dashboard.sql` was generated from a temporary migration-built database and fresh replayed successfully. Compose rollback verification covers stale revision, ownership, shared impact, audit, insert and full catalog restoration. Runtime activation remains explicit: authorized gameserver restart, client reconnect for shop config, and map re-entry for ambient dialogue. Quest structural Flash activation remains blocked.
+
 ## Requested target levels and starter package editor (2026-10-12)
 
 User approved both raise/lower absolute levels, refund/recalculation and item/pet creation gifts (future characters only), then requested Vietnamese dashboard text. Implemented dedicated Vietnamese target-level control in the progression tab and starter-package editor on `/dashboard/game-config`. Starter fields: level/gold/goldBind and catalog-selected equipment/items/pets with quantity/binding/color/growth. Config writes reject unknown fields, invalid catalogs/required binding/non-pet creatures and per-bag stack capacity overflow; raw generic editor hides the reserved key. No character is granted anything by opening or saving this form.

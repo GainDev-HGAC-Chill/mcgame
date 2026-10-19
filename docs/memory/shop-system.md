@@ -1,5 +1,11 @@
 # Shop System
 
+## Dynamic standard-shop catalog publication (2026-10-19)
+
+`getShopConfig` now serializes every cached `TBL_SHOP_SLOT` row in stable ID order using the exact `var obj={};obj.camelCase='value';...` format consumed by `CallBackGlobal.parseAndSetShopSlot`. Existing client rows are overridden except `position` (the Flash parser deliberately skips it); inserted rows enter the client's `sid`/`st` indexes. This does not publish or replace `TBL_SHOP` containers.
+
+The NPC Admin editor therefore only targets existing standard-shop containers, keeps existing position immutable, and uses `st=5` instead of hard delete. Type-19 equipment and type-29 items are catalog-validated; point-only pricing is rejected because the current purchase service does not debit `point`. Database edits require an authorized server restart to refresh cache and a fresh Flash connection to invoke `getShopConfig`.
+
 ## NPC Direct Shop Callback Routing
 
 Direct NPC template shops (`npc.ShopID > 0`) must always use the standard `onOpenShop` callback path from `internal/presentation/rtmp/handlers/npc/npc_click.go`.
