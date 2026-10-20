@@ -45,7 +45,7 @@ func addFixedSpecials(catalog map[string]petSkillLevels) {
 	for level := 1; level <= 3; level++ {
 		ratio := []float64{.3, .4, .5}[level-1]
 		rate := []int{14, 21, 30}[level-1]
-		setLevel(catalog, "Thuốc Kích Thích", domaincombat.SkillPlan{Level: level, Target: domaincombat.TargetSelfPlayer, TargetCount: 1, CostsOnTarget: true, Costs: []domaincombat.SkillCost{{Resource: domaincombat.ResourceHP, Percent: ratio}}, Effects: []domaincombat.SkillEffect{{Kind: domaincombat.EffectStatus, Family: "Thuốc Kích Thích", Duration: 3, Polarity: domaincombat.PolarityBeneficial, Removable: true, Modifiers: []domaincombat.StatModifier{{Stat: domaincombat.StatSpeed, Percent: ratio}, {Stat: domaincombat.StatCombo, Flat: rate}, {Stat: domaincombat.StatCritical, Flat: rate}}}}})
+		setLevel(catalog, "Thuốc Kích Thích", domaincombat.SkillPlan{Level: level, Target: domaincombat.TargetSelfPlayer, TargetCount: 1, CostsOnTarget: true, Costs: []domaincombat.SkillCost{{Resource: domaincombat.ResourceHP, Percent: ratio}}, Effects: []domaincombat.SkillEffect{{Kind: domaincombat.EffectStatus, Family: "Thuốc Kích Thích", BuffID: []int{968, 1015, 1016}[level-1], Duration: 3, Polarity: domaincombat.PolarityBeneficial, Removable: true, Modifiers: []domaincombat.StatModifier{{Stat: domaincombat.StatSpeed, Percent: ratio}, {Stat: domaincombat.StatCombo, Flat: rate}, {Stat: domaincombat.StatCritical, Flat: rate}}}}})
 	}
 }
 

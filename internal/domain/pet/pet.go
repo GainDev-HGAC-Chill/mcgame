@@ -459,6 +459,7 @@ func (p *Pet) AllocateAttributePoints(addStr, addAgi, addSta, addInt, addEng int
 	p.AptEnergyEx += addEng
 	p.AttrPoints -= total
 	p.DistributedAttrPoints += total
+	p.recordAllocatedAttributePoints([5]int{addStr, addAgi, addSta, addInt, addEng})
 	p.RecalculateStats()
 	p.UpdatedAt = time.Now()
 	return total

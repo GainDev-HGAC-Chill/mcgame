@@ -16,6 +16,7 @@ type SkillPlan struct {
 	RestTurns     int
 	OnKill        *SkillOnKillFollowUp
 	RepeatChance  float64 // chance for exactly one extra cast, paid once
+	ChainChance   float64 // chance after every hit to continue, geometric chain
 }
 
 type SkillOnKillFollowUp struct {

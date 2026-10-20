@@ -32,6 +32,9 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 	if info.Template.Cooldown > 0 {
 		tp.startSkillCooldown(actor.ID, cmd.SkillID, info.Template.Cooldown)
 	}
+	if plan.ChainChance > 0 && isRabbitHeartSkill(cmd.SkillID) {
+		return tp.executeRabbitHeartChain(actor, cmd, info, targets[0], plan.ChainChance)
+	}
 	actions := make([]*BattleAction, 0, len(targets)*2+1)
 	killedTarget := false
 	for repetition := 0; repetition < 2; repetition++ {
@@ -382,6 +385,38 @@ func (tp *TurnProcessor) deathAction(target *Participant) *BattleAction {
 func (tp *TurnProcessor) skillMissActions(actor *Participant, skillID int, tpl *skill.SkillTemplate) []*BattleAction {
 	actions := []*BattleAction{{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetPosition: -1, ActionType: ActionTypeSkill, SkillID: skillID, SkillType: tpl.SkillType, SkillName: tpl.Name, IsMiss: true}}
 	if shouldTurnBackAfterStationarySkill(tpl, false) {
+		actions = append(actions, buildTurnBackAction(tp.battle.CurrentRound, actor))
+	}
+	return actions
+}
+
+func isRabbitHeartSkill(id int) bool {
+	return id == 5363 || id == 5362 || id == 5361
+}
+
+// Each hit independently rolls for another hit; there is no gameplay combo cap.
+// A successful strike is resolved as magical damage, including shields/resistance.
+func (tp *TurnProcessor) executeRabbitHeartChain(actor *Participant, cmd *BattleCommand, info *SkillInfo, target *Participant, chance float64) []*BattleAction {
+	actions := make([]*BattleAction, 0, 8)
+	for target != nil {
+		if !target.IsAlive {
+			target = SelectRandomTarget(tp.battle, getOppositeSide(actor.Side))
+			if target == nil {
+				break
+			}
+		}
+		before := target.CurrentHP
+		dealt := tp.applyDamage(target, 1, true)
+		action := tp.damageAction(actor, target, cmd.SkillID, info.Template, dealt, false, false, before)
+		actions = tp.appendPlannedDamagePlayback(actions, actor, target, action)
+		if dealt > 0 {
+			actions = append(actions, tp.petReflectActions(actor, target, dealt)...)
+		}
+		if tp.rng.Float64() >= chance {
+			break
+		}
+	}
+	if shouldTurnBackAfterStationarySkill(info.Template, false) {
 		actions = append(actions, buildTurnBackAction(tp.battle.CurrentRound, actor))
 	}
 	return actions

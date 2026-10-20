@@ -113,20 +113,21 @@ func (h *Handler) PetXd(ctx *rtmp.RPCContext, args []interface{}) (interface{}, 
 		return nil, err
 	}
 
-	result, err := h.petService.CultivateWithItem(ctx.Context, characterID, petID, itemID)
+	result, err := h.petService.ResetPetAttributesWithItem(ctx.Context, characterID, petID, itemID)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
 
-	h.logger.Info("Pet cultivation performed",
+	h.logger.Info("Pet attribute points reset",
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID),
 		zap.Int64("item_id", itemID))
 	sendPetItemUseRefresh(ctx, result)
+	sendPetAttributeRefresh(ctx, result.Pet)
 
 	return map[string]interface{}{
 		"f":   true,
-		"pet": result.Pet.ToDetailDTO(),
+		"pet": petDTOData(result.Pet),
 	}, nil
 }
 

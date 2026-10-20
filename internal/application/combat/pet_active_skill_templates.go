@@ -4,6 +4,15 @@ package combat
 import domaincombat "mcgame-server/internal/domain/combat"
 
 var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
+	// Tho Baby: each landed magical pulse deals exactly 1 HP damage;
+	// after each pulse another one occurs with 30% chance.
+	5363: rabbitHeartPlan(1),
+	5362: rabbitHeartPlan(2),
+	5361: rabbitHeartPlan(3),
+	// Tho Baby lucky shield. Data buff ID is level-specific.
+	5366: rabbitLuckyShieldPlan(1, .30, 1934),
+	5365: rabbitLuckyShieldPlan(2, .40, 1933),
+	5364: rabbitLuckyShieldPlan(3, .60, 1932),
 	// Bạch Hổ Cuồng Nộ - Thú Vương Đột Kích, normal and both evolved branches.
 	7017: bachHoRushPlan(1, 1.20, .20),
 	7018: bachHoRushPlan(2, 1.50, .30),
@@ -172,4 +181,24 @@ func cloneIntMap(source map[int]int) map[int]int {
 		clone[key] = value
 	}
 	return clone
+}
+
+func rabbitHeartPlan(level int) domaincombat.SkillPlan {
+	return domaincombat.SkillPlan{Family: "Nhịp Đập Trái Tim", Level: level,
+		Target: domaincombat.TargetEnemy, TargetCount: 1,
+		ChainChance: .30,
+		Effects:     []domaincombat.SkillEffect{{Kind: domaincombat.EffectMagicDamage, Coefficient: 1}},
+	}
+}
+
+func rabbitLuckyShieldPlan(level int, ratio float64, buffID int) domaincombat.SkillPlan {
+	return domaincombat.SkillPlan{Family: "Hào Quang May Mắn", Level: level,
+		Target: domaincombat.TargetTeam, TargetCount: 2,
+		Effects: []domaincombat.SkillEffect{{
+			Kind: domaincombat.EffectStatus, Family: "Hào Quang May Mắn",
+			Duration: 4, Polarity: domaincombat.PolarityBeneficial,
+			Removable: true, BuffID: buffID,
+			ShieldPercentMaxMP: ratio, ShieldHits: 3,
+		}},
+	}
 }
