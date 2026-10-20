@@ -13,6 +13,16 @@ import (
 )
 
 func (tp *TurnProcessor) executeCommand(actor *Participant, cmd *BattleCommand) []*BattleAction {
+	// Trào Phúng forces a basic attack on the caster for its remaining turns.
+	// This covers NPC, pet, and player commands (skills/items/defend/escape).
+	if sourceID := tp.statusManager.TauntTarget(actor.ID); sourceID != "" {
+		if source := tp.battle.GetParticipant(sourceID); source != nil && source.IsAlive && source.Side != actor.Side {
+			forced := *cmd
+			forced.ActionType = ClientActionAttack
+			forced.TargetID = source.ID
+			return tp.executeAttack(actor, &forced)
+		}
+	}
 	switch cmd.ActionType {
 	case ClientActionAttack:
 		return tp.executeAttack(actor, cmd)

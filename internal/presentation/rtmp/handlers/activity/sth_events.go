@@ -7,8 +7,9 @@ import (
 	"math"
 	"math/big"
 	"time"
-
+	"github.com/jackc/pgx/v5"
 	"mcgame-server/internal/infrastructure/rtmp"
+	appitem "mcgame-server/internal/application/item"
 )
 
 func sthIntArg(value interface{}) (int, bool) {
@@ -147,129 +148,331 @@ func (h *Handler) STHGoXY(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 
 // Event stop is atomic with position/state changes. Item delivery is intentionally
 // separate via the existing inventory service, with durable pending claims.
-func (h *Handler) STHStopWithEvent(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+
+func (h *Handler) STHStopWithEvent(
+	ctx *rtmp.RPCContext,
+	args []interface{},
+) (interface{}, error) {
 	if !sthPreviewEnabled() {
 		return false, nil
 	}
-	_, cid, err := h.characterID(ctx, "afterSTHPlayerStop")
+
+	_, cid, err := h.characterID(
+		ctx,
+		"afterSTHPlayerStop",
+	)
 	if err != nil {
 		return nil, err
 	}
+
 	if h.findbackPool == nil {
 		return nil, errors.New("STH database unavailable")
 	}
+
 	tx, err := h.findbackPool.Begin(ctx.Context)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx.Context)
+
 	var pos int
 	var moving bool
-	err = tx.QueryRow(ctx.Context, `SELECT position,moving FROM player.character_sth_progress WHERE character_id=$1 FOR UPDATE`, cid).Scan(&pos, &moving)
+
+	err = tx.QueryRow(ctx.Context, `
+		SELECT position, moving
+		FROM player.character_sth_progress
+		WHERE character_id = $1
+		FOR UPDATE
+	`, cid).Scan(&pos, &moving)
+
 	if err != nil {
 		return nil, err
 	}
+
+	// Ngăn callback lặp phát thưởng hai lần.
 	if !moving {
 		return true, nil
-	} // Duplicate stop: no double award.
+	}
+
+	// Xác định sự kiện tại vị trí hiện tại.
 	var eventType int
-	err = tx.QueryRow(ctx.Context, `SELECT t.type::integer FROM data.data_tbl_mevent_map m JOIN data.data_tbl_mevent_type t ON t.id=m.mevent_id::integer WHERE m.id=$1`, pos).Scan(&eventType)
+
+	err = tx.QueryRow(ctx.Context, `
+		SELECT t.type::integer
+		FROM data.data_tbl_mevent_map m
+		JOIN data.data_tbl_mevent_type t
+		  ON t.id = m.mevent_id::integer
+		WHERE m.id = $1
+	`, pos).Scan(&eventType)
+
 	if err != nil {
 		return nil, err
 	}
+
+	// Lấy cấu hình dịch chuyển hoặc khóa di chuyển.
 	var target *int
 	var blockedSeconds int
-	_ = tx.QueryRow(ctx.Context, `SELECT blocked_seconds,target_position FROM player.sth_event_settings WHERE event_type=$1`, eventType).Scan(&blockedSeconds, &target)
+
+	_ = tx.QueryRow(ctx.Context, `
+		SELECT blocked_seconds, target_position
+		FROM player.sth_event_settings
+		WHERE event_type = $1
+	`, eventType).Scan(
+		&blockedSeconds,
+		&target,
+	)
+
 	if eventType == 9 && pos == 57 {
-		dest := 49
-		target = &dest
+		destination := 49
+		target = &destination
 	}
+
 	dest := pos
 	if target != nil {
 		dest = *target
 	}
-	_, err = tx.Exec(ctx.Context, `UPDATE player.character_sth_progress SET moving=false,position=$2,blocked_until=CASE WHEN $3::integer>0 THEN now()+($3::integer * interval '1 second') ELSE NULL END,updated_at=now() WHERE character_id=$1`, cid, dest, blockedSeconds)
+
+	_, err = tx.Exec(ctx.Context, `
+		UPDATE player.character_sth_progress
+		SET moving = false,
+		    position = $2,
+		    blocked_until = CASE
+		        WHEN $3::integer > 0
+		        THEN now() + ($3::integer * interval '1 second')
+		        ELSE NULL
+		    END,
+		    updated_at = now()
+		WHERE character_id = $1
+	`, cid, dest, blockedSeconds)
+
 	if err != nil {
 		return nil, err
 	}
+
+	// Xử lý các ô nhận thưởng (eventType 4, 5, 6).
 	first := false
+
 	if eventType >= 4 && eventType <= 6 {
-		tag, execErr := tx.Exec(ctx.Context, `INSERT INTO player.sth_event_claim(character_id,position,event_type) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, cid, pos, eventType)
-		if execErr != nil {
-			return nil, execErr
+		tag, insertErr := tx.Exec(ctx.Context, `
+			INSERT INTO player.sth_event_claim (
+				character_id,
+				position,
+				event_type
+			)
+			VALUES ($1, $2, $3)
+			ON CONFLICT DO NOTHING
+		`, cid, pos, eventType)
+
+		if insertErr != nil {
+			return nil, insertErr
 		}
+
 		first = tag.RowsAffected() == 1
+
 		if first {
-			var count int64
-			err = tx.QueryRow(ctx.Context, `SELECT count(*) FROM player.sth_reward_pool WHERE tier=$1 AND enabled`, eventType).Scan(&count)
+			var tableType, itemID, qty int
+
+			// Quay thưởng theo trọng số.
+			// Mỗi phần thưởng có TableType rõ ràng.
+			err = tx.QueryRow(ctx.Context, `
+				WITH rewards AS (
+					SELECT
+						table_type,
+						item_id,
+						quantity,
+						SUM(weight) OVER (
+							ORDER BY table_type, item_id
+						) AS cumulative
+					FROM player.sth_reward_pool
+					WHERE tier = $1
+					  AND enabled = true
+				),
+				total AS (
+					SELECT SUM(weight) AS total_weight
+					FROM player.sth_reward_pool
+					WHERE tier = $1
+					  AND enabled = true
+				)
+				SELECT
+					r.table_type,
+					r.item_id,
+					r.quantity
+				FROM rewards r
+				CROSS JOIN total t
+				WHERE r.cumulative >=
+				      ($2::bigint % t.total_weight) + 1
+				ORDER BY r.cumulative
+				LIMIT 1
+			`,
+				eventType,
+				randomSTHInt(),
+			).Scan(
+				&tableType,
+				&itemID,
+				&qty,
+			)
+
+			if err != nil {
+				return nil, fmt.Errorf(
+					"STH loot tier %d has no valid rewards: %w",
+					eventType,
+					err,
+				)
+			}
+
+			// Ghi phần thưởng đã chọn, giữ nguyên
+			// TableType để sau này nhận lại đúng vật phẩm.
+			tag, err = tx.Exec(ctx.Context, `
+				UPDATE player.sth_event_claim
+				SET table_type = $3,
+				    item_id = $4,
+				    quantity = $5
+				WHERE character_id = $1
+				  AND position = $2
+				  AND state = 'pending'
+			`,
+				cid,
+				pos,
+				tableType,
+				itemID,
+				qty,
+			)
+
 			if err != nil {
 				return nil, err
 			}
-			if count == 0 {
-				return nil, fmt.Errorf("STH loot tier %d has no enabled rewards", eventType)
-			}
-			var itemID, qty int
-			err = tx.QueryRow(ctx.Context, `WITH p AS (SELECT item_id,quantity,weight,sum(weight) OVER (ORDER BY item_id) AS cumulative FROM player.sth_reward_pool WHERE tier=$1 AND enabled), t AS (SELECT sum(weight) total FROM player.sth_reward_pool WHERE tier=$1 AND enabled) SELECT p.item_id,p.quantity FROM p,t WHERE p.cumulative >= $2::bigint % t.total+1 ORDER BY p.cumulative LIMIT 1`, eventType, randomSTHInt()).Scan(&itemID, &qty)
-			if err != nil {
-				return nil, err
-			}
-			_, err = tx.Exec(ctx.Context, `UPDATE player.sth_event_claim SET item_id=$3,quantity=$4 WHERE character_id=$1 AND position=$2`, cid, pos, itemID, qty)
-			if err != nil {
-				return nil, err
+			if tag.RowsAffected() != 1 {
+				return nil, fmt.Errorf(
+					"STH event reward claim changed unexpectedly",
+				)
 			}
 		}
 	}
-	if eventType != 1 && eventType != 2 && eventType != 3 && eventType != 9 && eventType != 13 {
-		if eventType >= 14 && eventType <= 17 {
-			_, err = tx.Exec(ctx.Context, `UPDATE player.character_sth_progress SET visited=array_append(visited,$2) WHERE character_id=$1 AND NOT ($2=ANY(visited))`, cid, pos)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	if eventType >= 4 && eventType <= 6 && first {
-		_, err = tx.Exec(ctx.Context, `UPDATE player.character_sth_progress SET visited=array_append(visited,$2) WHERE character_id=$1 AND NOT ($2=ANY(visited))`, cid, pos)
+
+	// Xử lý các ô bẫy.
+	if eventType >= 14 && eventType <= 17 {
+		_, err = tx.Exec(ctx.Context, `
+			UPDATE player.character_sth_progress
+			SET visited = array_append(visited, $2)
+			WHERE character_id = $1
+			  AND NOT ($2 = ANY(visited))
+		`, cid, pos)
+
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	// Chỉ đánh dấu hoàn thành nếu lần đầu nhận thưởng.
+	if eventType >= 4 && eventType <= 6 && first {
+		_, err = tx.Exec(ctx.Context, `
+			UPDATE player.character_sth_progress
+			SET visited = array_append(visited, $2)
+			WHERE character_id = $1
+			  AND NOT ($2 = ANY(visited))
+		`, cid, pos)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Xử lý sự kiện chiến đấu.
 	encounterStarts := false
+
 	if eventType == 8 {
 		npcID, npcErr := sthNPCForPosition(pos)
 		if npcErr != nil {
 			return nil, npcErr
 		}
-		tag, insertErr := tx.Exec(ctx.Context, `INSERT INTO player.sth_battle_runs(character_id,activity_day,position,npc_id,status)
-            SELECT $1,refresh_date,$2,$3,'starting' FROM player.character_sth_progress WHERE character_id=$1
-            ON CONFLICT(character_id,activity_day,position) DO NOTHING`, cid, pos, npcID)
+
+		tag, insertErr := tx.Exec(ctx.Context, `
+			INSERT INTO player.sth_battle_runs (
+				character_id,
+				activity_day,
+				position,
+				npc_id,
+				status
+			)
+			SELECT
+				$1,
+				refresh_date,
+				$2,
+				$3,
+				'starting'
+			FROM player.character_sth_progress
+			WHERE character_id = $1
+			ON CONFLICT (
+				character_id,
+				activity_day,
+				position
+			) DO NOTHING
+		`, cid, pos, npcID)
+
 		if insertErr != nil {
 			return nil, insertErr
 		}
+
 		encounterStarts = tag.RowsAffected() == 1
 	}
+
+	// Hoàn tất transaction trước khi phát thưởng.
 	if err = tx.Commit(ctx.Context); err != nil {
 		return nil, err
 	}
+
+	// Phát thưởng sự kiện.
 	if eventType >= 4 && eventType <= 6 {
 		h.sthDeliverPending(ctx, cid, pos)
 	}
+
+	// Xử lý dịch chuyển.
 	if eventType == 9 || eventType == 13 {
-		h.sendActivityCallback(ctx, "onSetSecTreaHuntPlayStop", eventType, dest)
+		h.sendActivityCallback(
+			ctx,
+			"onSetSecTreaHuntPlayStop",
+			eventType,
+			dest,
+		)
 	}
+
+	// Thông báo bẫy.
 	if eventType >= 14 && eventType <= 17 {
-		h.sendActivityCallback(ctx, "onRedMsg", fmt.Sprintf("Bị mắc bẫy tại ô %d. Hãy mở lại Bí Cảnh sau khi hết thời gian khóa.", pos))
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			fmt.Sprintf(
+				"Bị mắc bẫy tại ô %d. Hãy mở lại Bí Cảnh sau khi hết thời gian khóa.",
+				pos,
+			),
+		)
 	}
-	if eventType == 8 {
-		if encounterStarts {
-			h.sthStartEncounter(ctx, cid, pos)
-		}
+
+	// Khởi tạo trận đấu.
+	if eventType == 8 && encounterStarts {
+		h.sthStartEncounter(ctx, cid, pos)
 	}
+
+	// Minigame chưa được triển khai.
 	if eventType == 11 {
-		h.sendActivityCallback(ctx, "onRedMsg", "Minigame Bí Cảnh chưa mở")
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Minigame Bí Cảnh chưa mở",
+		)
 	}
-	h.sendActivityCallback(ctx, "onSetSecTreaHuntCanPlay", blockedSeconds == 0 && (eventType != 8 || !encounterStarts), 0)
+
+	h.sendActivityCallback(
+		ctx,
+		"onSetSecTreaHuntCanPlay",
+		blockedSeconds == 0 &&
+			(eventType != 8 || !encounterStarts),
+		0,
+	)
+
 	return true, nil
 }
+
 
 func randomSTHInt() int64 {
 	n, e := rand.Int(rand.Reader, big.NewInt(9223372036854775807))
@@ -279,31 +482,126 @@ func randomSTHInt() int64 {
 	return n.Int64()
 }
 
-func (h *Handler) sthDeliverPending(ctx *rtmp.RPCContext, cid int64, pos int) {
-	if h.itemService == nil {
-		h.sendActivityCallback(ctx, "onRedMsg", "Phần thưởng đang chờ: dịch vụ túi không khả dụng")
+
+func (h *Handler) sthDeliverPending(
+	ctx *rtmp.RPCContext,
+	cid int64,
+	pos int,
+) {
+	if h.itemService == nil || h.findbackPool == nil {
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Phần thưởng đang chờ: dịch vụ túi không khả dụng",
+		)
 		return
 	}
-	// claim ownership prevents duplicate concurrent delivery; pending recovery on next login
-	tag, err := h.findbackPool.Exec(ctx.Context, `UPDATE player.sth_event_claim SET state='processing' WHERE character_id=$1 AND position=$2 AND state='pending'`, cid, pos)
-	if err != nil || tag.RowsAffected() == 0 {
-		return
-	}
-	var itemID, qty, typ int
-	err = h.findbackPool.QueryRow(ctx.Context, `SELECT item_id,quantity,event_type FROM player.sth_event_claim WHERE character_id=$1 AND position=$2`, cid, pos).Scan(&itemID, &qty, &typ)
+
+	var tableType, itemID, qty, typ int
+
+	// Nhận quyền xử lý và lấy thông tin thưởng.
+	// Chỉ xử lý bản ghi đang ở trạng thái pending.
+	err := h.findbackPool.QueryRow(ctx.Context, `
+		UPDATE player.sth_event_claim
+		SET state = 'processing'
+		WHERE character_id = $1
+		  AND position = $2
+		  AND state = 'pending'
+		  AND table_type IN (19, 29)
+		  AND item_id > 0
+		  AND quantity > 0
+		RETURNING
+			table_type,
+			item_id,
+			quantity,
+			event_type
+	`, cid, pos).Scan(
+		&tableType,
+		&itemID,
+		&qty,
+		&typ,
+	)
+
 	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			h.sendActivityCallback(
+				ctx,
+				"onRedMsg",
+				"Lỗi đọc phần thưởng sự kiện Bí Cảnh",
+			)
+		}
 		return
 	}
-	award, err := h.itemService.AddItemWithBind(ctx.Context, cid, itemID, h.resolveSendCombineItemType(itemID, 0), qty, true)
+
+	// Phát vật phẩm theo đúng bảng template.
+	award, err := h.itemService.AddTemplateItem(
+		ctx.Context,
+		cid,
+		appitem.TemplateRef{
+			TableType:  tableType,
+			TemplateID: itemID,
+		},
+		qty,
+		true,
+		0,
+	)
+
 	if err != nil {
-		_, _ = h.findbackPool.Exec(ctx.Context, `UPDATE player.sth_event_claim SET state='pending' WHERE character_id=$1 AND position=$2 AND state='processing'`, cid, pos)
-		h.sendActivityCallback(ctx, "onRedMsg", "Túi đầy hoặc lỗi cấp thưởng, phần thưởng đang chờ nhận")
+		// Nếu phát vật phẩm thất bại, cho phép thử lại.
+		_, resetErr := h.findbackPool.Exec(ctx.Context, `
+			UPDATE player.sth_event_claim
+			SET state = 'pending'
+			WHERE character_id = $1
+			  AND position = $2
+			  AND state = 'processing'
+		`, cid, pos)
+
+		if resetErr != nil {
+			h.sendActivityCallback(
+				ctx,
+				"onRedMsg",
+				"Lỗi khôi phục phần thưởng sự kiện Bí Cảnh",
+			)
+			return
+		}
+
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Túi đầy hoặc lỗi cấp thưởng, phần thưởng đang chờ nhận",
+		)
 		return
 	}
-	_, err = h.findbackPool.Exec(ctx.Context, `UPDATE player.sth_event_claim SET state='delivered',delivered_at=now() WHERE character_id=$1 AND position=$2`, cid, pos)
-	if err != nil {
+
+	// Xác nhận phần thưởng đã được phát.
+	tag, err := h.findbackPool.Exec(ctx.Context, `
+		UPDATE player.sth_event_claim
+		SET state = 'delivered',
+		    delivered_at = now()
+		WHERE character_id = $1
+		  AND position = $2
+		  AND state = 'processing'
+	`, cid, pos)
+
+	if err != nil || tag.RowsAffected() != 1 {
+		// Tránh đưa về pending vì vật phẩm có thể
+		// đã được tạo trong túi.
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Đã phát vật phẩm nhưng chưa xác nhận được trạng thái thưởng. Cần kiểm tra dữ liệu.",
+		)
 		return
 	}
+
+	// Đồng bộ túi đồ và thông báo tới Flash client.
 	h.sendActivityItemRewardCallbacks(ctx, award)
-	h.sendActivityCallback(ctx, "onSetSecTreaHuntPlayStop", typ, itemID)
+
+	h.sendActivityCallback(
+		ctx,
+		"onSetSecTreaHuntPlayStop",
+		typ,
+		itemID,
+	)
 }
+

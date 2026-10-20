@@ -4,6 +4,16 @@ package combat
 import domaincombat "mcgame-server/internal/domain/combat"
 
 var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
+	// Lôi Lân Ảnh: normal, ∮ and ㄨ versions of Lôi Đình Thần Phạt.
+	7038: loiDinhThanPhatPlan(1, 1.40, .10, .10, 0),
+	7039: loiDinhThanPhatPlan(2, 1.50, .10, .10, 0),
+	7040: loiDinhThanPhatPlan(3, 1.70, .10, .10, 0),
+	7041: loiDinhThanPhatPlan(1, 1.80, .15, .15, 0),
+	7042: loiDinhThanPhatPlan(2, 1.90, .20, .20, 0),
+	7043: loiDinhThanPhatPlan(3, 2.00, .30, .30, 0),
+	7044: loiDinhThanPhatPlan(1, 2.10, .30, .30, .05),
+	7045: loiDinhThanPhatPlan(2, 2.20, .30, .30, .10),
+	7046: loiDinhThanPhatPlan(3, 2.40, .30, .30, .15),
 	7002: uMinhHuyenVuPlan(1, 4, 0.15, 0.50),
 	7003: uMinhHuyenVuPlan(2, 6, 0.20, 0.55),
 	7004: uMinhHuyenVuPlan(3, 8, 0.25, 0.60),
@@ -49,6 +59,24 @@ var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
 	6748: followUpStrikePlan(4.0),
 	6749: followUpStrikePlan(4.0),
 	6750: followUpStrikePlan(4.0),
+}
+
+// loiDinhThanPhatPlan always uses the pet's MAX HP for its extra damage,
+// never the enemy's HP. Extra-hit variants may repeat once without extra MP.
+func loiDinhThanPhatPlan(level int, coefficient, bonusChance, bonusMaxHP, repeatChance float64) domaincombat.SkillPlan {
+	return domaincombat.SkillPlan{
+		Family:       "Lôi Đình Thần Phạt",
+		Level:        level,
+		Target:       domaincombat.TargetEnemy,
+		TargetCount:  1,
+		RepeatChance: repeatChance,
+		Effects: []domaincombat.SkillEffect{{
+			Kind:                   domaincombat.EffectPhysicalDamage,
+			Coefficient:            coefficient,
+			BonusCasterMaxHPChance: bonusChance,
+			BonusCasterMaxHPRatio:  bonusMaxHP,
+		}},
+	}
 }
 
 func uMinhHuyenVuPlan(level, targetCount int, maxHPRatio, soulLossChance float64) domaincombat.SkillPlan {

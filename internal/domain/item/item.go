@@ -113,13 +113,19 @@ func (i *Item) IsStackable() bool {
 }
 
 func (i *Item) CanStack(other *Item) bool {
-	if !i.IsStackable() {
-		return false
-	}
-	return i.TemplateID == other.TemplateID &&
-		i.IsBound == other.IsBound &&
-		i.SlotType == other.SlotType &&
-		i.ColorCode == other.ColorCode
+    if i == nil || other == nil {
+        return false
+    }
+
+    if !i.IsStackable() || !other.IsStackable() {
+        return false
+    }
+
+    return i.TemplateID == other.TemplateID &&
+        i.ItemType == other.ItemType &&
+        i.IsBound == other.IsBound &&
+        i.SlotType == other.SlotType &&
+        i.ColorCode == other.ColorCode
 }
 
 func (i *Item) IsEquipped() bool {

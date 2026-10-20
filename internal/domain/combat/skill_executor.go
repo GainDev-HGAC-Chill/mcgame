@@ -34,26 +34,51 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 	}
 	actions := make([]*BattleAction, 0, len(targets)*2+1)
 	killedTarget := false
-	for _, target := range targets {
-		wasAlive := target.IsAlive
-		previousSuccess := true
-		for _, effect := range plan.Effects {
-			if !target.IsAlive && effect.Kind != EffectRevive {
+	for repetition := 0; repetition < 2; repetition++ {
+		if repetition > 0 {
+			if plan.RepeatChance <= 0 || tp.rng.Float64() >= plan.RepeatChance {
 				break
 			}
-			if effect.RequiresPreviousSuccess && !previousSuccess {
-				continue
+			// A second cast may find another target if the first target died.
+			targets = resolver.ResolveTargets(actor, targetID, plan.Target, plan.Area, plan.TargetCount)
+			if len(targets) == 0 {
+				break
 			}
-			if !tp.plannedEffectSucceeds(actor, target, effect) {
-				previousSuccess = false
-				continue
-			}
-			effectActions, success := tp.applyPlannedEffect(actor, target, cmd.SkillID, info.Template, effect)
-			actions = append(actions, effectActions...)
-			previousSuccess = success
 		}
-		if wasAlive && !target.IsAlive {
-			killedTarget = true
+		for _, target := range targets {
+			wasAlive := target.IsAlive
+			previousSuccess := true
+			hitTarget := false
+			for _, effect := range plan.Effects {
+				if !target.IsAlive && effect.Kind != EffectRevive {
+					break
+				}
+				if effect.RequiresPreviousSuccess && !previousSuccess {
+					continue
+				}
+				if !tp.plannedEffectSucceeds(actor, target, effect) {
+					previousSuccess = false
+					continue
+				}
+				effectActions, success := tp.applyPlannedEffect(actor, target, cmd.SkillID, info.Template, effect)
+				for _, action := range effectActions {
+					if action != nil && action.ActionType == ActionTypeSkill && action.SkillID == cmd.SkillID && action.TargetID == target.ID && !action.IsMiss && action.Damage > 0 {
+						hitTarget = true
+					}
+				}
+				actions = append(actions, effectActions...)
+				previousSuccess = success
+			}
+			// Sức Mạnh Phán Quyết procs only on an actual landed LĐTP strike.
+			if hitTarget && target.IsAlive {
+				if taunt, enabled := loiLanAnhTauntEffect(cmd.SkillID, actor.SkillIDs); enabled && tp.plannedEffectSucceeds(actor, target, taunt) {
+					statusActions, _ := tp.applyPlannedEffect(actor, target, cmd.SkillID, info.Template, taunt)
+					actions = append(actions, statusActions...)
+				}
+			}
+			if wasAlive && !target.IsAlive {
+				killedTarget = true
+			}
 		}
 	}
 	if killedTarget {
@@ -230,6 +255,10 @@ func (tp *TurnProcessor) applyPlannedDamage(actor, target *Participant, skillID 
 		}
 		if !result.IsMiss && effect.BonusCurrentHPChance > 0 && tp.rng.Float64() < effect.BonusCurrentHPChance {
 			result.Damage += int(float64(before) * effect.BonusCurrentHPRatio)
+		}
+		// Percentage-of-maximum-HP bonus belongs to the attacking pet, not the target.
+		if !result.IsMiss && effect.BonusCasterMaxHPChance > 0 && tp.rng.Float64() < effect.BonusCasterMaxHPChance {
+			result.Damage += int(math.Round(float64(actor.MaxHP) * effect.BonusCasterMaxHPRatio))
 		}
 		if !result.IsMiss {
 			result.Damage = tp.applyDamage(target, result.Damage, effect.Kind == EffectMagicDamage)

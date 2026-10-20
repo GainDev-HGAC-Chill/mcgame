@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"mcgame-server/internal/infrastructure/rtmp"
+	appitem "mcgame-server/internal/application/item"
 )
 
 // Battle start and completion are delegated to the existing combat handler.
@@ -80,88 +81,289 @@ func (h *Handler) sthRecoverBattleRewards(ctx *rtmp.RPCContext, cid int64) {
 }
 
 // Invoked only by combat.EndBattle after the authoritative BattleResult is available.
-func (h *Handler) CompleteSTHBattle(ctx *rtmp.RPCContext, cid int64, battleID string, won bool) error {
+
+func (h *Handler) CompleteSTHBattle(
+	ctx *rtmp.RPCContext,
+	cid int64,
+	battleID string,
+	won bool,
+) error {
 	if h.findbackPool == nil || battleID == "" {
 		return nil
 	}
+
 	tx, err := h.findbackPool.Begin(ctx.Context)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx.Context)
+
 	var pos int
 	var activityDay time.Time
-	err = tx.QueryRow(ctx.Context, `SELECT position,activity_day FROM player.sth_battle_runs
-        WHERE character_id=$1 AND battle_id=$2 AND status='active' FOR UPDATE`, cid, battleID).Scan(&pos, &activityDay)
+
+	err = tx.QueryRow(ctx.Context, `
+		SELECT position, activity_day
+		FROM player.sth_battle_runs
+		WHERE character_id = $1
+		  AND battle_id = $2
+		  AND status = 'active'
+		FOR UPDATE
+	`, cid, battleID).Scan(&pos, &activityDay)
+
 	if err != nil {
-		// Normal battles do not have a matching STH run.
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Trận đấu thông thường, không thuộc Bí Cảnh.
 			return nil
 		}
 		return err
 	}
+
 	if !won {
-		_, err = tx.Exec(ctx.Context, `UPDATE player.sth_battle_runs SET status='lost',updated_at=now()
-            WHERE character_id=$1 AND activity_day=$2 AND position=$3`, cid, activityDay, pos)
-	} else {
-		var itemID, qty int
-		err = tx.QueryRow(ctx.Context, `WITH p AS (
-                SELECT item_id,quantity,sum(weight) OVER (ORDER BY item_id) cumulative
-                FROM player.sth_battle_reward_pool WHERE enabled
-            ), total AS (SELECT sum(weight) weight FROM player.sth_battle_reward_pool WHERE enabled)
-            SELECT p.item_id,p.quantity FROM p,total
-            WHERE p.cumulative >= ($1::bigint % total.weight)+1 ORDER BY p.cumulative LIMIT 1`, randomSTHInt()).Scan(&itemID, &qty)
+		_, err = tx.Exec(ctx.Context, `
+			UPDATE player.sth_battle_runs
+			SET status = 'lost',
+			    updated_at = now()
+			WHERE character_id = $1
+			  AND activity_day = $2
+			  AND position = $3
+		`, cid, activityDay, pos)
+
 		if err != nil {
-			return fmt.Errorf("STH combat rewards not configured: %w", err)
+			return err
 		}
-		_, err = tx.Exec(ctx.Context, `UPDATE player.sth_battle_runs SET status='pending',item_id=$4,quantity=$5,updated_at=now()
-            WHERE character_id=$1 AND activity_day=$2 AND position=$3`, cid, activityDay, pos, itemID, qty)
-		if err == nil {
-			_, err = tx.Exec(ctx.Context, `UPDATE player.character_sth_progress
-                SET visited=array_append(visited,$2),updated_at=now()
-                WHERE character_id=$1 AND NOT ($2=ANY(visited))`, cid, pos)
+	} else {
+		// Lấy phần thưởng kèm bảng nguồn 19 hoặc 29.
+		var tableType, itemID, qty int
+
+		err = tx.QueryRow(ctx.Context, `
+			WITH rewards AS (
+				SELECT
+					table_type,
+					item_id,
+					quantity,
+					SUM(weight) OVER (
+						ORDER BY table_type, item_id
+					) AS cumulative
+				FROM player.sth_battle_reward_pool
+				WHERE enabled = true
+			),
+			total AS (
+				SELECT SUM(weight) AS total_weight
+				FROM player.sth_battle_reward_pool
+				WHERE enabled = true
+			)
+			SELECT
+				r.table_type,
+				r.item_id,
+				r.quantity
+			FROM rewards r
+			CROSS JOIN total t
+			WHERE r.cumulative >=
+			      ($1::bigint % t.total_weight) + 1
+			ORDER BY r.cumulative
+			LIMIT 1
+		`, randomSTHInt()).Scan(
+			&tableType,
+			&itemID,
+			&qty,
+		)
+
+		if err != nil {
+			return fmt.Errorf(
+				"STH combat rewards not configured: %w",
+				err,
+			)
+		}
+
+		// Lưu đầy đủ TableType và ItemID
+		// để khôi phục phần thưởng chính xác.
+		tag, updateErr := tx.Exec(ctx.Context, `
+			UPDATE player.sth_battle_runs
+			SET status = 'pending',
+			    table_type = $4,
+			    item_id = $5,
+			    quantity = $6,
+			    updated_at = now()
+			WHERE character_id = $1
+			  AND activity_day = $2
+			  AND position = $3
+			  AND status = 'active'
+		`,
+			cid,
+			activityDay,
+			pos,
+			tableType,
+			itemID,
+			qty,
+		)
+
+		if updateErr != nil {
+			return updateErr
+		}
+		if tag.RowsAffected() != 1 {
+			return fmt.Errorf(
+				"STH battle reward state changed unexpectedly",
+			)
+		}
+
+		// Đánh dấu ô đã hoàn thành.
+		_, err = tx.Exec(ctx.Context, `
+			UPDATE player.character_sth_progress
+			SET visited = array_append(visited, $2),
+			    updated_at = now()
+			WHERE character_id = $1
+			  AND NOT ($2 = ANY(visited))
+		`, cid, pos)
+
+		if err != nil {
+			return err
 		}
 	}
-	if err != nil {
-		return err
-	}
+
 	if err = tx.Commit(ctx.Context); err != nil {
 		return err
 	}
+
 	if won {
-		h.sthDeliverBattleReward(ctx, cid, activityDay, pos)
-		h.sendActivityCallback(ctx, "onRedMsg", "Chiến thắng quái Bí Cảnh")
+		// Phát thưởng sau khi trạng thái chiến đấu đã lưu.
+		h.sthDeliverBattleReward(
+			ctx,
+			cid,
+			activityDay,
+			pos,
+		)
+
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Chiến thắng quái Bí Cảnh",
+		)
 	} else {
-		h.sendActivityCallback(ctx, "onRedMsg", "Thất bại trong trận Bí Cảnh")
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Thất bại trong trận Bí Cảnh",
+		)
 	}
-	h.sendActivityCallback(ctx, "onSetSecTreaHuntCanPlay", true, 0)
+
+	h.sendActivityCallback(
+		ctx,
+		"onSetSecTreaHuntCanPlay",
+		true,
+		0,
+	)
+
 	return nil
 }
 
-func (h *Handler) sthDeliverBattleReward(ctx *rtmp.RPCContext, cid int64, day time.Time, pos int) {
-	if h.itemService == nil {
+
+
+func (h *Handler) sthDeliverBattleReward(
+	ctx *rtmp.RPCContext,
+	cid int64,
+	day time.Time,
+	pos int,
+) {
+	if h.itemService == nil || h.findbackPool == nil {
 		return
 	}
-	tag, err := h.findbackPool.Exec(ctx.Context, `UPDATE player.sth_battle_runs SET status='processing',updated_at=now()
-        WHERE character_id=$1 AND activity_day=$2 AND position=$3 AND status='pending'`, cid, day, pos)
+
+	var tableType, itemID, qty int
+
+	// Chỉ một lượt xử lý được quyền nhận phần thưởng.
+	// UPDATE RETURNING lấy trực tiếp dữ liệu đã khóa trạng thái.
+	err := h.findbackPool.QueryRow(ctx.Context, `
+		UPDATE player.sth_battle_runs
+		SET status = 'processing',
+		    updated_at = now()
+		WHERE character_id = $1
+		  AND activity_day = $2
+		  AND position = $3
+		  AND status = 'pending'
+		  AND table_type IN (19, 29)
+		  AND item_id > 0
+		  AND quantity > 0
+		RETURNING table_type, item_id, quantity
+	`, cid, day, pos).Scan(
+		&tableType,
+		&itemID,
+		&qty,
+	)
+
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			h.sendActivityCallback(
+				ctx,
+				"onRedMsg",
+				"Lỗi đọc phần thưởng chiến đấu Bí Cảnh",
+			)
+		}
+		return
+	}
+
+	// Phát đúng loại vật phẩm theo TableType.
+	award, err := h.itemService.AddTemplateItem(
+		ctx.Context,
+		cid,
+		appitem.TemplateRef{
+			TableType:  tableType,
+			TemplateID: itemID,
+		},
+		qty,
+		true,
+		0,
+	)
+
+	if err != nil {
+		// Phát thưởng thất bại: khôi phục trạng thái chờ.
+		_, resetErr := h.findbackPool.Exec(ctx.Context, `
+			UPDATE player.sth_battle_runs
+			SET status = 'pending',
+			    updated_at = now()
+			WHERE character_id = $1
+			  AND activity_day = $2
+			  AND position = $3
+			  AND status = 'processing'
+		`, cid, day, pos)
+
+		if resetErr != nil {
+			h.sendActivityCallback(
+				ctx,
+				"onRedMsg",
+				"Lỗi khôi phục phần thưởng Bí Cảnh",
+			)
+			return
+		}
+
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Quà Bí Cảnh đang chờ nhận (kiểm tra túi)",
+		)
+		return
+	}
+
+	// Chỉ xác nhận hoàn tất sau khi vật phẩm đã được phát.
+	tag, err := h.findbackPool.Exec(ctx.Context, `
+		UPDATE player.sth_battle_runs
+		SET status = 'delivered',
+		    updated_at = now()
+		WHERE character_id = $1
+		  AND activity_day = $2
+		  AND position = $3
+		  AND status = 'processing'
+	`, cid, day, pos)
+
 	if err != nil || tag.RowsAffected() != 1 {
+		// Vật phẩm có thể đã vào túi.
+		// Không chuyển về pending vì có nguy cơ phát trùng.
+		h.sendActivityCallback(
+			ctx,
+			"onRedMsg",
+			"Đã phát vật phẩm nhưng chưa xác nhận được trạng thái thưởng. Cần kiểm tra dữ liệu.",
+		)
 		return
 	}
-	var itemID, qty int
-	err = h.findbackPool.QueryRow(ctx.Context, `SELECT item_id,quantity FROM player.sth_battle_runs
-        WHERE character_id=$1 AND activity_day=$2 AND position=$3`, cid, day, pos).Scan(&itemID, &qty)
-	if err != nil {
-		return
-	}
-	award, err := h.itemService.AddItemWithBind(ctx.Context, cid, itemID, h.resolveSendCombineItemType(itemID, 0), qty, true)
-	if err != nil {
-		_, _ = h.findbackPool.Exec(ctx.Context, `UPDATE player.sth_battle_runs SET status='pending' WHERE character_id=$1 AND activity_day=$2 AND position=$3 AND status='processing'`, cid, day, pos)
-		h.sendActivityCallback(ctx, "onRedMsg", "Quà Bí Cảnh đang chờ nhận (kiểm tra túi)")
-		return
-	}
-	_, err = h.findbackPool.Exec(ctx.Context, `UPDATE player.sth_battle_runs SET status='delivered',updated_at=now() WHERE character_id=$1 AND activity_day=$2 AND position=$3 AND status='processing'`, cid, day, pos)
-	if err != nil {
-		return
-	}
+
 	h.sendActivityItemRewardCallbacks(ctx, award)
 }

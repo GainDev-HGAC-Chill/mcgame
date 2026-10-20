@@ -12,7 +12,7 @@ import (
 	"mcgame-server/internal/infrastructure/rtmp"
 	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
-
+	appitem "mcgame-server/internal/application/item"
 	"go.uber.org/zap"
 )
 
@@ -82,9 +82,19 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 			return currentBuyNum, nil
 		}
 
-		itemType := h.resolveSendCombineItemType(templateID, award.ItemType)
-		isBound := award.Binded == 1
-		addedItem, addErr := h.itemService.AddItemWithBind(ctx.Context, characterID, templateID, itemType, award.StackNum, isBound)
+		ref := appitem.TemplateRef{
+			TableType:  award.ItemType,
+			TemplateID: templateID,
+		}
+
+		addedItem, addErr := h.itemService.AddTemplateItem(
+			ctx.Context,
+			characterID,
+			ref,
+			award.StackNum,
+			award.Binded == 1,
+			0,
+		)		
 		if addErr != nil {
 			h.logger.Warn("BuySendCombine: failed to add reward item",
 				zap.Uint32("conn_id", ctx.ConnID),
@@ -126,28 +136,6 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 	return newBuyNum, nil
 }
 
-func (h *Handler) resolveSendCombineItemType(templateID int, awardItemType int) domainitem.ItemType {
-	if h.gameData != nil {
-		if h.gameData.GetEquipment(templateID) != nil {
-			return domainitem.ItemTypeEquipment
-		}
-		if itemTemplate := h.gameData.GetItem(templateID); itemTemplate != nil {
-			itemKind := int(itemTemplate.Kind)
-			if itemKind == 1 {
-				return domainitem.ItemTypeEquipment
-			}
-			if itemKind == 6 || itemKind == 14 {
-				return domainitem.ItemTypeMaterial
-			}
-		}
-	}
-
-	if awardItemType == 19 {
-		return domainitem.ItemTypeEquipment
-	}
-
-	return domainitem.ItemTypeConsumable
-}
 
 func parseSendCombineActivityID(value interface{}) (string, bool) {
 	switch raw := value.(type) {

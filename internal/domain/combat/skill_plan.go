@@ -15,6 +15,7 @@ type SkillPlan struct {
 	Sacrifice     bool
 	RestTurns     int
 	OnKill        *SkillOnKillFollowUp
+	RepeatChance  float64 // chance for exactly one extra cast, paid once
 }
 
 type SkillOnKillFollowUp struct {
@@ -128,6 +129,8 @@ type SkillEffect struct {
 	Control                 ControlEffect
 	BonusCurrentHPChance    float64
 	BonusCurrentHPRatio     float64
+	BonusCasterMaxHPChance  float64
+	BonusCasterMaxHPRatio   float64
 	TransferCount           int
 	RequiresPreviousSuccess bool
 	ResourceBasis           ResourceType

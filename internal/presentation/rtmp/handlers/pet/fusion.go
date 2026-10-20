@@ -153,17 +153,22 @@ func (h *Handler) PetPzXsd(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		return rtmp.ErrorToResponse(err), nil
 	}
 
-	h.logger.Info("Pet cultivation item used",
+	h.logger.Info("Pet resurrection used",
 		zap.Int64("character_id", characterID),
 		zap.Int64("pet_id", petID),
 		zap.Int64("item_id", itemID))
 	sendPetItemUseRefresh(ctx, result)
+	if result.Success {
+		// Flash's onPzXsd has no Apply RPC: update live pet state now.
+		_ = ctx.Connection.SendCallback("onUpdatePet", float64(result.Pet.ID), "growRate", result.Pet.GrowRate)
+		sendPetPropRefresh(ctx, result.Pet)
+	}
 
 	return map[string]interface{}{
 		"f":      true,
 		"p":      result.Pet.ID,
 		"t":      result.Property,
-		"num":    result.After,
+		"num":    result.Pet.GrowRate,
 		"i":      result.ItemID,
 		"n":      result.RemainingStack,
 		"before": result.Before,

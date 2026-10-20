@@ -37,6 +37,16 @@ var petNamedBaseSkillNames = map[string][]string{
 		"Vô Song Loạn Vũ",
 		"Bách Biến Trùng Kích",
 	},
+	"Lôi Lân Ảnh": {
+		"Lôi Đình Thần Phạt",
+		"Sức Mạnh Phán Quyết",
+		"Huyết Mạch Kỳ Lân",
+	},
+	"Lôi Lân Ảnh [Tiến Hóa]": {
+		"Lôi Đình Thần Phạt",
+		"Sức Mạnh Phán Quyết",
+		"Huyết Mạch Kỳ Lân",
+	},
 }
 
 // seedNamedPetDefaultSkills handles only the five special pet templates above.

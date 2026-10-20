@@ -30,6 +30,7 @@ type Service struct {
 	fusionGrowth         func(int, int) int
 	starRoll             func(int) bool
 	washRoll             func(int, int) int
+	resurrectionRoll func(int, int) int
 }
 
 const (
@@ -45,6 +46,7 @@ func NewService(petRepo domainpet.Repository, logger *zap.Logger) *Service {
 		fusionGrowth: defaultPetFusionGrowth,
 		starRoll:     defaultPetStarRoll,
 		washRoll:     petWashRoll,
+		resurrectionRoll: defaultPetResurrectionRoll,
 	}
 }
 
@@ -745,45 +747,6 @@ func applyPetCultivation(p *domainpet.Pet, cultivationType int) int {
 
 	p.SetCultivation(cultivationType, newProgress)
 	return newProgress
-}
-
-func (s *Service) UseCultivationItem(ctx context.Context, charID int64, petID int64, itemID int64) (*PetItemUseResult, error) {
-	it, err := s.loadPetFunctionItem(ctx, charID, itemID)
-	if err != nil {
-		return nil, err
-	}
-	p, err := s.getPetAndValidate(ctx, charID, petID)
-	if err != nil {
-		return nil, err
-	}
-	original := p.Clone()
-
-	bonusAmount := it.TemplateID % 10
-	if bonusAmount < 1 {
-		bonusAmount = 1
-	}
-
-	p.AptStrengthEx += bonusAmount
-	p.AptAgilityEx += bonusAmount
-	p.AptStaminaEx += bonusAmount
-	p.AptIntelligenceEx += bonusAmount
-	p.AptEnergyEx += bonusAmount
-	p.RecalculateStats()
-
-	s.logger.Info("Pet cultivation item used",
-		zap.Int64("character_id", charID),
-		zap.Int64("pet_id", petID),
-		zap.Int64("item_id", itemID),
-		zap.Int("bonus", bonusAmount))
-
-	result, err := s.finishPetItemUse(ctx, original, p, it)
-	if err != nil {
-		return nil, err
-	}
-	result.Property = "aptStrength"
-	result.Before = float64(original.AptStrengthEx)
-	result.After = float64(p.AptStrengthEx)
-	return result, nil
 }
 
 func (s *Service) OpenPetSlot(ctx context.Context, charID int64) (int, int, string, int64, error) {

@@ -2113,7 +2113,11 @@ func (s *Service) AddItemWithBindAndColor(ctx context.Context, charID int64, tem
 				break
 			}
 
-			if it.TemplateID == templateID && it.StackCount < maxStack && it.IsBound == isBound && it.ColorCode == colorCode {
+			if it.TemplateID == templateID &&
+				it.ItemType == itemType &&
+				it.StackCount < maxStack &&
+				it.IsBound == isBound &&
+				it.ColorCode == colorCode {
 				space := maxStack - it.StackCount
 				amountToAdd := stackCount
 				if amountToAdd > space {
