@@ -149,9 +149,6 @@ func (tp *TurnProcessor) buildDamageActions(
 				zap.Bool("target_alive", target.IsAlive))
 		}
 		actions = append(actions, hitAction)
-		if !result.IsMiss && result.Damage > 0 {
-			actions = append(actions, tp.petReflectActions(actor, target, result.Damage)...)
-		}
 
 		if result.IsMiss {
 			continue
@@ -195,9 +192,13 @@ func (tp *TurnProcessor) buildDamageActions(
 			TargetPosition: target.Position,
 			ActionType:     ActionTypeIdle,
 		})
+		// Reflect AFTER the original hit and hurt/idle playback, not between them.
+		if result.Damage > 0 {
+			actions = append(actions, tp.petReflectActions(actor, target, result.Damage)...)
+		}
 	}
 
-	if successfulHit && allowCombo && target.IsAlive && CheckCombo(tp.statusManager.EffectiveParticipant(actor)) {
+	if successfulHit && allowCombo && target.IsAlive && actor.IsAlive && CheckCombo(tp.statusManager.EffectiveParticipant(actor)) {
 		tp.logger.Debug("Combo triggered",
 			zap.String("actor_id", actor.ID))
 		comboActions := tp.buildComboActions(actor, target, sk, actionType, skillID, actorNewMP)
@@ -396,6 +397,9 @@ func (tp *TurnProcessor) buildComboActions(
 			ActionType:     ActionTypeIdle,
 		})
 	}
+	if !comboResult.IsMiss && comboResult.Damage > 0 {
+		actions = append(actions, tp.petReflectActions(actor, target, comboResult.Damage)...)
+	}
 
 	return actions
 }
@@ -499,6 +503,10 @@ func (tp *TurnProcessor) buildCounterActions(counterAttacker, originalAttacker *
 		TargetPosition: counterAttacker.Position,
 		ActionType:     ActionTypeTurnBack,
 	})
+	// A counter hit is also direct damage. The reflection action itself never reflects.
+	if !counterResult.IsMiss && counterResult.Damage > 0 {
+		actions = append(actions, tp.petReflectActions(counterAttacker, originalAttacker, counterResult.Damage)...)
+	}
 
 	return actions
 }

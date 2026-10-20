@@ -58,11 +58,18 @@ export function requireQuestSameOrigin(request: Pick<Request, "url" | "headers">
     let valid = false
     try {
         const parsed = new URL(origin ?? "")
-        valid = parsed.origin === origin && parsed.origin === new URL(request.url).origin &&
-            (parsed.protocol === "http:" || parsed.protocol === "https:")
+        // Exact origins only. Do not blindly trust client-controlled X-Forwarded-Host.
+        const allowed = (process.env.DASHBOARD_ALLOWED_ORIGINS ?? "")
+            .split(",")
+            .map(value => value.trim())
+            .filter(Boolean)
+        valid = parsed.origin === origin &&
+            (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+            (origin === new URL(request.url).origin || allowed.includes(origin!))
     } catch {
         valid = false
     }
+    // A browser calling the same-origin /api/... endpoint should send same-origin.
     if (!valid || (fetchSite !== null && fetchSite !== "same-origin")) {
         throw new QuestAuthError(403, "quest_origin_forbidden", "Yêu cầu phải đến từ cùng nguồn.")
     }

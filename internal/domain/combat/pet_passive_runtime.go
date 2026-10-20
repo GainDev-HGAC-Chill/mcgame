@@ -77,7 +77,7 @@ func parsePetPassiveRules(raw []byte) (petPassiveRulebook, error) {
 		if rule.Kind == "on_hit_control" && (rule.BuffID <= 0 || rule.Duration <= 0) {
 			return result, fmt.Errorf("missing control buff metadata")
 		}
-		if rule.Kind == "on_kill_strike" && (rule.TargetCount <= 0 || rule.Coefficient <= 0) {
+		if rule.Kind == "on_kill_strike" && (rule.TargetCount <= 0 || rule.Coefficient <= 0 || rule.DisplayName == "") {
 			return result, fmt.Errorf("missing on-kill attack config")
 		}
 		for _, level := range rule.Levels {
@@ -270,12 +270,12 @@ func (tp *TurnProcessor) petReflectActions(attacker, defender *Participant, inco
 	if rule == nil || rank == 0 {
 		return nil
 	}
-	amount := int(math.Round(float64(incoming) * level.ReflectRatio))
-	if amount <= 0 {
-		return nil
-	}
+	// The basis is REAL damage received by the Pet after its defense and shields.
+	// Do not recalculate attack damage from the Pet's low normal-attack stat.
+	amount := max(1, int(math.Round(float64(incoming)*level.ReflectRatio)))
 	before := attacker.CurrentHP
-	applied := tp.applyDamage(attacker, amount, false)
+	_ = tp.applyDamage(attacker, amount, false)
+	applied := before - attacker.CurrentHP // actual HP loss, not an overkill estimate
 	if applied <= 0 {
 		return nil
 	}
@@ -288,7 +288,8 @@ func (tp *TurnProcessor) petReflectActions(attacker, defender *Participant, inco
 	return tp.appendPlannedDamagePlayback(nil, defender, attacker, action)
 }
 
-// One proc check, up to TargetCount distinct living enemies, no recursive procs.
+// BACH_HO_SEPARATE_CAST_REFLECT_V1_1
+// One proc check after a confirmed primary kill; up to TargetCount distinct enemies.
 func (tp *TurnProcessor) executePetOnKillStrike(actor *Participant, primary *skill.SkillTemplate) []*BattleAction {
 	if tp == nil || actor == nil || !actor.IsAlive || primary == nil {
 		return nil
@@ -305,7 +306,12 @@ func (tp *TurnProcessor) executePetOnKillStrike(actor *Participant, primary *ski
 	if len(targets) == 0 {
 		return nil
 	}
+	// Independent secondary cast: NEVER replay the primary Thú Vương Đột Kích ID.
+	// A distinct skill ID/name creates a separate playback round for Flash.
 	once := *primary
+	once.ID = rank.SkillID // 7032/7033/7034 according to owned passive rank
+	once.Name = rule.DisplayName
+	once.SkillType = skill.SkillTypePhysical
 	once.AttackCount = 1
 	effect := SkillEffect{Kind: EffectPhysicalDamage, Coefficient: rule.Coefficient}
 	actions := make([]*BattleAction, 0, len(targets)*3)

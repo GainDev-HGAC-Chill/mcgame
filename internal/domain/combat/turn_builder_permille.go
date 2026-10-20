@@ -108,9 +108,6 @@ func (tp *TurnProcessor) buildDamageActionsPermille(
 				zap.Int("target_hp", target.CurrentHP))
 		}
 		actions = append(actions, hitAction)
-		if !h.IsMiss && hitAction.Damage > 0 {
-			actions = append(actions, tp.petReflectActions(actor, target, hitAction.Damage)...)
-		}
 
 		if h.IsMiss {
 			continue
@@ -150,6 +147,9 @@ func (tp *TurnProcessor) buildDamageActionsPermille(
 			TargetPosition: target.Position,
 			ActionType:     ActionTypeIdle,
 		})
+		if hitAction.Damage > 0 {
+			actions = append(actions, tp.petReflectActions(actor, target, hitAction.Damage)...)
+		}
 
 		if allowCounter && target.IsAlive && actor.IsAlive && h.Flags.Counter {
 			tp.logger.Debug("Counter triggered (permille)",
