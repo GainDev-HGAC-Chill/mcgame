@@ -1,5 +1,7 @@
 "use client"
 
+import { createClientUUID } from "@/lib/client-uuid"
+
 import Link from "next/link"
 import { use, useEffect, useMemo, useState } from "react"
 
@@ -69,7 +71,7 @@ export default function NpcDetailPage({
                         expectedSharedCount: sharedCount,
                         confirmShared: sharedCount > 1,
                         reason: reason.trim(),
-                        requestId: crypto.randomUUID(),
+                        requestId: createClientUUID(),
                         patch,
                     }),
                 }

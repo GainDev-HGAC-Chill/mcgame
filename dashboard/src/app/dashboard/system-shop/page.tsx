@@ -1,5 +1,7 @@
 "use client"
 
+import { createClientUUID } from "@/lib/client-uuid"
+
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -108,7 +110,7 @@ export default function SystemShopPage() {
                     slotId:mode==="insert"?null:selectedId,
                     slot:payload,
                     reason:reason.trim(),
-                    requestId:crypto.randomUUID(),
+                    requestId:createClientUUID(),
                 }),
             })
             setDetail(next)

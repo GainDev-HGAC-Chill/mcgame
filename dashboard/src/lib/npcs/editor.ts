@@ -1,3 +1,4 @@
+import { createClientUUID } from "@/lib/client-uuid"
 import type {
     NpcDetail,
     NpcRecord,
@@ -122,7 +123,7 @@ export function newShopSlot(shopId: number, position: number): DraftShopSlot {
         type: 29,
         displayName: null,
         iconCode: 0,
-        _key: crypto.randomUUID(),
+        _key: createClientUUID(),
         _new: true,
     }
 }
