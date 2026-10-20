@@ -74,6 +74,11 @@ const navItems: NavItem[] = [
         icon: MapPin,
     },
     {
+        title: "Shop hệ thống",
+        href: "/dashboard/system-shop",
+        icon: Package,
+    },
+    {
         title: "Bảng vật phẩm rơi",
         href: "/dashboard/loot",
         icon: Swords,

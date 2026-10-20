@@ -71,7 +71,7 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 			}
 			// Sức Mạnh Phán Quyết procs only on an actual landed LĐTP strike.
 			if hitTarget && target.IsAlive {
-				if taunt, enabled := loiLanAnhTauntEffect(cmd.SkillID, actor.SkillIDs); enabled && tp.plannedEffectSucceeds(actor, target, taunt) {
+				if taunt, enabled := petLinkedControlEffect(cmd.SkillID, actor.SkillIDs); enabled && tp.plannedEffectSucceeds(actor, target, taunt) {
 					statusActions, _ := tp.applyPlannedEffect(actor, target, cmd.SkillID, info.Template, taunt)
 					actions = append(actions, statusActions...)
 				}
@@ -82,6 +82,10 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 		}
 	}
 	if killedTarget {
+		// Only Thú Vương Đột Kích can trigger Đột Kích Bí Mật.
+		if petHasOnKillProc(cmd.SkillID) {
+			actions = append(actions, tp.executePetOnKillStrike(actor, info.Template)...)
+		}
 		actions = append(actions, tp.executeOnKillFollowUp(actor, plan.OnKill)...)
 	}
 	if plan.Sacrifice {
@@ -261,10 +265,15 @@ func (tp *TurnProcessor) applyPlannedDamage(actor, target *Participant, skillID 
 			result.Damage += int(math.Round(float64(actor.MaxHP) * effect.BonusCasterMaxHPRatio))
 		}
 		if !result.IsMiss {
+			// True damage is calculated from attack, independent of target defense.
+			result.Damage += petTrueDamageBonus(effectiveActor, effect, tp.rng.Float64())
 			result.Damage = tp.applyDamage(target, result.Damage, effect.Kind == EffectMagicDamage)
 		}
 		action := tp.damageAction(actor, target, skillID, tpl, result.Damage, result.IsCritical, result.IsMiss, before)
 		actions = tp.appendPlannedDamagePlayback(actions, actor, target, action)
+		if !result.IsMiss && result.Damage > 0 {
+			actions = append(actions, tp.petReflectActions(actor, target, result.Damage)...)
+		}
 	}
 	return actions
 }

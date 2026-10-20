@@ -18,7 +18,7 @@ temp/exported-resources/
 .worktrees/
 dashboard/tsconfig.tsbuildinfo
 .antigravitycli
-
+.bak
 # Generated machine-specific client profiles.
 docker/client/*.xml
 

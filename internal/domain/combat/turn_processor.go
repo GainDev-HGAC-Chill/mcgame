@@ -216,6 +216,13 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 	}
 
 	orderedActors := tp.getOrderedActors()
+	// Install Tiger's innate turn buff before even the fastest enemy can attack.
+	for _, p := range orderedActors {
+		if action := tp.activatePetTurnBuff(p); action != nil {
+			result.Actions = append(result.Actions, action)
+			tp.battle.AddAction(action)
+		}
+	}
 
 	tp.logger.Debug("ProcessRound starting",
 		zap.Int("round", tp.battle.CurrentRound),
@@ -391,6 +398,12 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 		}
 
 		tp.orderedActors = tp.getOrderedActors()
+		for _, p := range tp.orderedActors {
+			if action := tp.activatePetTurnBuff(p); action != nil {
+				result.Actions = append(result.Actions, action)
+				tp.battle.AddAction(action)
+			}
+		}
 		tp.currentActorIdx = 0
 		tp.roundStarted = true
 

@@ -284,6 +284,12 @@ func (s *shopService) BuyItem(ctx context.Context, characterID int64, shopSlotID
 }
 
 func (s *shopService) BuySystemItem(ctx context.Context, characterID int64, shopSlotID int, amount int) (*BuyResult, error) {
+	// System-shop silver purchase: defer to standard BuyItem. No lock acquired yet.
+	if s.gameDataRec != nil {
+		if slot, err := s.resolveSystemShopSlot(shopSlotID); err == nil && slot.Point <= 0 && slot.Gold <= 0 && slot.Money > 0 {
+			return s.BuyItem(ctx, characterID, shopSlotID, amount)
+		}
+	}
 	unlock := s.lockCharacterPurchase(characterID)
 	defer unlock()
 
@@ -570,12 +576,18 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 
 	totalGold := int64(0)
 	totalGoldBind := int64(0)
+	totalMoney := int64(0)
+	totalMoneyBind := int64(0)
 	totalPoint := int64(0)
 
 	// Default Gold Currency Type preference
 	goldType := char.SelectedGoldType
 	if goldType != 3 && goldType != 4 {
 		goldType = 3
+	}
+	moneyType := char.SelectedMoneyType
+	if moneyType != 1 && moneyType != 2 {
+		moneyType = 1
 	}
 
 	// 3. Validation & Cost Calculation Loop
@@ -617,19 +629,21 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 		var pType int
 
 		if shopSlot.Point > 0 {
-			// Point Item
 			cost = int64(shopSlot.Point) * int64(req.Amount)
 			totalPoint += cost
 			pType = 0
-		} else {
-			// Gold Item
+		} else if shopSlot.Gold > 0 {
 			cost = int64(shopSlot.Gold) * int64(req.Amount)
-			if goldType == 3 {
-				totalGoldBind += cost
-			} else {
-				totalGold += cost
-			}
 			pType = goldType
+			if int(shopSlot.Gt) == 1 { pType = 4 }
+			if pType == 3 { totalGoldBind += cost } else { totalGold += cost }
+		} else if shopSlot.Money > 0 {
+			cost = int64(shopSlot.Money) * int64(req.Amount)
+			pType = moneyType
+			if int(shopSlot.Gt) == 1 { pType = 2 }
+			if pType == 1 { totalMoneyBind += cost } else { totalMoney += cost }
+		} else {
+			return nil, fmt.Errorf("shop slot %d has no supported price", req.ShopSlotID)
 		}
 
 		itemsToAdd = append(itemsToAdd, struct {
@@ -654,12 +668,20 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 	if char.Gold < totalGold {
 		return nil, errors.New("not enough gold")
 	}
+	if char.Money < totalMoney {
+		return nil, errors.New("not enough silver")
+	}
+	if char.MoneyBind < totalMoneyBind {
+		return nil, errors.New("not enough silver bound")
+	}
 
 	// 5. Execution: Deduct & Add Items
 	// Deduct
 	char.ExPoint -= int(totalPoint)
 	char.GoldBind -= totalGoldBind
 	char.Gold -= totalGold
+	char.Money -= totalMoney
+	char.MoneyBind -= totalMoneyBind
 
 	var resultItems []map[string]interface{}
 	var resultDTOs []map[string]interface{}
@@ -675,7 +697,7 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 		colorCode := int(math.Ceil(item.Slot.Quality / 5))
 
 		// Bind item if purchased with GoldBind (currencyType = 3)
-		binded := (item.PType == 3)
+		binded := (item.PType == 3 || item.PType == 1)
 		beforeStacks, err := s.snapshotPurchaseBagStacks(ctx, char.ID, int(item.Slot.ItemID), itType, binded)
 		if err != nil {
 			return nil, err
@@ -725,16 +747,29 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 	} else if totalGoldBind > 0 {
 		newMoney = char.GoldBind
 		currencyType = 3
+	} else if totalMoney > 0 {
+		newMoney = char.Money
+		currencyType = 2
+	} else if totalMoneyBind > 0 {
+		newMoney = char.MoneyBind
+		currencyType = 1
 	} else {
 		newMoney = int64(char.ExPoint)
 		currencyType = 0
 	}
+	updates := map[string]int64{}
+	if totalGold > 0 { updates["gold"] = char.Gold }
+	if totalGoldBind > 0 { updates["goldBind"] = char.GoldBind }
+	if totalMoney > 0 { updates["money"] = char.Money }
+	if totalMoneyBind > 0 { updates["moneyBind"] = char.MoneyBind }
+	if totalPoint > 0 { updates["exPoint"] = int64(char.ExPoint) }
 
 	return &BuySystemItemMultiResult{
 		Success:       true,
 		Items:         resultItems,
 		AddedItemDTOs: resultDTOs,
-		NewMoney:      newMoney,
-		CurrencyType:  currencyType,
+		NewMoney:        newMoney,
+		CurrencyType:    currencyType,
+		CurrencyUpdates: updates,
 	}, nil
 }

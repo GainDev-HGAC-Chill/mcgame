@@ -129,6 +129,8 @@ type SkillEffect struct {
 	Control                 ControlEffect
 	BonusCurrentHPChance    float64
 	BonusCurrentHPRatio     float64
+	TrueDamageChance        float64 // chance of armor-ignoring bonus damage
+	TrueDamageAttackRatio   float64 // multiplier of caster physical attack, bypasses defense
 	BonusCasterMaxHPChance  float64
 	BonusCasterMaxHPRatio   float64
 	TransferCount           int

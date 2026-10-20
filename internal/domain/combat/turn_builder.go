@@ -66,6 +66,9 @@ func (tp *TurnProcessor) buildDamageActions(
 
 	successfulHit := false
 	for hitIndex := 0; hitIndex < attackCount; hitIndex++ {
+		if !actor.IsAlive {
+			break
+		}
 		if !target.IsAlive {
 			newTarget := SelectRandomTarget(tp.battle, getOppositeSide(actor.Side))
 			if newTarget == nil {
@@ -146,6 +149,9 @@ func (tp *TurnProcessor) buildDamageActions(
 				zap.Bool("target_alive", target.IsAlive))
 		}
 		actions = append(actions, hitAction)
+		if !result.IsMiss && result.Damage > 0 {
+			actions = append(actions, tp.petReflectActions(actor, target, result.Damage)...)
+		}
 
 		if result.IsMiss {
 			continue

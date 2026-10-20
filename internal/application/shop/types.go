@@ -50,11 +50,12 @@ type PurchaseRequest struct {
 
 // BuySystemItemMultiResult contains the result of buying multiple system shop items
 type BuySystemItemMultiResult struct {
-	Success       bool                     `json:"success"`
-	Items         []map[string]interface{} `json:"items"`
-	NewMoney      int64                    `json:"newMoney"`
-	CurrencyType  int                      `json:"currencyType"`
-	AddedItemDTOs []map[string]interface{} `json:"addedItemDtos"`
+	Success         bool                     `json:"success"`
+	Items           []map[string]interface{} `json:"items"`
+	NewMoney        int64                    `json:"newMoney"`
+	CurrencyType    int                      `json:"currencyType"`
+	AddedItemDTOs   []map[string]interface{} `json:"addedItemDtos"`
+	CurrencyUpdates map[string]int64         `json:"currencyUpdates,omitempty"`
 }
 
 type VIPShopConfigResult struct {

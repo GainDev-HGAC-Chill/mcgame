@@ -10,6 +10,7 @@ import (
 	"mcgame-server/internal/domain/skill"
 	"mcgame-server/internal/gamedata"
 	gamedatamodels "mcgame-server/internal/gamedata/models"
+	"strings"
 )
 
 const (
@@ -88,11 +89,17 @@ func buildSkillInfoFromGamedata(tpl *gamedatamodels.SkillTemplate) *combat.Skill
 		BuffDuration: int(tpl.BuffRound),
 	}
 	if int(tpl.Kind) == 1 {
+		// Audited plans from OpenCode remain the primary authority.
 		plan := petActiveSkillPlanByTemplateID(int(tpl.ID))
 		if plan == nil {
-			plan = petActiveSkillPlan(tpl.Name, int(tpl.Level))
+			plan = petActiveSkillPlan(strings.TrimSpace(tpl.Name), int(tpl.Level))
 		}
 		if plan == nil {
+			// Shared data-driven fallback for pet skills without an audited plan.
+			plan = petSkillDataPlan(tpl)
+		}
+		if plan == nil {
+			warnMissingPetSkillPlan(tpl)
 			return info
 		}
 		info.Plan = plan

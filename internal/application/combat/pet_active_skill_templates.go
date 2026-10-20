@@ -4,6 +4,16 @@ package combat
 import domaincombat "mcgame-server/internal/domain/combat"
 
 var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
+	// Bạch Hổ Cuồng Nộ - Thú Vương Đột Kích, normal and both evolved branches.
+	7017: bachHoRushPlan(1, 1.20, .20),
+	7018: bachHoRushPlan(2, 1.50, .30),
+	7019: bachHoRushPlan(3, 1.90, .40),
+	7020: bachHoRushPlan(1, 1.80, .30),
+	7021: bachHoRushPlan(2, 2.00, .40),
+	7022: bachHoRushPlan(3, 2.20, .45),
+	7023: bachHoRushPlan(1, 2.00, .35),
+	7024: bachHoRushPlan(2, 2.20, .45),
+	7025: bachHoRushPlan(3, 2.30, .50),
 	// Lôi Lân Ảnh: normal, ∮ and ㄨ versions of Lôi Đình Thần Phạt.
 	7038: loiDinhThanPhatPlan(1, 1.40, .10, .10, 0),
 	7039: loiDinhThanPhatPlan(2, 1.50, .10, .10, 0),
@@ -63,6 +73,23 @@ var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
 
 // loiDinhThanPhatPlan always uses the pet's MAX HP for its extra damage,
 // never the enemy's HP. Extra-hit variants may repeat once without extra MP.
+// bachHoRushPlan's true-damage proc adds 100% physical attack AFTER defense.
+// It still respects invulnerability, shields and other incoming-damage rules.
+func bachHoRushPlan(level int, coefficient, trueDamageChance float64) domaincombat.SkillPlan {
+	return domaincombat.SkillPlan{
+		Family:      "Thú Vương Đột Kích",
+		Level:       level,
+		Target:      domaincombat.TargetEnemy,
+		TargetCount: 1,
+		Effects: []domaincombat.SkillEffect{{
+			Kind:                  domaincombat.EffectPhysicalDamage,
+			Coefficient:           coefficient,
+			TrueDamageChance:      trueDamageChance,
+			TrueDamageAttackRatio: 1.0,
+		}},
+	}
+}
+
 func loiDinhThanPhatPlan(level int, coefficient, bonusChance, bonusMaxHP, repeatChance float64) domaincombat.SkillPlan {
 	return domaincombat.SkillPlan{
 		Family:       "Lôi Đình Thần Phạt",

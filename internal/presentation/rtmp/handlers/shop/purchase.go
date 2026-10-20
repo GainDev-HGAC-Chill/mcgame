@@ -244,8 +244,15 @@ func (h *Handler) BuySystemItemMulti(ctx *rtmp.RPCContext, args []interface{}) (
 		_ = ctx.Connection.SendCallback("onAddCharactorSlot", itemDTO)
 	}
 
-	currencyKey := getCurrencyKey(res.CurrencyType)
-	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: res.NewMoney})
+	currencyUpdates := map[string]interface{}{}
+	for key, balance := range res.CurrencyUpdates {
+		currencyUpdates[key] = balance
+	}
+	if len(currencyUpdates) == 0 {
+		currencyKey := getCurrencyKey(res.CurrencyType)
+		currencyUpdates[currencyKey] = res.NewMoney
+	}
+	_ = ctx.Connection.SendCallback("onUPP", currencyUpdates)
 	h.refreshQuestProgress(ctx, charID)
 
 	return map[string]interface{}{"success": res.Success, "items": res.Items}, nil

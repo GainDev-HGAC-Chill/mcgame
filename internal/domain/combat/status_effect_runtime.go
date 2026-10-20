@@ -23,6 +23,10 @@ func (m *StatusEffectManager) EffectiveParticipant(p *Participant) *Participant 
 			applyStatModifier(&effective, modifier)
 		}
 	}
+	// Dynamic missing-HP damage bonuses are provided by the shared Pet passive engine.
+	if percent := m.petMissingHPAttackPercent(p); percent > 0 {
+		applyStatModifier(&effective, StatModifier{Stat: StatAttack, Percent: percent})
+	}
 	if effective.EffStats.Get(stats.PropHP) > 0 {
 		effective.EffStats.Set(stats.PropPhysAtk, int64(effective.Attack))
 		effective.EffStats.Set(stats.PropMagAtk, int64(effective.MagicAttack))

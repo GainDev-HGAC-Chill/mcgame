@@ -1,0 +1,149 @@
+// Battle-local passive and follow-up effects exclusive to Bạch Hổ Cuồng Nộ.
+package combat
+
+import (
+	"math"
+	"mcgame-server/internal/domain/skill"
+)
+
+const bachHoBuffFamily = "BachHoCuongNo:ChienDauMauLua"
+
+func isBachHoRushSkill(id int) bool { return id >= 7017 && id <= 7025 }
+
+func bachHoTrueDamageBonus(actor *Participant, effect SkillEffect, roll float64) int {
+	if actor == nil || effect.TrueDamageChance <= 0 || effect.TrueDamageAttackRatio <= 0 || roll >= effect.TrueDamageChance {
+		return 0
+	}
+	return max(0, int(math.Round(float64(actor.Attack)*effect.TrueDamageAttackRatio)))
+}
+
+// Select only the highest owned level; corrupted multi-level inventories must not stack.
+func bachHoBloodLevel(skills map[int]bool) int {
+	switch {
+	case skills[7031]:
+		return 3
+	case skills[7030]:
+		return 2
+	case skills[7029]:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func bachHoSecretLevel(skills map[int]bool) (float64, int) {
+	switch {
+	case skills[7034]:
+		return .80, 3
+	case skills[7033]:
+		return .60, 2
+	case skills[7032]:
+		return .40, 1
+	default:
+		return 0, 0
+	}
+}
+
+func (m *StatusEffectManager) bachHoBuffLevel(id string) int {
+	if m == nil {
+		return 0
+	}
+	for _, e := range m.effects[id] {
+		if e.Family == bachHoBuffFamily && e.Duration > 0 && e.BuffID >= 80124 && e.BuffID <= 80126 {
+			return e.BuffID - 80124 + 1
+		}
+	}
+	return 0
+}
+
+func (tp *TurnProcessor) activateBachHoBattleBuff(p *Participant) *BattleAction {
+	if tp == nil || p == nil || !p.IsAlive {
+		return nil
+	}
+	level := bachHoBloodLevel(p.SkillIDs)
+	if level == 0 {
+		return nil
+	}
+	desired := 80123 + level
+	if tp.statusManager.bachHoBuffLevel(p.ID) == level {
+		// Keep it alive from round to round without repeatedly flashing buffAdd.
+		for _, e := range tp.statusManager.effects[p.ID] {
+			if e.Family == bachHoBuffFamily {
+				e.Duration = 2
+			}
+		}
+		return nil
+	}
+	tp.statusManager.RemoveFamily(p.ID, bachHoBuffFamily)
+	tp.statusManager.AddEffect(p.ID, &StatusEffect{
+		Duration:   2,
+		SourceID:   p.ID,
+		TemplateID: 7028 + level,
+		BuffID:     desired,
+		Family:     bachHoBuffFamily,
+		Polarity:   PolarityBeneficial,
+		Removable:  true,
+		StackCount: 1,
+	})
+	return &BattleAction{
+		Round:   tp.battle.CurrentRound,
+		ActorID: p.ID, ActorPosition: p.Position,
+		TargetID: p.ID, TargetPosition: p.Position,
+		ActionType:  ActionTypeAuto,
+		SourceState: map[string]interface{}{"buffAdd": map[string]interface{}{"id": desired}},
+	}
+}
+
+// 80127/80128/80129 carry reflect percentages 20/30/50 in the source buff table.
+// This reflects damage actually received; it never recursively reflects reflection.
+func (tp *TurnProcessor) bachHoReflectActions(attacker, defender *Participant, incoming int) []*BattleAction {
+	if tp == nil || attacker == nil || defender == nil || attacker.ID == defender.ID || !attacker.IsAlive || !defender.IsAlive || incoming <= 0 {
+		return nil
+	}
+	level := tp.statusManager.bachHoBuffLevel(defender.ID)
+	if level == 0 {
+		return nil
+	}
+	ratios := [...]float64{0, .20, .30, .50}
+	amount := int(math.Round(float64(incoming) * ratios[level]))
+	if amount <= 0 {
+		return nil
+	}
+	before := attacker.CurrentHP
+	applied := tp.applyDamage(attacker, amount, false)
+	if applied <= 0 {
+		return nil
+	}
+	templateID := 7028 + level
+	template := &skill.SkillTemplate{ID: templateID, Name: "Chiến Đấu Máu Lửa", SkillType: skill.SkillTypePhysical}
+	action := tp.damageAction(defender, attacker, templateID, template, applied, false, false, before)
+	return tp.appendPlannedDamagePlayback(nil, defender, attacker, action)
+}
+
+// Fires only after Thú Vương Đột Kích killed its primary target.
+// One chance roll, maximum 3 distinct currently living enemies, no re-proc.
+func (tp *TurnProcessor) executeBachHoSecretStrike(actor *Participant, primary *skill.SkillTemplate) []*BattleAction {
+	if tp == nil || actor == nil || !actor.IsAlive || primary == nil {
+		return nil
+	}
+	chance, _ := bachHoSecretLevel(actor.SkillIDs)
+	if chance <= 0 || tp.rng.Float64() >= chance {
+		return nil
+	}
+	targets := NewTargetResolverWithRNG(tp.battle, tp.rng).ResolveTargets(actor, "", TargetRandomEnemy, AreaNone, 3)
+	if len(targets) == 0 {
+		return nil
+	}
+	// Reuse the same visual skill effects; the damage coefficient is always 150%.
+	once := *primary
+	once.AttackCount = 1
+	effects := SkillEffect{Kind: EffectPhysicalDamage, Coefficient: 1.50}
+	actions := make([]*BattleAction, 0, len(targets)*3)
+	for _, target := range targets {
+		if !actor.IsAlive || target == nil || !target.IsAlive {
+			continue
+		}
+		actions = append(actions, tp.applyPlannedDamage(actor, target, once.ID, &once, effects)...)
+	}
+	return actions
+}

@@ -57,7 +57,7 @@ func (tp *TurnProcessor) buildDamageActionsPermille(
 	}
 
 	for i, h := range hits {
-		if !target.IsAlive {
+		if !actor.IsAlive || !target.IsAlive {
 			break
 		}
 
@@ -108,6 +108,9 @@ func (tp *TurnProcessor) buildDamageActionsPermille(
 				zap.Int("target_hp", target.CurrentHP))
 		}
 		actions = append(actions, hitAction)
+		if !h.IsMiss && hitAction.Damage > 0 {
+			actions = append(actions, tp.petReflectActions(actor, target, hitAction.Damage)...)
+		}
 
 		if h.IsMiss {
 			continue

@@ -10,15 +10,15 @@ func TestLoiLanAnhPassiveRanksAndScope(t *testing.T) {
 		rank   int
 		chance float64
 	}{{7047, 1.10}, {7048, 1.30}, {7049, 1.50}} {
-		effect, ok := loiLanAnhTauntEffect(7038, map[int]bool{tc.rank: true})
+		effect, ok := petLinkedControlEffect(7038, map[int]bool{tc.rank: true})
 		if !ok || effect.Chance != tc.chance || effect.BuffID != 893 || effect.Duration != 2 || effect.Control.TauntSourceID != "caster" {
 			t.Fatalf("passive %d: %#v (ok=%v)", tc.rank, effect, ok)
 		}
 	}
-	if _, ok := loiLanAnhTauntEffect(7002, map[int]bool{7049: true}); ok {
+	if _, ok := petLinkedControlEffect(7002, map[int]bool{7049: true}); ok {
 		t.Fatal("Sức Mạnh Phán Quyết triggered from another pet skill")
 	}
-	if _, ok := loiLanAnhTauntEffect(7038, nil); ok {
+	if _, ok := petLinkedControlEffect(7038, nil); ok {
 		t.Fatal("passive triggered without being learned")
 	}
 }
