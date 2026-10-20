@@ -39,7 +39,7 @@ begin
  end if;
  -- Before image must be durable in this same transaction before any catalog update.
  insert into data.quest_admin_audit(request_id,actor_id,target_kind,target_id,reason,backup_reference,request_hash,before_image,old_revision)
- values(p_request_id,p_actor_id,'quest',p_id,p_reason,'.local/backups/quest-admin/20261012-205511',req_hash,before_data,old_hash);
+ values(p_request_id,p_actor_id,'quest',p_id,p_reason,'data.quest_admin_audit.before_image',req_hash,before_data,old_hash);
  if p_patch ? 'quest' then perform public.quest_admin_apply_fields('data_tbl_quest',p_id,before_data->'quest',p_patch->'quest','quest'); end if;
  foreach grp in array array['requirements','awards','prerequisites'] loop
   if not p_patch ? grp then continue; end if;
@@ -107,7 +107,7 @@ begin
   raise exception using errcode='40001',message='ACTIVE_QUEST_IN_USE: shared loop semantics are in use';
  end if;
  insert into data.quest_admin_audit(request_id,actor_id,target_kind,target_id,reason,backup_reference,request_hash,before_image,old_revision)
- values(p_request_id,p_actor_id,'loop',p_id,p_reason,'.local/backups/quest-admin/20261012-205511',req_hash,before_data,p_expected_revision);
+ values(p_request_id,p_actor_id,'loop',p_id,p_reason,'data.quest_admin_audit.before_image',req_hash,before_data,p_expected_revision);
  perform public.quest_admin_apply_fields('data_tbl_quest_loop',p_id,before_data->'loop',p_patch,'loop');
  after_data:=public.quest_admin_loop_detail(p_id);
  update data.quest_admin_audit set after_image=after_data,new_revision=after_data->>'revision' where request_id=p_request_id;

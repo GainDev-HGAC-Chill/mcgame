@@ -37,7 +37,7 @@ Key mapping decisions:
 - PASS: below-level and full-bag openings preserve each box and grant nothing; retrying a consumed bag grants nothing. Existing award bag-capacity regression tests remain green.
 - PASS: item application/handler suites, affected vet and host server build.
 - PASS: project database installer ran twice; persisted row counts9/9/9/11/8/8, all guaranteedtrue. No schema or player tables changed.
-- Existing reward-table backup: `.local/backups/item-awards-before-starter-20261011.sql` (initially empty); exported post-configuration table seed: `supabase/seeds/data_tbl_item_award.sql` via compose pg_dump. No manually authored migration.
+- The temporary pre-change reward-table dump was empty and was removed during repository cleanup; the post-configuration source of truth is `supabase/seeds/data_tbl_item_award.sql`, exported via compose pg_dump. No manually authored migration.
 - Exported seed's psql-only restrict/unrestrict markers are commented, matching repository seed convention; reward INSERT data remains the dump output.
 - Initial redeploy timed out because relocated `.local` was included in build context. Added `.local/` to `.dockerignore` to exclude database disks/backups/caches from images; redeploy retried without those artifacts.
 - Runtime rollout/real gameplay status is recorded in `docs/local-lan-deployment/test-results.md`; tests and infra health alone do not certify real Flash item opening.

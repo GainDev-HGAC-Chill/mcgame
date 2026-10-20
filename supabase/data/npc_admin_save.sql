@@ -45,7 +45,7 @@ begin
   if shared_count<>p_expected_shared_count or shared_count>1 and p_confirm_shared is distinct from true then raise exception using errcode='40001',message='Shared shop impact conflict'; end if;
  end if;
  insert into data.npc_admin_audit(request_id,actor_id,target_id,reason,backup_reference,request_hash,before_image,old_revision)
- values(p_request_id,p_actor_id,p_id,p_reason,'.local/backups/npc-admin/20261019-before-schema.sql',req_hash,before_data,old_hash);
+ values(p_request_id,p_actor_id,p_id,p_reason,'data.npc_admin_audit.before_image',req_hash,before_data,old_hash);
  if npc_patch<>'{}'::jsonb then
   select string_agg(format('%I=r.%I',key,key),',') into assignments from jsonb_object_keys(npc_patch) key;
   execute format('update data.data_tbl_npc n set %s from jsonb_populate_record(null::data.data_tbl_npc,$1) r where n.id=$2',assignments) using merged,p_id;

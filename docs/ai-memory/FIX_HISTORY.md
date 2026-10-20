@@ -1,5 +1,14 @@
 # MCGame Fix History
 
+## FIX-2026-10-21-01 — Dọn backup và hợp nhất migration STH pending
+
+- Hiện tượng: repository theo dõi 48 bản sao `.bak`; ignore rule `.bak` không bắt các tên thực tế. Chuỗi STH bị chia thành bốn migration pending, trong đó version ngắn `20261016_sth_events.sql` chạy trước migration tạo `character_sth_progress` nhưng đã `ALTER` bảng đó, làm fresh replay sai thứ tự.
+- Sửa cleanup: xóa 48 backup tracked, toàn bộ cây backup local đã có canonical seed/migration/audit before-image thay thế và artifact relocation smoke; thêm ignore cho các hậu tố backup/temp phổ biến. Không xóa research artifact, dependency/cache hoặc source hiện hành.
+- Sửa migration: hợp nhất implementation STH vào `20261016090000_sth_runtime.sql`, giữ schema, backfill table type, default reward/event config và upgrade từ trạng thái partial. Sáu NPC-creature STH được đưa vào seed canonical; migration chỉ chèn động khi catalog đã tồn tại để không va ID trong fresh migration-before-seed. Sau khi compose DB hoạt động lại, history xác nhận `20261016`, `20261016133000`, `20261020070000` đã được apply; ba filename được giữ dưới dạng compatibility no-op để không phá upgrade history, tuyệt đối không repair/revert history.
+- Quest/NPC Admin: SQL draft cho lần apply kế tiếp trỏ rollback source tới chính `before_image` trong audit table thay vì file backup local đã xóa; migration đã apply được giữ bất biến.
+- Test: 103 local version không trùng; 102 version chuẩn 14-digit và một legacy `20261016` phải giữ để khớp history. Consolidated STH có transaction/dollar quote cân bằng, đủ 6 bảng; seed NPC có 1.954 row, không trùng ID và đủ 6 row STH. Compose `migration list` khớp local/remote toàn bộ; `db push --include-all --dry-run` trả up-to-date, zero migration/seed pending. Focused STH handler PASS, dashboard typecheck và gameserver build PASS; diff-check không có whitespace error. Full activity còn baseline `TestBuySendCombine_SuccessUpdatesBuyCountAndGold` (`got 0, want 1`) lặp lại khi chạy riêng, không liên quan file cleanup/STH.
+- Trạng thái: CODE_CLEANED/HISTORY_COMPATIBLE — không apply migration, repair history, restart/deploy gameplay service hoặc thay đổi DB/player data.
+
 ## FIX-2026-10-19-01 — Dashboard quản lý NPC, nhiệm vụ liên kết và shop
 
 - Hiện tượng: dashboard chỉ có Quest Admin, không có nơi quản lý hội thoại ambient, quan hệ NPC↔quest hoặc shop chuẩn; DB shop thay đổi cũng không được `getShopConfig` phát cho Flash.

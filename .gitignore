@@ -18,7 +18,14 @@ temp/exported-resources/
 .worktrees/
 dashboard/tsconfig.tsbuildinfo
 .antigravitycli
-.bak
+# Editor/manual backup artifacts must never enter source history.
+*.bak*
+*.backup
+*.old
+*.orig
+*.tmp
+*.temp
+*.save
 # Generated machine-specific client profiles.
 docker/client/*.xml
 

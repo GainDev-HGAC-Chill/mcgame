@@ -32,7 +32,7 @@ Installed13 catalog-description-defined guaranteed awards via `supabase/data/sho
 - Nội Đơn Bách Luyện bag1616:10 item274.
 - Camy3254:pet1088 growth1.5; Dê Con II4840:pet728 growth1.5. These no-literal-pet descriptions did not match existing fallback.
 
-Installer verifies current descriptions, shop listing, reward ID/name/type and conflicting rows; no overwrite/delete of existing configs. Applied twice idempotently: total67 = original starter54 + shop13. Backup `.local/backups/item-awards-before-shop-20261012.sql`; award seed exported with pg_dump, psql restrict markers commented per repository convention. No schema migration or player data modification. Unknown random rates/bonus pools, class-dependent packages and opaque boxes remain unconfigured—do not manufacture success or arbitrary rewards.
+Installer verifies current descriptions, shop listing, reward ID/name/type and conflicting rows; no overwrite/delete of existing configs. Applied twice idempotently: total67 = original starter54 + shop13. The temporary pre-change dump was removed during repository cleanup after the complete award table was exported to `supabase/seeds/data_tbl_item_award.sql`; psql restrict markers remain commented per repository convention. No schema migration or player data modification. Unknown random rates/bonus pools, class-dependent packages and opaque boxes remain unconfigured—do not manufacture success or arbitrary rewards.
 
 ## GM page found, not created
 
