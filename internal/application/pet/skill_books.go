@@ -45,11 +45,11 @@ func (e *PetSkillBookError) Unwrap() error {
 }
 
 type PetSkillBookResult struct {
-	Pet            *domainpet.Pet
-	Slot           int
-	SlotKey        string
-	SkillID        int
-	RemainingStack int
+	Pet             *domainpet.Pet
+	Slot            int
+	SlotKey         string
+	SkillID         int
+	RemainingStack  int
 	ConsumedItemID  int64
 	ConsumedItemSID int
 }
@@ -132,11 +132,11 @@ func (s *Service) LearnSkillFromBook(ctx context.Context, charID int64, petID in
 		zap.Int("slot", slot))
 
 	return &PetSkillBookResult{
-		Pet:            p,
-		Slot:           slot,
-		SlotKey:        petSkillSlotKey(slot),
-		SkillID:        skillTemplate.GetID(),
-		RemainingStack: remainingStack,
+		Pet:             p,
+		Slot:            slot,
+		SlotKey:         petSkillSlotKey(slot),
+		SkillID:         skillTemplate.GetID(),
+		RemainingStack:  remainingStack,
 		ConsumedItemID:  bookItem.ID,
 		ConsumedItemSID: consumedItemSID,
 	}, nil
@@ -270,7 +270,7 @@ func (s *Service) resolvePetSkillBookSkill(bookTemplate *models.ItemTemplateTemp
 	var selected *models.SkillTemplate
 	ambiguous := false
 	for _, skill := range s.gameDataManager.GetAllSkills() {
-		if skill == nil || skill.Name != bookTemplate.Name || (int(skill.UseEnv) != 0 && int(skill.UseEnv) != 1) || int(skill.Level) < 1 {
+		if skill == nil || skill.Name != bookTemplate.Name || !isPetSkillUseEnvironment(int(skill.UseEnv)) || int(skill.Level) < 1 {
 			continue
 		}
 		if selected == nil || int(skill.Level) < int(selected.Level) {
@@ -286,6 +286,10 @@ func (s *Service) resolvePetSkillBookSkill(bookTemplate *models.ItemTemplateTemp
 		return nil
 	}
 	return selected
+}
+
+func isPetSkillUseEnvironment(useEnv int) bool {
+	return useEnv >= 0 && useEnv <= 2
 }
 
 func (s *Service) petCanLearnSkillTemplate(p *domainpet.Pet, skill *models.SkillTemplate) bool {

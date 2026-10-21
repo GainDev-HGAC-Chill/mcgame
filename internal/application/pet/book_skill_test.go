@@ -539,3 +539,26 @@ func TestResolvePetSkillBookSkillExcludesNonPetDuplicateName(t *testing.T) {
 		t.Fatalf("resolvePetSkillBookSkill(Man Lực) = %#v, want skill 4172", resolved)
 	}
 }
+
+func TestResolvePetSkillBookSkillAllowsPetUseEnvironmentTwo(t *testing.T) {
+	manager := newPetSkillBookGameData(t)
+	cache := manager.GetCache()
+	if err := cache.LoadTable(models.TableItemTemplate, []json.RawMessage{
+		json.RawMessage(`{"id":1622,"name":"Thuốc Kích Thích","type":506,"use_type":2,"skill_id":0}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.LoadTable(models.TableSkill, []json.RawMessage{
+		json.RawMessage(`{"id":3590,"name":"Thuốc Kích Thích","code_name":"SKILL483301","level":1,"use_env":2,"cre_kind":"1|3"}`),
+		json.RawMessage(`{"id":3672,"name":"Thuốc Kích Thích","code_name":"SKILL483301","level":2,"use_env":2,"cre_kind":"1|3"}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(nil, zap.NewNop())
+	service.SetGameDataManager(manager)
+
+	resolved := service.resolvePetSkillBookSkill(manager.GetItem(1622))
+	if resolved == nil || resolved.GetID() != 3590 {
+		t.Fatalf("resolvePetSkillBookSkill(Thuốc Kích Thích) = %#v, want skill 3590", resolved)
+	}
+}

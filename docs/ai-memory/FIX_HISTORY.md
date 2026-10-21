@@ -1,5 +1,21 @@
 # MCGame Fix History
 
+## FIX-2026-10-21-03 — Ảo hóa, học skill và xác nhận dung hợp Pet
+
+- Ảo hóa: runtime `petEat(278,364,1906,5,2,...)` đã xóa Pet phụ và cộng Xảo nhưng handler trả `{success,pet}`, trong khi Flash chỉ đọc `succ/costPet/costItem/propName/value/msg`; item ID 1906 còn bị parse thành bool nên đá không được validate/consume. Sửa exact responder/callback, parse item instance, rate theo code Flash, tiêu Pet phụ + đá ở cả success/failure và ledger thay riêng bonus ảo hóa mà không xóa bonus khác. Pet dưới tím hoặc Pet chính chưa khóa nay bị chặn trước tiêu hao với thông báo panel. Final review thay compensation không đầy đủ bằng transaction khóa/cập nhật Pet chính, xóa Pet phụ và trừ/xóa đá atomically; cache chỉ đồng bộ sau commit.
+- Học kỹ năng: sách 1622 `Thuốc Kích Thích` trả `f=2` vì family 3590/3672/3673 dùng `useEnv=2`; resolver cũ chỉ nhận 0/1. Resolver nay nhận 0..2, vẫn loại special `-1`, giữ ambiguity/class/quality/conflict/open-slot gates.
+- Dung hợp: runtime 05:04 xác nhận success đã đúng dữ liệu: Pet chính 364 giữ ID và từ 1.50 lên 1.95 (tím), bốn Pet phụ 365/366/332/154 bị xóa. Không đổi implementation; thêm regression exact lam→tím. Failure regression tiếp tục xác nhận xóa bốn phụ và giữ nguyên Pet chính.
+- Test: full domain/application Pet, Pet handler, cache và PostgreSQL persistence PASS; regression atomic-error giữ nguyên cả hai Pet + stack đá; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; diff-check sạch ngoài cảnh báo LF→CRLF.
+- Trạng thái: CODE_FIXED — không phục hồi Pet/vật phẩm đã bị bản runtime cũ tiêu, không mutate dữ liệu thêm và chưa restart/deploy hoặc Flash smoke-test.
+
+## FIX-2026-10-21-02 — Tẩy điểm Pet báo Invalid input
+
+- Hiện tượng: Flash gửi đúng `petXd(300,1901)` với Quy Nguyên Đơn template 1526 nhưng server trả `[Connection] Invalid input` và không tiêu item.
+- Root cause: compose DB lưu Pet 300 với `attr_points=0`, `distributed_attr_points=440`, `max_attr_points=430` và tổng năm `Apt*Ex=440`, đủ điều kiện legacy reset an toàn. Ba function đọc trả `SETOF player.character_pets` theo thứ tự cột vật lý `attr_points, distributed_attr_points, max_attr_points, life`, nhưng Go scan thành attr/max/distributed/life nên runtime thấy distributed=430 và reject vì không khớp 440.
+- Sửa: dùng chung `scanPetRow` cho read by ID, following Pet và list Pet, map đúng attr/distributed/max/life. Thêm regression mapping DB 0/440/430/9800 và regression service đúng shape Pet 300; reset hoàn 440 điểm, xóa năm `Apt*Ex`, giữ max 430 và chỉ tiêu một item khi save thành công.
+- Test: full PostgreSQL persistence, domain/application Pet và Pet RTMP handler PASS; targeted vet PASS; `go build -o bin/gameserver.exe ./cmd/gameserver` PASS; diff-check không có whitespace error ngoài cảnh báo LF→CRLF.
+- Trạng thái: CODE_FIXED — chỉ query DB read-only, không dùng/tiêu item 1901, không thay đổi Pet/player data và chưa restart/deploy hoặc Flash smoke-test.
+
 ## FIX-2026-10-21-01 — Dọn backup và hợp nhất migration STH pending
 
 - Hiện tượng: repository theo dõi 48 bản sao `.bak`; ignore rule `.bak` không bắt các tên thực tế. Chuỗi STH bị chia thành bốn migration pending, trong đó version ngắn `20261016_sth_events.sql` chạy trước migration tạo `character_sth_progress` nhưng đã `ALTER` bảng đó, làm fresh replay sai thứ tự.

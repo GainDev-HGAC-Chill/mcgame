@@ -28,9 +28,11 @@ type Service struct {
 	logger               *zap.Logger
 	fusionRoll           func(int) bool
 	fusionGrowth         func(int, int) int
+	illusionRoll         func(int) bool
+	illusionPercent      func(int, int) int
 	starRoll             func(int) bool
 	washRoll             func(int, int) int
-	resurrectionRoll func(int, int) int
+	resurrectionRoll     func(int, int) int
 }
 
 const (
@@ -40,12 +42,14 @@ const (
 
 func NewService(petRepo domainpet.Repository, logger *zap.Logger) *Service {
 	return &Service{
-		petRepo:      petRepo,
-		logger:       logger,
-		fusionRoll:   defaultPetFusionRoll,
-		fusionGrowth: defaultPetFusionGrowth,
-		starRoll:     defaultPetStarRoll,
-		washRoll:     petWashRoll,
+		petRepo:          petRepo,
+		logger:           logger,
+		fusionRoll:       defaultPetFusionRoll,
+		fusionGrowth:     defaultPetFusionGrowth,
+		illusionRoll:     defaultPetIllusionRoll,
+		illusionPercent:  defaultPetIllusionPercent,
+		starRoll:         defaultPetStarRoll,
+		washRoll:         petWashRoll,
 		resurrectionRoll: defaultPetResurrectionRoll,
 	}
 }
@@ -328,53 +332,6 @@ func (s *Service) ChangeName(ctx context.Context, charID int64, petID int64, new
 		zap.String("new_name", newName))
 
 	return p, nil
-}
-
-func (s *Service) PetEat(ctx context.Context, charID int64, mainPetID, costPetID int64, useLuckItem bool, luckNum int, aptType domainpet.AptitudeType) (*domainpet.Pet, error) {
-	mainPet, err := s.getPetAndValidate(ctx, charID, mainPetID)
-	if err != nil {
-		return nil, err
-	}
-
-	costPet, err := s.petRepo.FindByID(ctx, costPetID)
-	if err != nil {
-		return nil, err
-	}
-
-	if costPet.CharacterID != charID {
-		return nil, pkgerrors.ErrNotFound
-	}
-
-	if mainPetID == costPetID {
-		return nil, pkgerrors.ErrInvalidInput
-	}
-
-	baseGain := 1 + costPet.Level/20
-
-	if useLuckItem && luckNum > 0 {
-		baseGain += luckNum
-	}
-
-	mainPet.ImproveAptitude(aptType, baseGain)
-
-	if err := s.petRepo.Save(ctx, mainPet); err != nil {
-		return nil, err
-	}
-
-	if err := s.petRepo.Delete(ctx, costPetID); err != nil {
-		s.logger.Warn("Failed to delete cost pet",
-			zap.Int64("pet_id", costPetID),
-			zap.Error(err))
-	}
-
-	s.logger.Info("Pet ate another pet",
-		zap.Int64("character_id", charID),
-		zap.Int64("main_pet_id", mainPetID),
-		zap.Int64("cost_pet_id", costPetID),
-		zap.Int("apt_type", int(aptType)),
-		zap.Int("gain", baseGain))
-
-	return mainPet, nil
 }
 
 func (s *Service) UpgradeStar(ctx context.Context, charID int64, petID int64) (*domainpet.Pet, error) {

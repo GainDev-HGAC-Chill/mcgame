@@ -262,6 +262,28 @@ func (p *PlayerData) ApplyPersistedPetFusion(mainPet *pet.Pet, consumedPetIDs []
 	p.revision++
 }
 
+func (p *PlayerData) ApplyPersistedPetIllusion(mainPet *pet.Pet, consumedPetID, luckItemID int64, remainingLuck int, updateMain bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if updateMain {
+		p.Pets[mainPet.ID] = mainPet.Clone()
+		delete(p.dirtyPets, mainPet.ID)
+	}
+	delete(p.Pets, consumedPetID)
+	delete(p.dirtyPets, consumedPetID)
+	if luckItemID > 0 {
+		if remainingLuck == 0 {
+			delete(p.Items, luckItemID)
+		} else if current := p.Items[luckItemID]; current != nil {
+			updated := cloneItem(current)
+			updated.StackCount = remainingLuck
+			p.Items[luckItemID] = updated
+		}
+		delete(p.dirtyItems, luckItemID)
+	}
+	p.revision++
+}
+
 func (p *PlayerData) SetQuest(q *quest.QuestProgress) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

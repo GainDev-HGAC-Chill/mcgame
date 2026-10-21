@@ -71,6 +71,42 @@ func TestResetPetAttributesWithItemRefundsLegacyUnambiguousAllocation(t *testing
 	}
 }
 
+func TestResetPetAttributesWithItemRefundsLegacyPet300Shape(t *testing.T) {
+	svc, repo, items := resetTestService(t, 10, 1526, 440, 0)
+	p, err := repo.FindByID(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.AttrPoints = 0
+	p.MaxAttrPoints = 430
+	p.DistributedAttrPoints = 440
+	p.AptStrengthEx = 436
+	p.AptAgilityEx = 1
+	p.AptStaminaEx = 1
+	p.AptIntelligenceEx = 1
+	p.AptEnergyEx = 1
+	if err := repo.Save(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := svc.ResetPetAttributesWithItem(context.Background(), 7, 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := repo.FindByID(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.AttrPoints != 440 || after.MaxAttrPoints != 430 || after.DistributedAttrPoints != 0 ||
+		after.AptStrengthEx != 0 || after.AptAgilityEx != 0 || after.AptStaminaEx != 0 ||
+		after.AptIntelligenceEx != 0 || after.AptEnergyEx != 0 {
+		t.Fatalf("legacy Pet 300 shape reset incorrectly: %+v", after)
+	}
+	if out.RemainingStack != 1 || items.items[10].StackCount != 1 {
+		t.Fatalf("incorrect item consume: %+v", out)
+	}
+}
+
 func TestResetPetAttributesWithItemRejectsMixedLegacyBonusesWithoutConsume(t *testing.T) {
 	svc, repo, items := resetTestService(t, 10, 1526, 25, 5)
 	if _, err := svc.ResetPetAttributesWithItem(context.Background(), 7, 1, 10); !errors.Is(err, pkgerrors.ErrInvalidInput) {

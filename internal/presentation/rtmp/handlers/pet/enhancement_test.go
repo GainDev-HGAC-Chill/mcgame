@@ -53,3 +53,15 @@ func TestPetStarResponseReportsFailedAttemptAndProtectionStack(t *testing.T) {
 		t.Fatalf("response = %#v", response)
 	}
 }
+
+func TestPetIllusionResponseMatchesFlashContract(t *testing.T) {
+	response := petIllusionResponse(&apppet.PetIllusionResult{
+		Pet: &domainpet.Pet{ID: 278}, Success: true, Message: "Ảo hóa thành công (90%)",
+		AptitudeType: domainpet.AptTypeAgility, PropertyName: "aptAgilityEx", Value: 576,
+		ConsumedPetID: 364, ConsumedLuckCount: 2,
+	})
+	if response["succ"] != true || response["costPet"] != 1 || response["costItem"] != 2 ||
+		response["propName"] != "aptAgilityEx" || response["value"] != 576 || response["aptType"] != 2 || response["petId"] != int64(278) {
+		t.Fatalf("response = %#v", response)
+	}
+}

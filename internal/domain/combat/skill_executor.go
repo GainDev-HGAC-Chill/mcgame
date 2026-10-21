@@ -405,10 +405,9 @@ func (tp *TurnProcessor) executeRabbitHeartChain(actor *Participant, cmd *Battle
 				break
 			}
 		}
-		before := target.CurrentHP
-		dealt := tp.applyDamage(target, 1, true)
-		action := tp.damageAction(actor, target, cmd.SkillID, info.Template, dealt, false, false, before)
-		actions = tp.appendPlannedDamagePlayback(actions, actor, target, action)
+		effect := info.Plan.Effects[0]
+		hitActions := tp.applyPlannedDamage(actor, target, cmd.SkillID, info.Template, effect)
+		actions = append(actions, hitActions...)
 		if dealt > 0 {
 			actions = append(actions, tp.petReflectActions(actor, target, dealt)...)
 		}

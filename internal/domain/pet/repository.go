@@ -23,3 +23,7 @@ type Repository interface {
 type FusionRepository interface {
 	ApplyFusion(ctx context.Context, mainPet *Pet, consumedPetIDs []int64) error
 }
+
+type IllusionRepository interface {
+	ApplyIllusion(ctx context.Context, mainPet *Pet, consumedPetID, luckItemID int64, luckItemCount int, updateMain bool) (int, error)
+}

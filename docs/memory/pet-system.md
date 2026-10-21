@@ -14,6 +14,14 @@ Pet growth medicines are pet-target `type=501`, `useType=2` items handled before
 
 Pet attribute-point flow now mirrors the character path: each pet level grants `5` distributable points, `Pet.RecalculateStats()` mirrors the remaining pool into `property.lastPoint`, and `changePetProperty(petId, {addStrength, addAgility, addStamina, addIntelligence, addEnergy})` spends those points into `Apt*Ex` plus `onUpdatePet`/`onRefreshPetProp` callbacks for the Flash pet panel.
 
+`petXd(petId, itemInstanceId)` uses Quy Nguyên Đơn template `1526` only for bound-shop class `classIds=10` Pets. New allocations carry a per-stat ledger; legacy rows can reset only when the sum of all five `Apt*Ex` values exactly equals persisted `distributed_attr_points`, so the item is never consumed on ambiguous data. PostgreSQL readers return `SETOF player.character_pets`, whose physical tail order is `attr_points, distributed_attr_points, max_attr_points, life`; all three repository read paths must preserve that order. Scanning max before distributed caused legacy Pet 300 to appear as distributed `430` instead of `440`, making an otherwise unambiguous reset fail with `Invalid input`.
+
+## Pet Illusion Contract
+
+`petEat(mainPetId, costPetId, luckItemId, luckCount, aptitudeType, passwordHash)` is the Flash Ảo hóa flow. The responder reads exact keys `succ`, `msg`, `costPet`, `costItem`, `propName`, `value`, `aptType`, and `petId`; returning only `{success, pet}` mutates server state but leaves the panel looking unchanged. The third argument is the actual lucky-stone item instance ID, not a boolean.
+
+Both Pets must be purple or orange and the main Pet must be bound. Base success rate mirrors `PetFuncPanel.setEatInfo`: each Pet contributes 15%/30% when divine (`classIds=10`) or 10%/15% when ordinary at purple/orange; matching `classId` adds 20%, otherwise the subtotal is halved; each valid propType-7 lucky stone adds 20%, capped at 100%. The cost Pet and selected stones are consumed on both success and failure. Success replaces only the previously tracked illusion bonus for the selected aptitude with 10–15% of a purple cost Pet's base aptitude or 25–30% for orange, preserving allocated/cultivation bonuses in the same `Apt*Ex` field. Persistence uses one `IllusionRepository.ApplyIllusion` transaction that locks both Pets and the optional stone stack, then updates the main Pet, deletes the cost Pet, and decrements/deletes the stones atomically; cache state changes only after commit.
+
 ## Pet Life Meter
 
 Pet `life` is now a persisted battle-condition meter on `player.character_pets.life`, not an HP-derived display field. New pets start at `10000`, battles drain `10` from each owner-side pet participant on battle end, zero-life pets cannot enter battle or be swapped in, rest/follow states still work at zero life, and pet functional items restore this stored meter back up to the `10000` cap via `onUpdatePet(..., "life", ...)`.
@@ -140,7 +148,7 @@ Summon books enter this same follow contract through item use. Flash additionall
 
 Battle skill ownership must use these same canonical `skill1..skill15` slots through `Pet.LearnedSkillSlots()`. The older `property.skills` array is not populated by the current learn/upgrade flows and must not be used as combat authority. After exact skill-ID ownership succeeds, the authoritative level comes from that skill row in `TBL_SKILL`; a different level-row ID that is not present in a Pet slot remains rejected.
 
-Name-based Pet-book resolution must exclude unrelated template rows outside `useEnv` 0/1 and fail closed if the lowest eligible level is still ambiguous. In particular, book 2242 `Man Lực` resolves to `4172→4171→4170`, not special row `60903`; book 1883 `Da Kháng Tính` starts at `3812→3813`, not row `3808`. Legacy slots produced by the old resolver use those two exact aliases as upgrade sources so the next legitimate `petUpSkill` repairs the slot while preserving normal manual cost and rollback behavior.
+Name-based Pet-book resolution accepts canonical Pet environments `useEnv=0/1/2`, excludes special rows such as `useEnv=-1`, and fails closed if the lowest eligible level is still ambiguous. Environment 2 is required by valid active/status books such as item 1622 `Thuốc Kích Thích`, which resolves to `3590→3672→3673`. In particular, book 2242 `Man Lực` resolves to `4172→4171→4170`, not special row `60903`; book 1883 `Da Kháng Tính` starts at `3812→3813`, not row `3808`. Legacy slots produced by the old resolver use those two exact aliases as upgrade sources so the next legitimate `petUpSkill` repairs the slot while preserving normal manual cost and rollback behavior.
 
 ## Pet Skill Eligibility Rule
 

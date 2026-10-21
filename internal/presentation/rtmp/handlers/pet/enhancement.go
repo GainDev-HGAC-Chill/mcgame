@@ -7,6 +7,7 @@ import (
 	domainpet "mcgame-server/internal/domain/pet"
 	"mcgame-server/internal/infrastructure/rtmp"
 	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
+	pkgerrors "mcgame-server/pkg/errors"
 
 	"go.uber.org/zap"
 )
@@ -28,7 +29,20 @@ func (h *Handler) PetEat(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 	if err != nil {
 		return nil, err
 	}
-	useLuckItem := parseBoolArg(args[2])
+	var luckItemID int64
+	hasLuckItem := args[2] != nil
+	if flag, isFlag := args[2].(bool); isFlag {
+		hasLuckItem = flag
+	}
+	if hasLuckItem {
+		luckItemID, err = parseInt64Arg(args[2])
+		if err != nil {
+			return nil, err
+		}
+		if luckItemID <= 0 {
+			return petIllusionFailureResponse("Đá may mắn không hợp lệ"), nil
+		}
+	}
 	luckNum, err := parseIntArg(args[3])
 	if err != nil {
 		luckNum = 0
@@ -41,7 +55,7 @@ func (h *Handler) PetEat(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 	passHash, ok := args[5].(string)
 	if !ok || passHash == "" {
 		h.logger.Warn("PetEat: missing secondary password", zap.Int64("character_id", characterID))
-		return map[string]interface{}{"success": false}, nil
+		return petIllusionFailureResponse("Mật khẩu cấp hai không hợp lệ"), nil
 	}
 
 	if err := rtmputils.VerifySecondaryPassword(ctx.Context, h.accountRepo, ctx.AccountID, passHash); err != nil {
@@ -49,11 +63,14 @@ func (h *Handler) PetEat(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 		if notifyErr := rtmputils.NotifySecondaryPasswordFailure(ctx.Connection); notifyErr != nil {
 			h.logger.Error("PetEat: failed to notify client about secondary password failure", zap.Error(notifyErr))
 		}
-		return map[string]interface{}{"success": false}, nil
+		return petIllusionFailureResponse("Mật khẩu cấp hai không hợp lệ"), nil
 	}
 
-	p, err := h.petService.PetEat(ctx.Context, characterID, mainPetID, costPetID, useLuckItem, luckNum, aptType)
+	result, err := h.petService.PetEat(ctx.Context, characterID, mainPetID, costPetID, luckItemID, luckNum, aptType)
 	if err != nil {
+		if pkgerrors.Is(err, pkgerrors.ErrInvalidInput) {
+			return petIllusionFailureResponse("Pet chính phải khóa và cả hai Pet phải từ phẩm chất tím trở lên"), nil
+		}
 		return rtmp.ErrorToResponse(err), nil
 	}
 
@@ -65,11 +82,32 @@ func (h *Handler) PetEat(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 	if err := rtmputils.CacheSecondaryPassword(ctx.Connection, passHash); err != nil {
 		h.logger.Error("PetEat: failed to sync client password", zap.Error(err))
 	}
+	_ = ctx.Connection.SendCallback("onDelPet", result.ConsumedPetID)
+	if result.Success {
+		_ = ctx.Connection.SendCallback("onUpdatePet", float64(result.Pet.ID), result.PropertyName, result.Value)
+		sendPetPropRefresh(ctx, result.Pet)
+	}
 
+	return petIllusionResponse(result), nil
+}
+
+func petIllusionResponse(result *apppet.PetIllusionResult) map[string]interface{} {
 	return map[string]interface{}{
-		"success": true,
-		"pet":     p.ToDTO(),
-	}, nil
+		"succ":     result.Success,
+		"msg":      result.Message,
+		"costPet":  1,
+		"costItem": result.ConsumedLuckCount,
+		"propName": result.PropertyName,
+		"value":    result.Value,
+		"aptType":  int(result.AptitudeType),
+		"petId":    result.Pet.ID,
+	}
+}
+
+func petIllusionFailureResponse(message string) map[string]interface{} {
+	return map[string]interface{}{
+		"succ": false, "msg": message, "costPet": 0, "costItem": 0,
+	}
 }
 
 func (h *Handler) EnsurePetEat(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {

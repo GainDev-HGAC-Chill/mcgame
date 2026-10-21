@@ -6,9 +6,9 @@ import domaincombat "mcgame-server/internal/domain/combat"
 var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
 	// Tho Baby: each landed magical pulse deals exactly 1 HP damage;
 	// after each pulse another one occurs with 30% chance.
-	5363: rabbitHeartPlan(1),
-	5362: rabbitHeartPlan(2),
-	5361: rabbitHeartPlan(3),
+	5363: rabbitHeartPlan(1, 1.20),
+	5362: rabbitHeartPlan(2, 1.50),
+	5361: rabbitHeartPlan(3, 1.80),
 	// Tho Baby lucky shield. Data buff ID is level-specific.
 	5366: rabbitLuckyShieldPlan(1, .30, 1934),
 	5365: rabbitLuckyShieldPlan(2, .40, 1933),

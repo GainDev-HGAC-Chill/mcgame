@@ -61,6 +61,38 @@ func TestFusePetsSuccessConsumesFourMaterialsAndUpdatesMainOnce(t *testing.T) {
 	}
 }
 
+func TestFusePetsSuccessPromotesBlueMainToPurple(t *testing.T) {
+	repo, service := newFusionTestService(t)
+	for id := int64(1); id <= 5; id++ {
+		p, err := repo.FindByID(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.GrowRate = 1.5
+		if err := repo.Save(context.Background(), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	service.fusionRoll = func(int) bool { return true }
+	service.fusionGrowth = func(minimum, maximum int) int {
+		if minimum != 161 || maximum != 200 {
+			t.Fatalf("growth range=%d..%d, want 161..200", minimum, maximum)
+		}
+		return 195
+	}
+
+	result, err := service.FusePets(context.Background(), 1, 1, []int64{2, 3, 4, 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Success || result.Pet.ID != 1 || result.Pet.GrowRate != 1.95 || domainpet.ColorByGrowRate(result.Pet.GrowRate) != 3 {
+		t.Fatalf("unexpected blue-to-purple result: %+v", result)
+	}
+	if count, _ := repo.Count(context.Background(), 1); count != 1 {
+		t.Fatalf("pet count = %d, want only main pet", count)
+	}
+}
+
 func TestFusePetsRejectsDifferentTemplateOrTierWithoutConsumption(t *testing.T) {
 	for _, mutate := range []func(*domainpet.Pet){
 		func(p *domainpet.Pet) { p.TemplateID = 101 },

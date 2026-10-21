@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"mcgame-server/internal/domain/pet"
+	pkgerrors "mcgame-server/pkg/errors"
 )
 
 type CachedPetRepository struct {
@@ -146,6 +147,37 @@ func (r *CachedPetRepository) ApplyFusion(ctx context.Context, mainPet *pet.Pet,
 		r.deleteColdPet(ctx, characterID, petID)
 	}
 	return nil
+}
+
+func (r *CachedPetRepository) ApplyIllusion(ctx context.Context, mainPet *pet.Pet, consumedPetID, luckItemID int64, luckItemCount int, updateMain bool) (int, error) {
+	illusionRepo, ok := r.delegate.(pet.IllusionRepository)
+	if !ok {
+		return 0, pkgerrors.ErrInvalidInput
+	}
+	if err := r.cache.SavePlayer(ctx, mainPet.CharacterID); err != nil {
+		return 0, err
+	}
+	remainingLuck, err := illusionRepo.ApplyIllusion(ctx, mainPet, consumedPetID, luckItemID, luckItemCount, updateMain)
+	if err != nil {
+		return 0, err
+	}
+	if data := r.cache.GetPlayer(mainPet.CharacterID); data != nil {
+		data.ApplyPersistedPetIllusion(mainPet, consumedPetID, luckItemID, remainingLuck, updateMain)
+	}
+	if updateMain {
+		r.upsertColdPet(ctx, mainPet)
+	}
+	r.deleteColdPet(ctx, mainPet.CharacterID, consumedPetID)
+	if luckItemID > 0 && r.cache.warmLoader != nil {
+		if remainingLuck == 0 {
+			_ = r.cache.warmLoader.DeleteFromRedis(ctx, mainPet.CharacterID)
+		} else if data := r.cache.GetPlayer(mainPet.CharacterID); data != nil {
+			if it := data.GetItem(luckItemID); it != nil {
+				_ = r.cache.warmLoader.UpdateItem(ctx, mainPet.CharacterID, it.ID, it.SlotType, it.SlotIndex)
+			}
+		}
+	}
+	return remainingLuck, nil
 }
 
 func (r *CachedPetRepository) applyFusionFallback(ctx context.Context, mainPet *pet.Pet, consumedPetIDs []int64) error {

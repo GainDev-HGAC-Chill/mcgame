@@ -11,9 +11,9 @@
 | Pet fusion RPC | `internal/presentation/rtmp/handlers/pet/fusion.go` | `PetJoin`, `SeniorPetJoin` | pet service | Callback `onDelPet`, `onUpdatePet` |
 | Pet skill upgrade | `internal/application/pet/skill_upgrade.go`, `handlers/pet/skill_upgrade.go` | `UpgradePetSkill`, `PetUpSkill` | pet/item repos, game data | Flash RPC `petUpSkill(petID, slot)` |
 | Pet battle settings DTO | `internal/domain/pet/pet.go` | `ToDTO` | `Property.pi` | `pi`/`soulInfo` phải có ở wrapper root |
-| Pet DB transaction | `internal/infrastructure/persistence/postgres/pet_repository.go` | `ApplyFusion` | pgx transaction | Cache đổi sau commit |
+| Pet DB transaction/read | `internal/infrastructure/persistence/postgres/pet_repository.go` | `ApplyFusion`, `scanPetRow` | pgx transaction, `SETOF character_pets` | Read tail order là attr/distributed/max/life; cache đổi sau commit |
 | Pet cache | `internal/infrastructure/cache/cached_pet_repo.go` | `ApplyFusion` | `PlayerData` | Không để xóa cache từng phần |
-| Pet cultivation | `internal/application/pet/item_consumption.go` | item-use wrappers | item repo, pet repo | Trừ stack và rollback Pet khi consume lỗi |
+| Pet cultivation/illusion | `internal/application/pet/item_consumption.go`, `pet_illusion.go` | item-use wrappers, `PetEat` | item repo, pet repo, game data | Ảo hóa responder dùng succ/costPet/costItem/propName/value |
 | Pet cultivation RPC | `handlers/pet/enhancement.go`, `fusion.go` | `PetStar`, `PetXsd`, `PetPzXsd`, `PetXd` | pet service | Response + inventory callback |
 | Inventory core | `internal/application/item/service.go` | move/add/consume/sort | item repo, gamedata | SID trong `domain/item/item.go` |
 | Item use | `internal/presentation/rtmp/handlers/item/use.go` | `UseItem` | effect registry | Không giả định mọi item là consumable |

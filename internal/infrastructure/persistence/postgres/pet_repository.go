@@ -11,6 +11,7 @@ import (
 	"errors"
 	"time"
 
+	domainitem "mcgame-server/internal/domain/item"
 	"mcgame-server/internal/domain/pet"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -19,6 +20,10 @@ import (
 
 type PetRepository struct {
 	db *Database
+}
+
+type petRowScanner interface {
+	Scan(dest ...any) error
 }
 
 func NewPetRepository(db *Database) *PetRepository {
@@ -127,32 +132,91 @@ func (r *PetRepository) ApplyFusion(ctx context.Context, mainPet *pet.Pet, consu
 	return nil
 }
 
+func (r *PetRepository) ApplyIllusion(ctx context.Context, mainPet *pet.Pet, consumedPetID, luckItemID int64, luckItemCount int, updateMain bool) (int, error) {
+	if mainPet == nil || consumedPetID <= 0 || luckItemCount < 0 || luckItemCount > 0 && luckItemID <= 0 {
+		return 0, pkgerrors.ErrInvalidInput
+	}
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to begin pet illusion")
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, "select id from player.character_pets where character_id=$1 and id = any($2::bigint[]) order by id for update", mainPet.CharacterID, []int64{mainPet.ID, consumedPetID})
+	if err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to lock illusion pets")
+	}
+	lockedPets := 0
+	for rows.Next() {
+		lockedPets++
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to read locked illusion pets")
+	}
+	if lockedPets != 2 {
+		return 0, pkgerrors.ErrNotFound
+	}
+
+	remainingLuck := 0
+	if luckItemCount > 0 {
+		var currentStack int
+		err = tx.QueryRow(ctx, "select stack_count from player.character_items where id=$1 and character_id=$2 and slot_type=$3 for update", luckItemID, mainPet.CharacterID, domainitem.SlotTypeBag).Scan(&currentStack)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, pkgerrors.ErrItemNotOwned
+		}
+		if err != nil {
+			return 0, pkgerrors.Wrap(err, "failed to lock illusion luck item")
+		}
+		remainingLuck = currentStack - luckItemCount
+		if remainingLuck < 0 {
+			return 0, pkgerrors.ErrInvalidInput
+		}
+	}
+
+	if updateMain {
+		if err := updatePet(ctx, tx, mainPet); err != nil {
+			return 0, err
+		}
+	}
+	var deleted bool
+	if err := tx.QueryRow(ctx, "select player.delete_character_pet($1)", consumedPetID).Scan(&deleted); err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to delete illusion material pet")
+	}
+	if !deleted {
+		return 0, pkgerrors.ErrNotFound
+	}
+	if luckItemCount > 0 {
+		if remainingLuck == 0 {
+			if err := tx.QueryRow(ctx, "select player.delete_character_item($1)", luckItemID).Scan(&deleted); err != nil {
+				return 0, pkgerrors.Wrap(err, "failed to delete illusion luck item")
+			}
+		} else {
+			var updated bool
+			if err := tx.QueryRow(ctx, "select player.update_character_item_stack($1, $2, $3)", luckItemID, remainingLuck, time.Now()).Scan(&updated); err != nil {
+				return 0, pkgerrors.Wrap(err, "failed to update illusion luck item")
+			}
+			deleted = updated
+		}
+		if !deleted {
+			return 0, pkgerrors.ErrItemNotFound
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to commit pet illusion")
+	}
+	return remainingLuck, nil
+}
+
 func (r *PetRepository) FindByID(ctx context.Context, id int64) (*pet.Pet, error) {
 	p := &pet.Pet{}
-	var propertyJSON []byte
-	err := r.db.pool.QueryRow(ctx, "select * from player.get_character_pet_by_id($1)", id).Scan(
-		&p.ID, &p.CharacterID, &p.TemplateID, &p.Name, &p.Level, &p.Experience,
-		&p.AptStrength, &p.AptAgility, &p.AptStamina, &p.AptIntelligence, &p.AptEnergy,
-		&p.AptStrengthEx, &p.AptAgilityEx, &p.AptStaminaEx, &p.AptIntelligenceEx, &p.AptEnergyEx,
-		&p.GrowRate, &p.GrowRateAdd, &p.UpgradeNum, &p.EvolutionLv, &p.Element,
-		&p.CurrentHP, &p.CurrentMP, &p.MaxHP, &p.MaxMP,
-		&p.IsFollowing, &p.IsMounting, &propertyJSON, &p.CreatedAt, &p.UpdatedAt,
-		&p.AttrPoints, &p.MaxAttrPoints, &p.DistributedAttrPoints, &p.Life,
-	)
+	err := scanPetRow(r.db.pool.QueryRow(ctx, "select * from player.get_character_pet_by_id($1)", id), p)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, pkgerrors.ErrNotFound
 		}
 		return nil, pkgerrors.Wrap(err, "failed to find pet by ID")
-	}
-
-	if len(propertyJSON) > 0 {
-		if err := json.Unmarshal(propertyJSON, &p.Property); err != nil {
-			p.Property = make(map[string]interface{})
-		}
-	} else {
-		p.Property = make(map[string]interface{})
 	}
 
 	return p, nil
@@ -170,30 +234,13 @@ func (r *PetRepository) FindByCharacterID(ctx context.Context, characterID int64
 
 func (r *PetRepository) FindFollowingPet(ctx context.Context, characterID int64) (*pet.Pet, error) {
 	p := &pet.Pet{}
-	var propertyJSON []byte
-	err := r.db.pool.QueryRow(ctx, "select * from player.get_following_character_pet($1)", characterID).Scan(
-		&p.ID, &p.CharacterID, &p.TemplateID, &p.Name, &p.Level, &p.Experience,
-		&p.AptStrength, &p.AptAgility, &p.AptStamina, &p.AptIntelligence, &p.AptEnergy,
-		&p.AptStrengthEx, &p.AptAgilityEx, &p.AptStaminaEx, &p.AptIntelligenceEx, &p.AptEnergyEx,
-		&p.GrowRate, &p.GrowRateAdd, &p.UpgradeNum, &p.EvolutionLv, &p.Element,
-		&p.CurrentHP, &p.CurrentMP, &p.MaxHP, &p.MaxMP,
-		&p.IsFollowing, &p.IsMounting, &propertyJSON, &p.CreatedAt, &p.UpdatedAt,
-		&p.AttrPoints, &p.MaxAttrPoints, &p.DistributedAttrPoints, &p.Life,
-	)
+	err := scanPetRow(r.db.pool.QueryRow(ctx, "select * from player.get_following_character_pet($1)", characterID), p)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, pkgerrors.Wrap(err, "failed to find following pet")
-	}
-
-	if len(propertyJSON) > 0 {
-		if err := json.Unmarshal(propertyJSON, &p.Property); err != nil {
-			p.Property = make(map[string]interface{})
-		}
-	} else {
-		p.Property = make(map[string]interface{})
 	}
 
 	return p, nil
@@ -248,30 +295,33 @@ func (r *PetRepository) scanPets(rows pgx.Rows) ([]*pet.Pet, error) {
 	var pets []*pet.Pet
 	for rows.Next() {
 		p := &pet.Pet{}
-		var propertyJSON []byte
-		err := rows.Scan(
-			&p.ID, &p.CharacterID, &p.TemplateID, &p.Name, &p.Level, &p.Experience,
-			&p.AptStrength, &p.AptAgility, &p.AptStamina, &p.AptIntelligence, &p.AptEnergy,
-			&p.AptStrengthEx, &p.AptAgilityEx, &p.AptStaminaEx, &p.AptIntelligenceEx, &p.AptEnergyEx,
-			&p.GrowRate, &p.GrowRateAdd, &p.UpgradeNum, &p.EvolutionLv, &p.Element,
-			&p.CurrentHP, &p.CurrentMP, &p.MaxHP, &p.MaxMP,
-			&p.IsFollowing, &p.IsMounting, &propertyJSON, &p.CreatedAt, &p.UpdatedAt,
-			&p.AttrPoints, &p.MaxAttrPoints, &p.DistributedAttrPoints, &p.Life,
-		)
-		if err != nil {
+		if err := scanPetRow(rows, p); err != nil {
 			return nil, pkgerrors.Wrap(err, "failed to scan pet row")
 		}
-
-		if len(propertyJSON) > 0 {
-			if err := json.Unmarshal(propertyJSON, &p.Property); err != nil {
-				p.Property = make(map[string]interface{})
-			}
-		} else {
-			p.Property = make(map[string]interface{})
-		}
-
 		pets = append(pets, p)
 	}
 
 	return pets, nil
+}
+
+func scanPetRow(scanner petRowScanner, p *pet.Pet) error {
+	var propertyJSON []byte
+	if err := scanner.Scan(
+		&p.ID, &p.CharacterID, &p.TemplateID, &p.Name, &p.Level, &p.Experience,
+		&p.AptStrength, &p.AptAgility, &p.AptStamina, &p.AptIntelligence, &p.AptEnergy,
+		&p.AptStrengthEx, &p.AptAgilityEx, &p.AptStaminaEx, &p.AptIntelligenceEx, &p.AptEnergyEx,
+		&p.GrowRate, &p.GrowRateAdd, &p.UpgradeNum, &p.EvolutionLv, &p.Element,
+		&p.CurrentHP, &p.CurrentMP, &p.MaxHP, &p.MaxMP,
+		&p.IsFollowing, &p.IsMounting, &propertyJSON, &p.CreatedAt, &p.UpdatedAt,
+		&p.AttrPoints, &p.DistributedAttrPoints, &p.MaxAttrPoints, &p.Life,
+	); err != nil {
+		return err
+	}
+	if len(propertyJSON) > 0 {
+		if err := json.Unmarshal(propertyJSON, &p.Property); err == nil {
+			return nil
+		}
+	}
+	p.Property = make(map[string]interface{})
+	return nil
 }
