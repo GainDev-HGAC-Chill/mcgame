@@ -274,12 +274,14 @@ func (h *Handler) PetBook(ctx *rtmp.RPCContext, args []interface{}) (interface{}
 		)
 	}
 
-	_ = ctx.Connection.SendCallback(
-		"onUpdatePet",
-		float64(result.Pet.ID),
-		result.SlotKey,
-		float64(result.SkillID),
-	)
+	for _, update := range result.SlotUpdates {
+		_ = ctx.Connection.SendCallback(
+			"onUpdatePet",
+			float64(result.Pet.ID),
+			update.SlotKey,
+			float64(update.SkillID),
+		)
+	}
 	sendPetPropRefresh(ctx, result.Pet)
 	h.logger.Info("Pet learned skill from book",
 		zap.Int64("character_id", characterID),

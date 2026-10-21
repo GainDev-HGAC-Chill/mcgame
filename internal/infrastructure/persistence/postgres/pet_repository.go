@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	domainitem "mcgame-server/internal/domain/item"
@@ -206,6 +207,100 @@ func (r *PetRepository) ApplyIllusion(ctx context.Context, mainPet *pet.Pet, con
 		return 0, pkgerrors.Wrap(err, "failed to commit pet illusion")
 	}
 	return remainingLuck, nil
+}
+
+func (r *PetRepository) ApplySkillBook(ctx context.Context, mutation pet.SkillBookMutation) (int, error) {
+	if mutation.Pet == nil || mutation.BookItemID <= 0 || mutation.ExpectedBookStack <= 0 || len(mutation.ExpectedSkillSlots) != pet.TotalPetSkillSlots {
+		return 0, pkgerrors.ErrInvalidInput
+	}
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to begin pet skill-book mutation")
+	}
+	defer tx.Rollback(ctx)
+
+	var propertyJSON []byte
+	err = tx.QueryRow(ctx, "select property from player.character_pets where id=$1 and character_id=$2 for update", mutation.Pet.ID, mutation.Pet.CharacterID).Scan(&propertyJSON)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, pkgerrors.ErrNotFound
+	}
+	if err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to lock pet for skill-book mutation")
+	}
+	if !petSkillSnapshotMatches(propertyJSON, mutation.ExpectedSkillSlots) {
+		return 0, pkgerrors.ErrInvalidInput
+	}
+
+	var currentStack int
+	err = tx.QueryRow(ctx, "select stack_count from player.character_items where id=$1 and character_id=$2 for update", mutation.BookItemID, mutation.Pet.CharacterID).Scan(&currentStack)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, pkgerrors.ErrItemNotOwned
+	}
+	if err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to lock pet skill book")
+	}
+	if currentStack != mutation.ExpectedBookStack {
+		return 0, pkgerrors.ErrInvalidInput
+	}
+
+	if err := updatePet(ctx, tx, mutation.Pet); err != nil {
+		return 0, err
+	}
+	remaining := currentStack - 1
+	var changed bool
+	if remaining == 0 {
+		err = tx.QueryRow(ctx, "select player.delete_character_item($1)", mutation.BookItemID).Scan(&changed)
+	} else {
+		err = tx.QueryRow(ctx, "select player.update_character_item_stack($1, $2, $3)", mutation.BookItemID, remaining, time.Now()).Scan(&changed)
+	}
+	if err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to consume pet skill book")
+	}
+	if !changed {
+		return 0, pkgerrors.ErrItemNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to commit pet skill-book mutation")
+	}
+	return remaining, nil
+}
+
+func petSkillSnapshotMatches(propertyJSON []byte, expected []int) bool {
+	var properties map[string]interface{}
+	if len(propertyJSON) == 0 {
+		properties = make(map[string]interface{})
+	} else if err := json.Unmarshal(propertyJSON, &properties); err != nil {
+		return false
+	}
+	for index, expectedSkillID := range expected {
+		slot := index + 1
+		actual := petSkillPropertyValue(properties[fmt.Sprintf("skill%d", slot)], slot)
+		if actual != expectedSkillID {
+			return false
+		}
+	}
+	return true
+}
+
+func petSkillPropertyValue(value interface{}, slot int) int {
+	defaultValue := -1
+	if slot <= 5 {
+		defaultValue = 0
+	}
+	switch typed := value.(type) {
+	case float64:
+		if int(typed) < 0 {
+			return defaultValue
+		}
+		return int(typed)
+	case int:
+		if typed < 0 {
+			return defaultValue
+		}
+		return typed
+	default:
+		return defaultValue
+	}
 }
 
 func (r *PetRepository) FindByID(ctx context.Context, id int64) (*pet.Pet, error) {

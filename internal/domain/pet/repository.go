@@ -27,3 +27,14 @@ type FusionRepository interface {
 type IllusionRepository interface {
 	ApplyIllusion(ctx context.Context, mainPet *Pet, consumedPetID, luckItemID int64, luckItemCount int, updateMain bool) (int, error)
 }
+
+type SkillBookMutation struct {
+	Pet                *Pet
+	BookItemID         int64
+	ExpectedBookStack  int
+	ExpectedSkillSlots []int
+}
+
+type SkillBookRepository interface {
+	ApplySkillBook(ctx context.Context, mutation SkillBookMutation) (int, error)
+}

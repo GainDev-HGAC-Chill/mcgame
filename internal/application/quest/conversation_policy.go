@@ -70,6 +70,7 @@ var reviewedConversationQuests = map[int]conversationQuestSpec{
 	384:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Khảm Nạm Bảo Thạch"},
 	385:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Đục Lỗ Trang Bị"},
 	386:   {QuestType: 1, StartNPC: 274, FinishNPC: 274, Name: "Học Thăng Tinh Thạch"},
+	677:   {QuestType: 1, StartNPC: 600, FinishNPC: 600, Name: "Thăng Cấp Trung Cấp 3-3"},
 	686:   {QuestType: 1, StartNPC: 339, FinishNPC: 339, Name: "Phổ Cập Nghề Nghiệp"}, // Chiến Binh
 	687:   {QuestType: 1, StartNPC: 341, FinishNPC: 341, Name: "Phổ Cập Nghề Nghiệp"}, // Nhạc Công
 	688:   {QuestType: 1, StartNPC: 342, FinishNPC: 342, Name: "Phổ Cập Nghề Nghiệp"}, // Danh Y

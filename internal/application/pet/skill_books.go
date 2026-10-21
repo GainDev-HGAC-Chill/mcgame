@@ -49,14 +49,14 @@ type PetSkillBookResult struct {
 	Slot            int
 	SlotKey         string
 	SkillID         int
+	SlotUpdates     []PetSkillSlotUpdate
 	RemainingStack  int
 	ConsumedItemID  int64
 	ConsumedItemSID int
 }
 
 type petSkillRequirements struct {
-	ClassID int
-	QLevel  int
+	QLevel int
 }
 
 func (s *Service) LearnSkillFromBook(ctx context.Context, charID int64, petID int64, bookItemID int64) (*PetSkillBookResult, error) {
@@ -89,38 +89,43 @@ func (s *Service) LearnSkillFromBook(ctx context.Context, charID int64, petID in
 		return nil, newPetSkillBookError(PetSkillBookFailureBook, remainingStack, nil)
 	}
 
+	ensurePetSkillSlots(p)
 	skillTemplate := s.resolvePetSkillBookSkill(bookTemplate)
-	if skillTemplate == nil {
-		return nil, newPetSkillBookError(PetSkillBookFailureBook, remainingStack, nil)
-	}
-
-	if !s.petCanLearnSkillTemplate(p, skillTemplate) {
-		return nil, newPetSkillBookError(PetSkillBookFailureBook, remainingStack, nil)
-	}
-
-	slot, ok := firstAvailablePetSkillSlot(p)
-	if !ok || s.petHasConflictingSkill(p, skillTemplate) {
-		return nil, newPetSkillBookError(PetSkillBookFailureLearn, remainingStack, nil)
+	var slotUpdates []PetSkillSlotUpdate
+	if superSpec, isSuper := petSuperSkillBooks[bookTemplate.GetID()]; isSuper {
+		skillTemplate = s.validatePetSuperSkillBookCatalog(bookTemplate, superSpec)
+		if skillTemplate == nil || !s.petCanUseSuperSkillBook(p, bookTemplate) {
+			return nil, newPetSkillBookError(PetSkillBookFailureBook, remainingStack, nil)
+		}
+		var ok bool
+		slotUpdates, ok = petSuperSkillSlotUpdates(p, superSpec)
+		if !ok {
+			return nil, newPetSkillBookError(PetSkillBookFailureLearn, remainingStack, nil)
+		}
+	} else {
+		if skillTemplate == nil {
+			return nil, newPetSkillBookError(PetSkillBookFailureBook, remainingStack, nil)
+		}
+		if !s.petCanLearnSkillTemplate(p, skillTemplate) {
+			return nil, newPetSkillBookError(PetSkillBookFailureBook, remainingStack, nil)
+		}
+		slot, ok := firstAvailablePetSkillSlot(p)
+		if !ok || s.petHasConflictingSkill(p, skillTemplate) {
+			return nil, newPetSkillBookError(PetSkillBookFailureLearn, remainingStack, nil)
+		}
+		slotUpdates = []PetSkillSlotUpdate{{Slot: slot, SlotKey: petSkillSlotKey(slot), SkillID: skillTemplate.GetID()}}
 	}
 
 	originalPet := clonePetSnapshot(p)
-	setPetSkillSlotValue(p, slot, skillTemplate.GetID())
+	for _, update := range slotUpdates {
+		setPetSkillSlotValue(p, update.Slot, update.SkillID)
+	}
 	s.syncPetSkillBonuses(p)
 	p.RecalculateStats()
 
-	if err := s.petRepo.Save(ctx, p); err != nil {
-		return nil, err
-	}
 	consumedItemSID := bookItem.CalculateSID()
-	remainingStack, err = s.consumePetSkillBookItem(ctx, bookItem)
+	remainingStack, err = s.persistPetSkillBook(ctx, originalPet, p, bookItem)
 	if err != nil {
-		if rollbackErr := s.petRepo.Save(ctx, originalPet); rollbackErr != nil && s.logger != nil {
-			s.logger.Error("Failed to rollback pet after petBook consume error",
-				zap.Int64("character_id", charID),
-				zap.Int64("pet_id", petID),
-				zap.Int64("item_id", bookItemID),
-				zap.Error(rollbackErr))
-		}
 		return nil, err
 	}
 
@@ -129,13 +134,16 @@ func (s *Service) LearnSkillFromBook(ctx context.Context, charID int64, petID in
 		zap.Int64("pet_id", petID),
 		zap.Int64("skill_book_item_id", bookItemID),
 		zap.Int("skill_id", skillTemplate.GetID()),
-		zap.Int("slot", slot))
+		zap.Ints("slots", petSkillUpdateSlots(slotUpdates)))
+
+	primaryUpdate := slotUpdates[0]
 
 	return &PetSkillBookResult{
 		Pet:             p,
-		Slot:            slot,
-		SlotKey:         petSkillSlotKey(slot),
+		Slot:            primaryUpdate.Slot,
+		SlotKey:         primaryUpdate.SlotKey,
 		SkillID:         skillTemplate.GetID(),
+		SlotUpdates:     slotUpdates,
 		RemainingStack:  remainingStack,
 		ConsumedItemID:  bookItem.ID,
 		ConsumedItemSID: consumedItemSID,
@@ -162,6 +170,7 @@ func (s *Service) syncPetSkillBonuses(p *domainpet.Pet) {
 			continue
 		}
 		addPetPotentialSkillBonuses(&bonuses, skillID, p.GrowRate+p.GrowRateAdd)
+		addPetEnergySkillBonuses(&bonuses, skillID)
 		if int(skill.BuffID) <= 0 {
 			continue
 		}
@@ -215,6 +224,9 @@ func (s *Service) petHasConflictingSkill(p *domainpet.Pet, learnedSkill *models.
 	if p == nil || learnedSkill == nil {
 		return true
 	}
+	if s.petHasSuperSkillForOrdinary(p, learnedSkill) {
+		return true
+	}
 
 	for slot := 1; slot <= domainpet.TotalPetSkillSlots; slot++ {
 		existingSkillID := petSkillSlotValue(p, slot)
@@ -244,6 +256,14 @@ func (s *Service) petHasConflictingSkill(p *domainpet.Pet, learnedSkill *models.
 	return false
 }
 
+func petSkillUpdateSlots(updates []PetSkillSlotUpdate) []int {
+	slots := make([]int, 0, len(updates))
+	for _, update := range updates {
+		slots = append(slots, update.Slot)
+	}
+	return slots
+}
+
 func skillTemplateConflicts(skill *models.SkillTemplate, target *models.SkillTemplate) bool {
 	if skill == nil || target == nil || skill.ScriptReqL == "" {
 		return false
@@ -260,16 +280,23 @@ func (s *Service) resolvePetSkillBookSkill(bookTemplate *models.ItemTemplateTemp
 	if s == nil || s.gameDataManager == nil || bookTemplate == nil {
 		return nil
 	}
+	return resolvePetSkillBookSkillFromCatalog(bookTemplate, s.gameDataManager.GetAllSkills(), s.gameDataManager.GetSkill)
+}
 
-	if bookTemplate.SkillID > 0 {
-		if skill := s.gameDataManager.GetSkill(int(bookTemplate.SkillID)); skill != nil {
+func resolvePetSkillBookSkillFromCatalog(bookTemplate *models.ItemTemplateTemplate, skills []*models.SkillTemplate, getSkill func(int) *models.SkillTemplate) *models.SkillTemplate {
+	if bookTemplate == nil {
+		return nil
+	}
+
+	if bookTemplate.SkillID > 0 && getSkill != nil {
+		if skill := getSkill(int(bookTemplate.SkillID)); skill != nil {
 			return skill
 		}
 	}
 
 	var selected *models.SkillTemplate
 	ambiguous := false
-	for _, skill := range s.gameDataManager.GetAllSkills() {
+	for _, skill := range skills {
 		if skill == nil || skill.Name != bookTemplate.Name || !isPetSkillUseEnvironment(int(skill.UseEnv)) || int(skill.Level) < 1 {
 			continue
 		}
@@ -298,9 +325,6 @@ func (s *Service) petCanLearnSkillTemplate(p *domainpet.Pet, skill *models.Skill
 	}
 
 	requirements := parsePetSkillRequirements(skill)
-	if requirements.ClassID > 0 && s.petSkillClassID(p) != requirements.ClassID {
-		return false
-	}
 	if requirements.QLevel > 0 && s.petSkillQualityLevel(p) < requirements.QLevel {
 		return false
 	}
@@ -331,11 +355,6 @@ func parsePetSkillRequirements(skill *models.SkillTemplate) petSkillRequirements
 	}
 
 	parts := strings.Split(skill.CreKind, "|")
-	if len(parts) > 0 {
-		if classID, ok := parsePetSkillRequirementPart(parts[0]); ok {
-			requirements.ClassID = classID
-		}
-	}
 	if len(parts) > 1 {
 		if qLevel, ok := parsePetSkillRequirementPart(parts[1]); ok {
 			requirements.QLevel = qLevel

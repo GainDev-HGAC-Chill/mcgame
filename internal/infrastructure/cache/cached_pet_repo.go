@@ -8,6 +8,7 @@ package cache
 import (
 	"context"
 
+	"mcgame-server/internal/domain/item"
 	"mcgame-server/internal/domain/pet"
 	pkgerrors "mcgame-server/pkg/errors"
 )
@@ -178,6 +179,44 @@ func (r *CachedPetRepository) ApplyIllusion(ctx context.Context, mainPet *pet.Pe
 		}
 	}
 	return remainingLuck, nil
+}
+
+func (r *CachedPetRepository) ApplySkillBook(ctx context.Context, mutation pet.SkillBookMutation) (int, error) {
+	repo, ok := r.delegate.(pet.SkillBookRepository)
+	if !ok || mutation.Pet == nil {
+		return 0, pkgerrors.ErrInvalidInput
+	}
+	if err := r.cache.SavePlayer(ctx, mutation.Pet.CharacterID); err != nil {
+		return 0, err
+	}
+	var bookSlotType int
+	var bookSlotIndex int
+	bookFound := false
+	if data := r.cache.GetPlayer(mutation.Pet.CharacterID); data != nil {
+		if book := data.GetItem(mutation.BookItemID); book != nil {
+			bookSlotType = int(book.SlotType)
+			bookSlotIndex = book.SlotIndex
+			bookFound = true
+		}
+	}
+	remaining, err := repo.ApplySkillBook(ctx, mutation)
+	if err != nil {
+		return 0, err
+	}
+	if data := r.cache.GetPlayer(mutation.Pet.CharacterID); data != nil {
+		data.ApplyPersistedPetSkillBook(mutation.Pet, mutation.BookItemID, remaining)
+	}
+	r.upsertColdPet(ctx, mutation.Pet)
+	if r.cache.warmLoader != nil {
+		if !bookFound {
+			_ = r.cache.warmLoader.DeleteFromRedis(ctx, mutation.Pet.CharacterID)
+		} else if remaining == 0 {
+			_ = r.cache.warmLoader.UpdateItem(ctx, mutation.Pet.CharacterID, 0, item.SlotType(bookSlotType), bookSlotIndex)
+		} else {
+			_ = r.cache.warmLoader.UpdateItem(ctx, mutation.Pet.CharacterID, mutation.BookItemID, item.SlotType(bookSlotType), bookSlotIndex)
+		}
+	}
+	return remaining, nil
 }
 
 func (r *CachedPetRepository) applyFusionFallback(ctx context.Context, mainPet *pet.Pet, consumedPetIDs []int64) error {

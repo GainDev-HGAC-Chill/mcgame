@@ -892,6 +892,8 @@ func mergePetEquipmentBonuses(base, extra domainpet.EquipmentStatBonuses) domain
 
 func mergePetSkillBonuses(base, extra domainpet.SkillStatBonuses) domainpet.SkillStatBonuses {
 	merged := domainpet.NewSkillStatBonuses()
+	merged.AddEnergyMagicAttackPerPoint(base.EnergyMagicAttackPerPoint)
+	merged.AddEnergyMagicAttackPerPoint(extra.EnergyMagicAttackPerPoint)
 	for propType, value := range base.Direct {
 		merged.AddDirect(propType, value)
 	}

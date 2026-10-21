@@ -70,3 +70,80 @@ func TestDiHinhHoanViFailedRollExpiresPreviousResistance(t *testing.T) {
 		t.Fatalf("expired debuff resistance = %d, want 0", got)
 	}
 }
+
+func TestDaKhangTinhCatalogAndGuaranteedCleanse(t *testing.T) {
+	want := map[int]float64{3808: .50, 3812: .75, 3813: 1}
+	for skillID, chance := range want {
+		if got := daKhangTinhLevels[skillID]; got != chance {
+			t.Fatalf("skill %d chance = %.2f, want %.2f", skillID, got, chance)
+		}
+	}
+	battle, actor, _ := planTestBattle()
+	actor.SkillIDs[3813] = true
+	battle.StatusManager.AddEffect(actor.ID, &StatusEffect{Family: "poison", BuffID: 936, Duration: 3, Polarity: PolarityHarmful, Removable: true, Periodic: &PeriodicEffect{Damage: true, Fixed: 25}})
+	battle.StatusManager.AddEffect(actor.ID, &StatusEffect{Family: "locked", BuffID: 999, Duration: 3, Polarity: PolarityHarmful, Removable: false})
+	processor := NewTurnProcessor(battle, nil)
+	removed, buffID := processor.activateDaKhangTinh(actor)
+	if !removed || buffID != 936 {
+		t.Fatalf("cleanse = %v/%d, want true/936", removed, buffID)
+	}
+	if result := battle.StatusManager.ProcessTurnStart(actor.ID, actor); result.DamageTaken != 0 {
+		t.Fatalf("cleansed debuff dealt %d damage", result.DamageTaken)
+	}
+	if effects := battle.StatusManager.GetEffects(actor.ID); len(effects) != 1 || effects[0].Family != "locked" {
+		t.Fatalf("remaining effects = %#v", effects)
+	}
+}
+
+func TestDaKhangTinhFailedRollLeavesDebuff(t *testing.T) {
+	battle, actor, _ := planTestBattle()
+	actor.SkillIDs[3808] = true
+	battle.StatusManager.AddEffect(actor.ID, &StatusEffect{Family: "slow", BuffID: 497, Duration: 3, Polarity: PolarityHarmful, Removable: true})
+	processor := NewTurnProcessor(battle, nil)
+	processor.rng = rand.New(rand.NewSource(1))
+	if removed, _ := processor.activateDaKhangTinh(actor); removed {
+		t.Fatal("level-1 Da Kháng Tính unexpectedly cleansed on failed roll")
+	}
+	if effects := battle.StatusManager.GetEffects(actor.ID); len(effects) != 1 {
+		t.Fatalf("effects after failed roll = %#v", effects)
+	}
+}
+
+func TestCanVeThanhNuCreatesAndRefreshesShieldWithIcon(t *testing.T) {
+	want := map[int]canVeThanhNuLevel{
+		3848: {ratio: .50, buffID: 2015},
+		3849: {ratio: .75, buffID: 2014},
+		3850: {ratio: 1, buffID: 2013},
+	}
+	for skillID, expected := range want {
+		if got := canVeThanhNuLevels[skillID]; got != expected {
+			t.Fatalf("skill %d level = %#v, want %#v", skillID, got, expected)
+		}
+	}
+	battle, actor, _ := planTestBattle()
+	actor.MaxMP = 200
+	actor.SkillIDs[3848] = true
+	processor := NewTurnProcessor(battle, nil)
+	actions := processor.activatePetTurnStartPassives(actor)
+	if len(actions) != 1 {
+		t.Fatalf("turn-start actions = %#v", actions)
+	}
+	add, ok := actions[0].SourceState["buffAdd"].(map[string]interface{})
+	if !ok || add["id"] != 2015 {
+		t.Fatalf("buffAdd = %#v, want 2015", actions[0].SourceState["buffAdd"])
+	}
+	effects := battle.StatusManager.GetEffects(actor.ID)
+	if len(effects) != 1 || effects[0].Shield == nil || effects[0].Shield.Pool != 100 || effects[0].Shield.Hits != 3 || effects[0].BuffID != 2015 {
+		t.Fatalf("shield effect = %#v", effects)
+	}
+	if damage := battle.StatusManager.ApplyDamage(actor.ID, 60, false); damage != 0 {
+		t.Fatalf("shielded damage = %d, want 0", damage)
+	}
+	if buffID := processor.activateCanVeThanhNu(actor); buffID != 2015 {
+		t.Fatalf("refresh buff ID = %d, want 2015", buffID)
+	}
+	effects = battle.StatusManager.GetEffects(actor.ID)
+	if len(effects) != 1 || effects[0].Shield.Pool != 100 || effects[0].Shield.Hits != 3 {
+		t.Fatalf("refreshed shield = %#v", effects)
+	}
+}

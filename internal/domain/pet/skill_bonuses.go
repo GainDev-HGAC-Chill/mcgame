@@ -14,8 +14,9 @@ const (
 )
 
 type SkillStatBonuses struct {
-	Scaled map[int]float64
-	Direct map[int]float64
+	Scaled                    map[int]float64
+	Direct                    map[int]float64
+	EnergyMagicAttackPerPoint float64
 }
 
 func NewSkillStatBonuses() SkillStatBonuses {
@@ -45,8 +46,15 @@ func (b *SkillStatBonuses) AddDirect(propID int, value float64) {
 	b.Direct[propID] += value
 }
 
+func (b *SkillStatBonuses) AddEnergyMagicAttackPerPoint(value float64) {
+	if b == nil || value == 0 {
+		return
+	}
+	b.EnergyMagicAttackPerPoint += value
+}
+
 func (b SkillStatBonuses) IsZero() bool {
-	return len(b.Scaled) == 0 && len(b.Direct) == 0
+	return len(b.Scaled) == 0 && len(b.Direct) == 0 && b.EnergyMagicAttackPerPoint == 0
 }
 
 func (p *Pet) SetSkillBonuses(bonuses SkillStatBonuses) {
@@ -74,7 +82,8 @@ func (p *Pet) applySkillBonuses() {
 	p.Property["finalHp"] = p.MaxHP
 	p.Property["finalMp"] = p.MaxMP
 	p.Property["finalAttack"] = applySkillScaledBonus(petCombatStatIntValue(p.Property, "finalAttack"), p.skillBonuses.Direct[4], p.skillBonuses.Scaled[4])
-	p.Property["finalMAttack"] = applySkillScaledBonus(petCombatStatIntValue(p.Property, "finalMAttack"), p.skillBonuses.Direct[5], p.skillBonuses.Scaled[5])
+	magicAttackScale := p.skillBonuses.Scaled[5] + petStatNumberValue(p.Property["finalEnergy"])*p.skillBonuses.EnergyMagicAttackPerPoint
+	p.Property["finalMAttack"] = applySkillScaledBonus(petCombatStatIntValue(p.Property, "finalMAttack"), p.skillBonuses.Direct[5], magicAttackScale)
 	p.Property["finalDefence"] = applySkillScaledBonus(petCombatStatIntValue(p.Property, "finalDefence"), p.skillBonuses.Direct[6], p.skillBonuses.Scaled[6])
 	p.Property["finalMDefence"] = applySkillScaledBonus(petCombatStatIntValue(p.Property, "finalMDefence"), p.skillBonuses.Direct[7], p.skillBonuses.Scaled[7])
 	p.Property["finalHit"] = applySkillScaledBonus(petCombatStatIntValue(p.Property, "finalHit"), p.skillBonuses.Direct[8], p.skillBonuses.Scaled[8])

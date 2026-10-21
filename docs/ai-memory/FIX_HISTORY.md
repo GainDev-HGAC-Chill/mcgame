@@ -1,5 +1,41 @@
 # MCGame Fix History
 
+## FIX-2026-10-21-07 — Học kỹ năng Pet Siêu Cấp
+
+- Contract: đối chiếu bài chính thức `4000.html`, Flash và catalog. Giữ RPC `petBook(petId, bookItemInstanceId)`/responder `f,rf,n`; 11 sách exact `3216..3226`. Ghi đè lưu ý legacy “lấy cấp thấp nhất” theo yêu cầu operator: phải có đủ Sơ/Trung/Cao cùng family ở cấp 3 và kết quả luôn Super cấp 1.
+- Sửa gameplay: exact matrix 33 prerequisite level-3 → 11 Super level-1; không cần ô trống. Slot prerequisite có index nhỏ nhất được thay bằng Super, hai slot còn lại clear `0`, unrelated/locked slot giữ nguyên. Pet đã có bất kỳ level Super nào không thể học lại Sơ/Trung/Cao cùng family. Super book kiểm tra `qLevel>=3` và item `reqClass` bằng creature `classId`, không dùng `classIds` hay family segment `creKind` làm class gate.
+- Sửa atomicity: PostgreSQL khóa/revalidate Pet ownership + exact 15-slot snapshot và book ownership/stack, sau đó update Pet và decrement/delete sách trong cùng transaction. Cache chỉ cập nhật Pet và book sau commit. Handler phát inventory callback → ba `onUpdatePet` tăng dần → một property refresh.
+- Test: catalog invariant khóa đủ 11 item, 33 prerequisite và 33 Super chain; regression no-empty-slot, deterministic slot, missing/wrong-level/duplicate/already-Super, lower-tier lockout, quality/classId, atomic failure và cache-after-commit PASS. Focused application Pet/PostgreSQL/cache/Pet handler, full affected domain/application Pet+combat và Pet/combat handler, targeted vet, Windows/Linux gameserver builds và repository-wide diff-check đều PASS.
+- Trạng thái: IMPLEMENTED/VERIFIED — chưa restart/deploy/live-test, không dùng Pet/sách thật, không mutate schema/seed/player data, không commit hoặc push.
+
+## FIX-2026-10-21-06 — Sách Pet sai class và Cận Vệ Thánh Nữ không hoạt động
+
+- Root cause sách: resolver tên hoạt động đúng, nhưng eligibility hiểu sai `creKind=family|minimumQLevel` thành class gate. Live log/image mới ghi nhận bốn lần `petBook` trên Pet 278; DB read-only cho thấy Thỏ Baby này là `classIds=10,qLevel=3` nhưng đã sở hữu Trí Tuệ Thiên Nhiên family `1`, nên segment đầu không thể khóa class.
+- Fix: petBook bỏ family/class gate và chỉ kiểm tra minimum qLevel ở segment hai. Mocked end-to-end learn trên Pet `classIds=10,qLevel=3` xác nhận Báo Chi Tấn Tiệp 1382→2741, Cổ Long Chi Hồn 1377→2820, Cổ Long Trung Cấp 1389→3352, Ngạnh Xác Hóa 1378→2696, Ngạnh Xác Trung Cấp 1390→3355, Vẻ Ngoài Yếu Ớt 1379→2841 và Thụ Bì Ngoại Sáo 1374→2825.
+- Audit toàn catalog: 199 item `type=506,useType=2`; 154 exact-name row resolve duy nhất và pass quality eligibility; zero ambiguity/missing direct ID; 45 container/random/test/special/localized rows giữ fail-closed. Chi tiết tại `docs/research/2026-10-21_02_PET_SKILL_BOOK_CATALOG_AUDIT.md`.
+- Cận Vệ Thánh Nữ: ownership 3848/3849/3850 nay tạo lại shield trước mỗi lượt, pool 50/75/100% MaxMP, ba hit, buff 2015/2014/2013 và phát `buffAdd` để Flash hiện icon. Chọn semantics mỗi lượt theo seed, không dùng forum “ba lượt đầu” đang mâu thuẫn.
+- Test: full affected domain Pet/combat, application Pet/combat và Pet/combat handler PASS; targeted vet, Windows/Linux gameserver builds và diff-check PASS. Không dùng sách/Pet/item thật hoặc mutate DB; runtime/DB chỉ đọc. Correction cuối chưa được rebuild/restart vào container đang chạy.
+- Trạng thái: CODE_FIXED — chờ deploy và Flash smoke-test nếu người dùng cho phép.
+
+## FIX-2026-10-21-05 — Mở rộng skill Pet theo audit KingGame
+
+- Research: đối chiếu bài KingGame 2012 với Flash, `TBL_SKILL`, `TBL_BUFF` và runtime. Flash xác nhận chỉ gửi một target `tid`; server phải tự xử lý AoE, multi-hit, proc, status và passive. Forum chỉ bổ sung bằng chứng, không tự động ghi đè seed hay quyết định đã duyệt.
+- Active skill: thêm exact plan cho 28 template/10 family đang rơi về legacy: Cao Tần Long Hống Trung Cấp, Đột Thích Xung Phong, Kích Trạng Loạn Tâm, Lạc Thạch Vẫn Tinh, Mê Tâm, Phản Ứng Trì Độn, Táng Thần Quần Thể, Trào Phúng Quần Thể, Uy Nhiếp Ý Chí và Thạch Hóa Công Kích level 1. Mọi target/coefficient/chance/duration/buff/rest dùng exact seed đã corroborate.
+- Runtime: planned Stone dùng `StatusStone` + buff 299, chặn action/skill, chịu generic debuff resistance và giải/icon lifecycle chuẩn. Da Kháng Tính 3808/3812/3813 cleanse một harmful removable trước tick với 50/75/100%. Cân Bằng Chi Thược 3763/3771/3772 tăng MagicAttack theo finalEnergy × 0.05/0.10/0.15%, không compound khi refresh. HoT Tự Nhiên Thuẫn Đơn Thể sửa 65/65/65 thành 25/45/65%, giữ defense/target seed.
+- Fail-closed: không đoán Cận Vệ Thánh Nữ, Cung Chúc Tân Hỷ, Phản Xạ, Sủng Vật Hiệp Hộ, Thích Vũ, Tiếng Sét Phẫn Nộ hoặc level không có seed. NĐTT cấp 1 giữ seed 120% theo plan người dùng duyệt.
+- Test: exact-plan/stone/cleanse/Energy-idempotence/HoT regressions PASS; full affected combat/Pet/handler tests, targeted vet, Windows/Linux build PASS; diff-check sạch ngoài cảnh báo LF→CRLF. Chưa restart/deploy/live-test, mutate dữ liệu, commit hoặc push.
+- Trạng thái: CODE_FIXED — chờ deploy và Flash smoke-test riêng nếu người dùng cho phép.
+
+## FIX-2026-10-21-04 — Nhịp Đập Trái Tim luôn gây 1 damage
+
+- Root cause: exact plan 5363/5362/5361 khai báo coefficient chung 1.0, nhưng special chain executor còn bỏ qua plan và gọi trực tiếp `applyDamage(target, 1, true)`, nên mỗi pulse luôn chỉ trừ đúng một HP.
+- Sửa: exact coefficient theo mô tả là 1.20/1.50/1.80 MagicAttack; mỗi pulse dùng `applyPlannedDamage`, vốn đã xử lý defense/critical/shield/playback/reflection. Xóa phần reflection cũ để không phản đòn hai lần.
+- Follow-up semantics ban đầu đã bị sửa theo xác nhận người dùng: mỗi proc phát lại cùng NĐTT; nếu target còn sống thì tiếp tục target đó, nếu target chết thì chọn enemy sống khác. Chuỗi chỉ dừng khi roll Combo thất bại, hết enemy hoặc chạm cap cấp 1/2/3 là 5/10/15 cast. Mỗi pulse tăng thêm 0.20 MagicAttack coefficient và damage thành công được giữ tăng nghiêm ngặt; separator ngăn Flash gộp các pulse retarget thành AoE. `Thuốc Kích Thích` đổi từ owner character sang `TargetSelf`, nên HP cost và buff đều áp trên Pet caster.
+- Correction sau runtime: log 11:52–11:53 chỉ có một cast NĐTT mỗi lượt. Plan cũ roll `30%` cố định nên không dùng thuộc tính Combo và buff Thuốc Kích Thích không thể ảnh hưởng. NĐTT nay lấy effective Pet Combo theo điểm phần trăm (`Combo/100`), gồm buff battle-local; MP chỉ trả một lần. Cap trung gian 11 cast đã được contract cuối thay bằng 5/10/15 theo cấp.
+- Test: regression exact plan, runtime damage >1, Combo 0/100, stimulant +30%, repeated same-skill/same-target chain, distinct Flash playback và MP một lần PASS; full domain/application combat + combat handler PASS; targeted vet, Windows build và Linux `CGO_ENABLED=0` build PASS.
+- Live evidence 12:09–12:12 trước correction cuối: Pet 278 có `finalCombo=79`; mọi NĐTT thử nghiệm one-shot target rồi phát `bid=10120`. Logic dừng-on-kill lúc đó trái contract cuối cùng và nay đã được thay bằng roll rồi retarget enemy sống.
+- Trạng thái: CODE_FIXED — regression retarget, tăng damage, cap, playback và one-MP-cost PASS; bản correction cuối chưa restart/deploy/live-test.
+
 ## FIX-2026-10-21-03 — Ảo hóa, học skill và xác nhận dung hợp Pet
 
 - Ảo hóa: runtime `petEat(278,364,1906,5,2,...)` đã xóa Pet phụ và cộng Xảo nhưng handler trả `{success,pet}`, trong khi Flash chỉ đọc `succ/costPet/costItem/propName/value/msg`; item ID 1906 còn bị parse thành bool nên đá không được validate/consume. Sửa exact responder/callback, parse item instance, rate theo code Flash, tiêu Pet phụ + đá ở cả success/failure và ledger thay riêng bonus ảo hóa mà không xóa bonus khác. Pet dưới tím hoặc Pet chính chưa khóa nay bị chặn trước tiêu hao với thông báo panel. Final review thay compensation không đầy đủ bằng transaction khóa/cập nhật Pet chính, xóa Pet phụ và trừ/xóa đá atomically; cache chỉ đồng bộ sau commit.

@@ -32,8 +32,8 @@ func (tp *TurnProcessor) executeSkillPlan(actor *Participant, cmd *BattleCommand
 	if info.Template.Cooldown > 0 {
 		tp.startSkillCooldown(actor.ID, cmd.SkillID, info.Template.Cooldown)
 	}
-	if plan.ChainChance > 0 && isRabbitHeartSkill(cmd.SkillID) {
-		return tp.executeRabbitHeartChain(actor, cmd, info, targets[0], plan.ChainChance)
+	if plan.ComboChain && isRabbitHeartSkill(cmd.SkillID) {
+		return tp.executeRabbitHeartChain(actor, cmd, info, targets[0])
 	}
 	actions := make([]*BattleAction, 0, len(targets)*2+1)
 	killedTarget := false
@@ -270,6 +270,9 @@ func (tp *TurnProcessor) applyPlannedDamage(actor, target *Participant, skillID 
 		if !result.IsMiss {
 			// True damage is calculated from attack, independent of target defense.
 			result.Damage += petTrueDamageBonus(effectiveActor, effect, tp.rng.Float64())
+			if result.Damage < effect.MinimumDamage {
+				result.Damage = effect.MinimumDamage
+			}
 			result.Damage = tp.applyDamage(target, result.Damage, effect.Kind == EffectMagicDamage)
 		}
 		action := tp.damageAction(actor, target, skillID, tpl, result.Damage, result.IsCritical, result.IsMiss, before)
@@ -314,7 +317,9 @@ func (tp *TurnProcessor) addPlannedStatus(actor, target *Participant, skillID in
 	}
 	power := periodicBasisValue(tp.statusManager.EffectiveParticipant(basis), effect.Periodic)
 	statusType := StatusNormal
-	if effect.Control.Sleep {
+	if effect.Control.Stone {
+		statusType = StatusStone
+	} else if effect.Control.Sleep {
 		statusType = StatusSleep
 	} else if effect.Control.Confusion {
 		statusType = StatusConfusion
@@ -394,29 +399,54 @@ func isRabbitHeartSkill(id int) bool {
 	return id == 5363 || id == 5362 || id == 5361
 }
 
-// Each hit independently rolls for another hit; there is no gameplay combo cap.
-// A successful strike is resolved as magical damage, including shields/resistance.
-func (tp *TurnProcessor) executeRabbitHeartChain(actor *Participant, cmd *BattleCommand, info *SkillInfo, target *Participant, chance float64) []*BattleAction {
+func (tp *TurnProcessor) executeRabbitHeartChain(actor *Participant, cmd *BattleCommand, info *SkillInfo, target *Participant) []*BattleAction {
 	actions := make([]*BattleAction, 0, 8)
-	for target != nil {
-		if !target.IsAlive {
-			target = SelectRandomTarget(tp.battle, getOppositeSide(actor.Side))
-			if target == nil {
-				break
-			}
-		}
+	chance := tp.rabbitHeartComboChance(actor)
+	maxCasts := max(1, info.Plan.ComboChainMaxCasts)
+	previousDamage := 0
+	resolver := NewTargetResolverWithRNG(tp.battle, tp.rng)
+	for cast := 0; cast < maxCasts && target != nil; cast++ {
 		effect := info.Plan.Effects[0]
+		effect.Coefficient += float64(cast) * info.Plan.ComboChainDamageStep
+		if previousDamage > 0 {
+			effect.MinimumDamage = previousDamage + 1
+		}
 		hitActions := tp.applyPlannedDamage(actor, target, cmd.SkillID, info.Template, effect)
 		actions = append(actions, hitActions...)
-		if dealt > 0 {
-			actions = append(actions, tp.petReflectActions(actor, target, dealt)...)
+		if damage := plannedSkillDamage(hitActions, cmd.SkillID); damage > 0 {
+			previousDamage = damage
 		}
-		if tp.rng.Float64() >= chance {
+		if cast+1 >= maxCasts || tp.rng.Float64() >= chance {
 			break
 		}
+		if !target.IsAlive {
+			targets := resolver.ResolveTargets(actor, "", TargetRandomEnemy, AreaNone, 1)
+			if len(targets) == 0 {
+				break
+			}
+			target = targets[0]
+		}
+		actions = append(actions, &BattleAction{Round: tp.battle.CurrentRound, ActorID: actor.ID, ActorPosition: actor.Position, TargetID: actor.ID, TargetPosition: actor.Position, ActionType: ActionTypeAuto, Effects: []string{"skip"}})
 	}
 	if shouldTurnBackAfterStationarySkill(info.Template, false) {
 		actions = append(actions, buildTurnBackAction(tp.battle.CurrentRound, actor))
 	}
 	return actions
+}
+
+func plannedSkillDamage(actions []*BattleAction, skillID int) int {
+	for _, action := range actions {
+		if action != nil && action.ActionType == ActionTypeSkill && action.SkillID == skillID && !action.IsMiss {
+			return action.Damage
+		}
+	}
+	return 0
+}
+
+func (tp *TurnProcessor) rabbitHeartComboChance(actor *Participant) float64 {
+	effective := tp.statusManager.EffectiveParticipant(actor)
+	if effective == nil {
+		return 0
+	}
+	return clampFloat(float64(effective.Combo)/100, 0, 1)
 }

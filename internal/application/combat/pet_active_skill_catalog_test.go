@@ -147,7 +147,28 @@ func TestBachBienTrungKichExactTemplateDamagePlans(t *testing.T) {
 	}
 }
 
+func TestNhipDapTraiTimExactTemplateDamagePlans(t *testing.T) {
+	want := map[int]float64{5363: 1.20, 5362: 1.50, 5361: 1.80}
+	wantMax := map[int]int{5363: 5, 5362: 10, 5361: 15}
+	for id, coefficient := range want {
+		plan := petActiveSkillPlanByTemplateID(id)
+		if plan == nil || !plan.ComboChain || plan.ComboChainMaxCasts != wantMax[id] || plan.ComboChainDamageStep != .20 || len(plan.Effects) != 1 {
+			t.Fatalf("template %d plan = %#v", id, plan)
+		}
+		effect := plan.Effects[0]
+		if effect.Kind != domaincombat.EffectMagicDamage || effect.Coefficient != coefficient {
+			t.Fatalf("template %d effect = %#v, want magic coefficient %.2f", id, effect, coefficient)
+		}
+	}
+}
+
 func TestSpecialPetSupportSkillPlans(t *testing.T) {
+	for level := 1; level <= 3; level++ {
+		plan := petActiveSkillPlan("Thuốc Kích Thích", level)
+		if plan == nil || plan.Target != domaincombat.TargetSelf || plan.CostsOnTarget || len(plan.Costs) != 1 {
+			t.Fatalf("Thuốc Kích Thích level %d plan = %#v", level, plan)
+		}
+	}
 	for level, amount := range []int{10, 15, 20} {
 		plan := petActiveSkillPlan("Thợ Săn Sát Thủ", level+1)
 		if plan == nil || plan.Target != domaincombat.TargetAllTeam || plan.TargetCount != 10 || len(plan.Effects) != 1 {

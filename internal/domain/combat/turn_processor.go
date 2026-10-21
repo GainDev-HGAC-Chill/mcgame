@@ -264,7 +264,10 @@ func (tp *TurnProcessor) ProcessRound() *RoundResult {
 			continue
 		}
 
-		tp.activateDiHinhHoanVi(currentActor)
+		for _, action := range tp.activatePetTurnStartPassives(currentActor) {
+			result.Actions = append(result.Actions, action)
+			tp.battle.AddAction(action)
+		}
 		turnResult := tp.statusManager.ProcessTurnStart(currentActor.ID, currentActor)
 		tp.accuracyModifiers[currentActor.ID] = turnResult.AccuracyModifier
 		if recoveryAction := tp.applyTurnStartRecovery(currentActor, turnResult); recoveryAction != nil {
@@ -429,7 +432,10 @@ func (tp *TurnProcessor) ProcessNextActor() *RoundResult {
 			zap.String("name", currentActor.Name),
 			zap.Int("side", int(currentActor.Side)))
 
-		tp.activateDiHinhHoanVi(currentActor)
+		for _, action := range tp.activatePetTurnStartPassives(currentActor) {
+			result.Actions = append(result.Actions, action)
+			tp.battle.AddAction(action)
+		}
 		turnResult := tp.statusManager.ProcessTurnStart(currentActor.ID, currentActor)
 		tp.accuracyModifiers[currentActor.ID] = turnResult.AccuracyModifier
 		if recoveryAction := tp.applyTurnStartRecovery(currentActor, turnResult); recoveryAction != nil {

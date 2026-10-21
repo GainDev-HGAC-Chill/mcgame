@@ -1445,13 +1445,23 @@ func (s *Service) applyRewards(ctx context.Context, charID int64, questID int, c
 
 	// Quest 686-691: Hoàn thành thực tập, trở thành Sơ cấp nghề.
 	// Chỉ nâng từ Kiến tập (0) lên Sơ cấp (1).
+
 	isProfessionIntroQuest := questID >= 686 && questID <= 691
 
-	if isProfessionIntroQuest {
+	switch {
+	case isProfessionIntroQuest:
+		// Kiến tập -> Sơ cấp
 		if char.ClassRank == 0 {
 			char.ClassRank = 1
 		}
-	} else if isClassQuest && char.ClassRank < classRankMax {
+
+	case questID == 677:
+		// Sơ cấp -> Trung cấp
+		if char.ClassRank == 1 {
+			char.ClassRank = 2
+		}
+
+	case isClassQuest && char.ClassRank < classRankMax:
 		char.ClassRank++
 	}
 	if err := s.charRepo.Update(ctx, char); err != nil {

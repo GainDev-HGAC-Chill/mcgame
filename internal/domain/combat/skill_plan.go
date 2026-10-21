@@ -2,21 +2,23 @@
 package combat
 
 type SkillPlan struct {
-	Family        string
-	Level         int
-	Target        TargetType
-	Area          AreaType
-	TargetCount   int
-	Effects       []SkillEffect
-	Costs         []SkillCost
-	CostsOnTarget bool
-	RequireHPGT   float64
-	RequireHPMax  float64
-	Sacrifice     bool
-	RestTurns     int
-	OnKill        *SkillOnKillFollowUp
-	RepeatChance  float64 // chance for exactly one extra cast, paid once
-	ChainChance   float64 // chance after every hit to continue, geometric chain
+	Family               string
+	Level                int
+	Target               TargetType
+	Area                 AreaType
+	TargetCount          int
+	Effects              []SkillEffect
+	Costs                []SkillCost
+	CostsOnTarget        bool
+	RequireHPGT          float64
+	RequireHPMax         float64
+	Sacrifice            bool
+	RestTurns            int
+	OnKill               *SkillOnKillFollowUp
+	RepeatChance         float64 // chance for exactly one extra cast, paid once
+	ComboChain           bool
+	ComboChainMaxCasts   int
+	ComboChainDamageStep float64
 }
 
 type SkillOnKillFollowUp struct {
@@ -105,6 +107,7 @@ type ShieldEffect struct {
 
 type ControlEffect struct {
 	Stun          bool
+	Stone         bool
 	Sleep         bool
 	Confusion     bool
 	Invulnerable  bool
@@ -139,4 +142,5 @@ type SkillEffect struct {
 	ResourceBasis           ResourceType
 	ApplyToTarget           bool
 	BuffID                  int
+	MinimumDamage           int
 }

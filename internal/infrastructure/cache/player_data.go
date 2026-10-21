@@ -284,6 +284,22 @@ func (p *PlayerData) ApplyPersistedPetIllusion(mainPet *pet.Pet, consumedPetID, 
 	p.revision++
 }
 
+func (p *PlayerData) ApplyPersistedPetSkillBook(updatedPet *pet.Pet, bookItemID int64, remainingStack int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Pets[updatedPet.ID] = updatedPet.Clone()
+	delete(p.dirtyPets, updatedPet.ID)
+	if remainingStack == 0 {
+		delete(p.Items, bookItemID)
+	} else if current := p.Items[bookItemID]; current != nil {
+		updated := cloneItem(current)
+		updated.StackCount = remainingStack
+		p.Items[bookItemID] = updated
+	}
+	delete(p.dirtyItems, bookItemID)
+	p.revision++
+}
+
 func (p *PlayerData) SetQuest(q *quest.QuestProgress) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

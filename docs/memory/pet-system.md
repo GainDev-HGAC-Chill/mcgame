@@ -135,8 +135,8 @@ Summon books enter this same follow contract through item use. Flash additionall
 - invalid or unusable skill book is `f = 2`
 - invalid pet id, invalid drag source, or other bad input is `f = 3`
 - usable pet skill books come from `data.data_tbl_item_template` with `type = 506` and `use_type = 2`
-- the server can resolve the learned skill by exact item name match against `data.data_tbl_skill`, choosing the lowest skill level in that name family
-- `petBook` learns into the first pet skill slot whose value is `0`; it must not write into locked slots with value `-1`
+- ordinary books resolve by exact item name against `data.data_tbl_skill`, choosing the lowest skill level in that name family; the 11 Super books use the exact replacement contract below instead
+- ordinary `petBook` learning uses the first skill slot whose value is `0`; it must not write into locked slots with value `-1`
 - duplicate and conflict checks need to compare the learned skill family, not only the exact skill id; the current server matches by shared `Name`, `CodeName`, or `ScriptReqL`
 - after a successful learn, the server must emit `onUpdatePet(petId, "skillN", skillTemplateId)` and refresh pet derived properties so the panel updates final stats immediately
 - passive pet skill bonuses are derived from `TBL_SKILL.buff_id` into `TBL_BUFF.prop*` and `prop_num*`, then merged into pet `final*` combat stats
@@ -150,16 +150,31 @@ Battle skill ownership must use these same canonical `skill1..skill15` slots thr
 
 Name-based Pet-book resolution accepts canonical Pet environments `useEnv=0/1/2`, excludes special rows such as `useEnv=-1`, and fails closed if the lowest eligible level is still ambiguous. Environment 2 is required by valid active/status books such as item 1622 `Thuốc Kích Thích`, which resolves to `3590→3672→3673`. In particular, book 2242 `Man Lực` resolves to `4172→4171→4170`, not special row `60903`; book 1883 `Da Kháng Tính` starts at `3812→3813`, not row `3808`. Legacy slots produced by the old resolver use those two exact aliases as upgrade sources so the next legitimate `petUpSkill` repairs the slot while preserving normal manual cost and rollback behavior.
 
+### Pet Super-skill learning
+
+The exact Super books `3216..3226` use the existing `petBook` RPC but do not follow ordinary empty-slot learning.
+
+- the Pet must own the matching Sơ, Trung, and Cao rows at level 3; lower levels do not qualify
+- learning always grants the exact Super level-1 row, never the lowest prerequisite level or numerically lowest candidate
+- no empty slot is needed: the lowest-numbered prerequisite slot becomes Super level 1 and the other two prerequisite slots become `0`
+- owning any level of a Super chain blocks relearning that family's Sơ/Trung/Cao books
+- Super items require `qLevel >= 3`; their exact `reqClass` is checked against creature `classId`, which is separate from both `classIds` and the family segment of `creKind`
+- the 11 exact mappings are: `3216: 2830+3345+5156→5527`, `3217: 2749+3348+5159→5530`, `3218: 2743+3351+5162→5533`, `3219: 2821+3354+5165→5536`, `3220: 2699+3357+5168→5539`, `3221: 2842+3360+5171→5542`, `3222: 3329+3363+5174→5545`, `3223: 2746+3366+5177→5548`, `3224: 2748+3369+5180→5551`, `3225: 2711+3372+5183→5554`, and `3226: 2818+3375+5186→5557`
+- successful persistence locks and revalidates the current 15-slot snapshot and book stack, then writes the Pet and consumes one book in one PostgreSQL transaction; active/cold/warm caches update only after commit
+- after commit the handler emits the inventory callback, all three `onUpdatePet` slot changes in ascending order, and one property refresh; responder keys remain `f/rf/n`
+
+The official 2013 guide's “lowest prerequisite level” rule is intentionally overridden by the operator contract above. Full evidence is recorded in `docs/research/2026-10-21_03_PET_SUPER_SKILL_LEARNING_RESEARCH.md`.
+
 ## Pet Skill Eligibility Rule
 
-`TBL_SKILL.cre_kind` is not only a quality flag for pet skill books. For class-bound pet skills it encodes `classIds|qLevel`.
+For book learning, `TBL_SKILL.cre_kind` uses the shape `family|minimumQLevel`.
 
-- the first segment matches `TBL_CREATURE.class_ids`
-- the second segment is the minimum pet `qLevel`
-- `petBook` should reject the book with responder failure `f = 2` when the pet class or quality does not match
-- runtime validation should read from `pet.CreatureData` first, because `enrichPet()` refreshes that block from `TBL_CREATURE` before the learn flow continues
-- example: `Thụ Bì Ngoại Sáo Siêu Cấp` uses `cre_kind = 3|3`, so only pets with `classIds = 3` and `qLevel >= 3` can learn it
-- skills with `cre_kind = 0` are treated as unrestricted by pet class; this is an inference from live data where common books like `Man Lực`, `Ma Tâm`, and `Trì Độn` use `0`
+- the first segment identifies the skill's source family and is not a Pet eligibility gate
+- the second segment is the minimum Pet `qLevel`
+- `petBook` rejects the book with responder failure `f = 2` only when the Pet quality is below that second segment
+- runtime validation reads quality from enriched `pet.CreatureData.qLevel`, then falls back to `TBL_CREATURE.q_level`
+- live evidence: Thỏ Baby 278 has `classIds=10,qLevel=3` and already owns Trí Tuệ Thiên Nhiên rows whose `creKind` first segment is `1`; it must also be allowed to learn Cổ Long (`6|...`) and Ngạnh Xác (`4|...`) books
+- the checked-in catalog currently has 199 `type=506,useType=2` rows: 154 deterministically resolve through canonical `useEnv=0..2`, while 45 container/test/special/localized rows remain fail-closed. The full classification is in `docs/research/2026-10-21_02_PET_SKILL_BOOK_CATALOG_AUDIT.md`; do not turn fuzzy names into aliases without authoritative item→skill evidence.
 
 ## Pet Equipment Contract
 
@@ -233,6 +248,8 @@ Pet bag summon items are part of the normal item RPC flow, not a separate pet RP
 Base stat audit details and the reported Bạch Hổ case are recorded in `docs/research/2026-10-18_02_PET_STAT_FORMULA_AUDIT.md`. Creature-backed Pet stats use persisted aptitude, template `att* + level - 1`, and flat `GrowRate + GrowRateAdd`; template direct hit/dodge/speed/critical/combo/counter/defy/reborn/resiDefy values must survive recalculation.
 
 The twelve `Kích Thích Tiềm Năng` passive rows 3744–3755 are a catalog-backed exception to ordinary `TBL_BUFF.prop1..6` loading: their prop slots are zero, while descriptions give exact quality-scaled values for Cân Bằng, Ngưng Tụ, Bão Tố, and Nhiệt Huyết. Apply those exact IDs against `GrowRate + GrowRateAdd`; do not infer formulas for other empty-prop buffs.
+
+`Cân Bằng Chi Thược` IDs `3763/3771/3772` are a second reviewed empty-prop exception. Each pre-skill `finalEnergy` point contributes `0.05/0.10/0.15%` MagicAttack. Store the per-point factor in `SkillStatBonuses` and calculate it only after base Energy and MagicAttack are rebuilt, so repeated enrichment/recalculation is idempotent instead of recursively scaling the prior result.
 
 Pet award quality uses two checked encodings. Values `15/19/20/25` are tenths and normalize to `1.5/1.9/2.0/2.5`; raw positive decimals below 10 remain unchanged. Do not auto-rewrite legacy player Pets with `15.000/19.000` without explicit data-remediation permission.
 

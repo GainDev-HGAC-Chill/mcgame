@@ -45,7 +45,7 @@ func addFixedSpecials(catalog map[string]petSkillLevels) {
 	for level := 1; level <= 3; level++ {
 		ratio := []float64{.3, .4, .5}[level-1]
 		rate := []int{14, 21, 30}[level-1]
-		setLevel(catalog, "Thuốc Kích Thích", domaincombat.SkillPlan{Level: level, Target: domaincombat.TargetSelfPlayer, TargetCount: 1, CostsOnTarget: true, Costs: []domaincombat.SkillCost{{Resource: domaincombat.ResourceHP, Percent: ratio}}, Effects: []domaincombat.SkillEffect{{Kind: domaincombat.EffectStatus, Family: "Thuốc Kích Thích", BuffID: []int{968, 1015, 1016}[level-1], Duration: 3, Polarity: domaincombat.PolarityBeneficial, Removable: true, Modifiers: []domaincombat.StatModifier{{Stat: domaincombat.StatSpeed, Percent: ratio}, {Stat: domaincombat.StatCombo, Flat: rate}, {Stat: domaincombat.StatCritical, Flat: rate}}}}})
+		setLevel(catalog, "Thuốc Kích Thích", domaincombat.SkillPlan{Level: level, Target: domaincombat.TargetSelf, TargetCount: 1, Costs: []domaincombat.SkillCost{{Resource: domaincombat.ResourceHP, Percent: ratio}}, Effects: []domaincombat.SkillEffect{{Kind: domaincombat.EffectStatus, Family: "Thuốc Kích Thích", BuffID: []int{968, 1015, 1016}[level-1], Duration: 3, Polarity: domaincombat.PolarityBeneficial, Removable: true, Modifiers: []domaincombat.StatModifier{{Stat: domaincombat.StatSpeed, Percent: ratio}, {Stat: domaincombat.StatCombo, Flat: rate}, {Stat: domaincombat.StatCritical, Flat: rate}}}}})
 	}
 }
 
@@ -93,7 +93,7 @@ func addNatureShields(catalog map[string]petSkillLevels) {
 			area = domaincombat.AreaHorizontal
 			count = 5
 		}
-		setLevel(catalog, "Tự Nhiên Thuẫn Đơn Thể", domaincombat.SkillPlan{Level: i + 1, Target: target, Area: area, TargetCount: count, Effects: []domaincombat.SkillEffect{{Kind: domaincombat.EffectStatus, Family: "Tự Nhiên Thuẫn Đơn Thể", Duration: 4, Polarity: domaincombat.PolarityBeneficial, Removable: true, Modifiers: []domaincombat.StatModifier{{Stat: domaincombat.StatDefense, Flat: []int{1000, 2000, 3000}[i]}}, Periodic: &domaincombat.PeriodicEffect{Coefficient: .65, Basis: domaincombat.StatMagicAttack}}}})
+		setLevel(catalog, "Tự Nhiên Thuẫn Đơn Thể", domaincombat.SkillPlan{Level: i + 1, Target: target, Area: area, TargetCount: count, Effects: []domaincombat.SkillEffect{{Kind: domaincombat.EffectStatus, Family: "Tự Nhiên Thuẫn Đơn Thể", Duration: 4, Polarity: domaincombat.PolarityBeneficial, Removable: true, Modifiers: []domaincombat.StatModifier{{Stat: domaincombat.StatDefense, Flat: []int{1000, 2000, 3000}[i]}}, Periodic: &domaincombat.PeriodicEffect{Coefficient: []float64{.25, .45, .65}[i], Basis: domaincombat.StatMagicAttack}}}})
 		target = domaincombat.TargetTeam
 		area = domaincombat.AreaHorizontal
 		count = []int{4, 5, 10}[i]

@@ -46,6 +46,144 @@ func TestExecuteSkillPlanPureStatusDealsNoDamage(t *testing.T) {
 	}
 }
 
+func TestNhipDapTraiTimChainUsesPlannedMagicDamage(t *testing.T) {
+	battle, actor, target := planTestBattle()
+	target.MagicDefense = 0
+	plan := &SkillPlan{Family: "Nhịp Đập Trái Tim", Target: TargetEnemy, TargetCount: 1, ComboChain: true, ComboChainMaxCasts: 5, ComboChainDamageStep: .20, Effects: []SkillEffect{{Kind: EffectMagicDamage, Coefficient: 1.20}}}
+	info := &SkillInfo{Template: &skill.SkillTemplate{ID: 5363, Name: plan.Family, SkillType: skill.SkillTypeMagic, Range: 2, AttackCount: 1}, Plan: plan}
+	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
+	processor.rng = rand.New(rand.NewSource(2))
+	before := target.CurrentHP
+	actions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: target.ID, ActionType: ClientActionSkill, SkillID: 5363})
+	if damage := before - target.CurrentHP; damage <= 1 {
+		t.Fatalf("damage = %d, want planned magic damage greater than 1; actions=%#v", damage, actions)
+	}
+}
+
+func TestNhipDapTraiTimChainRetargetsAfterKill(t *testing.T) {
+	battle, actor, target := planTestBattle()
+	actor.Combo = 100
+	target.CurrentHP = 1
+	other := NewParticipant("other", "other", SideEnemy, true)
+	other.Position = 1
+	other.MaxHP = 1000000
+	other.CurrentHP = other.MaxHP
+	battle.AddParticipant(other)
+	plan := &SkillPlan{Family: "Nhịp Đập Trái Tim", Target: TargetEnemy, TargetCount: 1, ComboChain: true, ComboChainMaxCasts: 3, ComboChainDamageStep: .20, Effects: []SkillEffect{{Kind: EffectMagicDamage, Coefficient: 1.20}}}
+	info := &SkillInfo{Template: &skill.SkillTemplate{ID: 5363, Name: plan.Family, SkillType: skill.SkillTypeMagic, Range: 2, AttackCount: 1}, Plan: plan}
+	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
+	processor.rng = rand.New(rand.NewSource(2))
+	actions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: target.ID, ActionType: ClientActionSkill, SkillID: 5363})
+	if other.CurrentHP >= other.MaxHP {
+		t.Fatalf("chain did not continue onto living enemy; actions=%#v", actions)
+	}
+	targets := make([]string, 0, 3)
+	for _, action := range actions {
+		if action.ActionType == ActionTypeSkill && action.SkillID == 5363 {
+			targets = append(targets, action.TargetID)
+		}
+	}
+	if len(targets) != 3 || targets[0] != target.ID || targets[1] != other.ID || targets[2] != other.ID {
+		t.Fatalf("chain targets = %#v, want [%q %q %q]", targets, target.ID, other.ID, other.ID)
+	}
+}
+
+func TestNhipDapTraiTimUsesEffectiveComboAndPaysMPOnce(t *testing.T) {
+	battle, actor, target := planTestBattle()
+	actor.Combo = 0
+	target.MaxHP = 1000000
+	target.CurrentHP = target.MaxHP
+	target.MagicDefense = 0
+	plan := &SkillPlan{Family: "Nhịp Đập Trái Tim", Target: TargetEnemy, TargetCount: 1, ComboChain: true, ComboChainMaxCasts: 15, ComboChainDamageStep: .20, Effects: []SkillEffect{{Kind: EffectMagicDamage, Coefficient: 1.20}}}
+	info := &SkillInfo{Template: &skill.SkillTemplate{ID: 5363, Name: plan.Family, SkillType: skill.SkillTypeMagic, Range: 2, AttackCount: 1, MPCost: 150}, Plan: plan}
+	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
+	processor.rng = rand.New(rand.NewSource(2))
+
+	zeroComboActions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: target.ID, ActionType: ClientActionSkill, SkillID: 5363})
+	if casts := countSkillActions(zeroComboActions, 5363); casts != 1 {
+		t.Fatalf("zero-combo casts = %d, want 1", casts)
+	}
+
+	actor.CurrentMP = actor.MaxMP
+	actor.Combo = 100
+	target.CurrentHP = target.MaxHP
+	comboActions := processor.executeSkill(actor, &BattleCommand{ActorID: actor.ID, TargetID: target.ID, ActionType: ClientActionSkill, SkillID: 5363})
+	if casts := countSkillActions(comboActions, 5363); casts != plan.ComboChainMaxCasts {
+		t.Fatalf("100%% combo casts = %d, want capped %d", casts, plan.ComboChainMaxCasts)
+	}
+	if actor.CurrentMP != actor.MaxMP-info.Template.MPCost {
+		t.Fatalf("MP after combo chain = %d, want %d", actor.CurrentMP, actor.MaxMP-info.Template.MPCost)
+	}
+
+	playbackCasts := 0
+	for _, round := range BuildPlaybackRounds(comboActions) {
+		for _, dto := range round {
+			if dto["bid"] == 7 {
+				playbackCasts++
+			}
+		}
+	}
+	if playbackCasts != plan.ComboChainMaxCasts {
+		t.Fatalf("playback casts = %d, want %d distinct NĐTT casts", playbackCasts, plan.ComboChainMaxCasts)
+	}
+	previousDamage := 0
+	for _, action := range comboActions {
+		if action.ActionType != ActionTypeSkill || action.SkillID != 5363 || action.IsMiss {
+			continue
+		}
+		if action.Damage <= previousDamage {
+			t.Fatalf("chain damage did not increase: previous=%d current=%d", previousDamage, action.Damage)
+		}
+		previousDamage = action.Damage
+	}
+}
+
+func TestNhipDapTraiTimComboChanceIncludesThuocKichThichBuff(t *testing.T) {
+	battle, actor, _ := planTestBattle()
+	actor.Combo = 0
+	processor := NewTurnProcessor(battle, planSkillGetter{})
+	if chance := processor.rabbitHeartComboChance(actor); chance != 0 {
+		t.Fatalf("base chance = %.2f, want 0", chance)
+	}
+	processor.statusManager.AddEffect(actor.ID, &StatusEffect{Family: "Thuốc Kích Thích", Duration: 3, SourceID: actor.ID, Polarity: PolarityBeneficial, Modifiers: []StatModifier{{Stat: StatCombo, Flat: 30}}})
+	if chance := processor.rabbitHeartComboChance(actor); chance != .30 {
+		t.Fatalf("stimulant chance = %.2f, want 0.30", chance)
+	}
+}
+
+func countSkillActions(actions []*BattleAction, skillID int) int {
+	count := 0
+	for _, action := range actions {
+		if action.ActionType == ActionTypeSkill && action.SkillID == skillID {
+			count++
+		}
+	}
+	return count
+}
+
+func TestThuocKichThichCostsAndBuffsCastingPet(t *testing.T) {
+	battle, petActor, _ := planTestBattle()
+	petActor.EntityType = ParticipantTypePet
+	owner := NewParticipant("owner", "owner", SidePlayer, false)
+	owner.EntityType = ParticipantTypeCharacter
+	owner.Position = 11
+	owner.MaxHP = 2000
+	owner.CurrentHP = 2000
+	battle.AddParticipant(owner)
+	plan := &SkillPlan{Family: "Thuốc Kích Thích", Target: TargetSelf, TargetCount: 1, Costs: []SkillCost{{Resource: ResourceHP, Percent: .30}}, Effects: []SkillEffect{{Kind: EffectStatus, Family: "Thuốc Kích Thích", Duration: 3, Polarity: PolarityBeneficial, Removable: true, Modifiers: []StatModifier{{Stat: StatSpeed, Percent: .30}}}}}
+	info := &SkillInfo{Template: &skill.SkillTemplate{ID: 3590, Name: plan.Family, SkillType: skill.SkillTypeBuff, Range: 1, AttackCount: 1}, Plan: plan}
+	processor := NewTurnProcessor(battle, planSkillGetter{info: info})
+	petHP := petActor.CurrentHP
+	ownerHP := owner.CurrentHP
+	processor.executeSkill(petActor, &BattleCommand{ActorID: petActor.ID, TargetID: owner.ID, ActionType: ClientActionSkill, SkillID: 3590})
+	if petActor.CurrentHP != petHP-300 || owner.CurrentHP != ownerHP {
+		t.Fatalf("HP after cast: pet=%d owner=%d, want %d/%d", petActor.CurrentHP, owner.CurrentHP, petHP-300, ownerHP)
+	}
+	if !processor.statusManager.HasEffect(petActor.ID, StatusNormal) || processor.statusManager.HasEffect(owner.ID, StatusNormal) {
+		t.Fatalf("buff target mismatch: pet=%v owner=%v", processor.statusManager.HasEffect(petActor.ID, StatusNormal), processor.statusManager.HasEffect(owner.ID, StatusNormal))
+	}
+}
+
 func TestBachBienKillTriggersVoSongOnThreeRandomLivingTargets(t *testing.T) {
 	battle, actor, killed := planTestBattle()
 	actor.SkillIDs[6723] = true

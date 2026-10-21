@@ -83,6 +83,8 @@ func (tp *TurnProcessor) plannedEffectChance(actor, target *Participant, effect 
 
 func plannedControlProps(control ControlEffect) (stats.PropID, stats.PropID) {
 	switch {
+	case control.Stone:
+		return 0, 0
 	case control.Stun:
 		return stats.PropStunAcc, stats.PropResistStun
 	case control.Confusion:

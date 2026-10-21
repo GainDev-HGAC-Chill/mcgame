@@ -4,8 +4,6 @@ package combat
 import domaincombat "mcgame-server/internal/domain/combat"
 
 var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
-	// Tho Baby: each landed magical pulse deals exactly 1 HP damage;
-	// after each pulse another one occurs with 30% chance.
 	5363: rabbitHeartPlan(1, 1.20),
 	5362: rabbitHeartPlan(2, 1.50),
 	5361: rabbitHeartPlan(3, 1.80),
@@ -42,6 +40,34 @@ var petActiveSkillTemplateCatalog = map[int]domaincombat.SkillPlan{
 	7008: uMinhHuyenVuPlan(1, 4, 0.25, 0.60),
 	7009: uMinhHuyenVuPlan(2, 6, 0.27, 0.65),
 	7010: uMinhHuyenVuPlan(3, 8, 0.30, 0.70),
+	2961: forumDamageStatusPlan("Cao Tần Long Hống Trung Cấp", 1, domaincombat.EffectMagicDamage, .95, .15, 2, 131, domaincombat.StatMagicAttack, -.10),
+	2962: forumDamageStatusPlan("Cao Tần Long Hống Trung Cấp", 2, domaincombat.EffectMagicDamage, 1.10, .25, 2, 133, domaincombat.StatMagicAttack, -.16),
+	2963: forumDamageStatusPlan("Cao Tần Long Hống Trung Cấp", 3, domaincombat.EffectMagicDamage, 1.25, .35, 2, 135, domaincombat.StatMagicAttack, -.22),
+	2666: forumDamageStatusPlan("Đột Thích Xung Phong", 1, domaincombat.EffectPhysicalDamage, .80, .10, 2, 121, domaincombat.StatAttack, -.15),
+	2735: forumDamageStatusPlan("Đột Thích Xung Phong", 2, domaincombat.EffectPhysicalDamage, .90, .15, 2, 123, domaincombat.StatAttack, -.24),
+	2736: forumDamageStatusPlan("Đột Thích Xung Phong", 3, domaincombat.EffectPhysicalDamage, 1.00, .20, 2, 125, domaincombat.StatAttack, -.33),
+	2845: forumControlPlan("Kích Trạng Loạn Tâm", 1, domaincombat.TargetEnemy, domaincombat.AreaNone, 1, .05, 2, 187, domaincombat.ControlEffect{Confusion: true}),
+	2839: forumControlPlan("Kích Trạng Loạn Tâm", 2, domaincombat.TargetEnemy, domaincombat.AreaNone, 1, .10, 2, 187, domaincombat.ControlEffect{Confusion: true}),
+	2846: forumControlPlan("Kích Trạng Loạn Tâm", 3, domaincombat.TargetEnemy, domaincombat.AreaNone, 1, .15, 2, 187, domaincombat.ControlEffect{Confusion: true}),
+	2692: forumDamagePlan("Lạc Thạch Vẫn Tinh", 1, domaincombat.EffectMagicDamage, domaincombat.TargetEnemy, domaincombat.AreaHorizontal, 3, .30, 0),
+	2777: forumDamagePlan("Lạc Thạch Vẫn Tinh", 2, domaincombat.EffectMagicDamage, domaincombat.TargetEnemy, domaincombat.AreaHorizontal, 3, .40, 0),
+	2784: forumDamagePlan("Lạc Thạch Vẫn Tinh", 3, domaincombat.EffectMagicDamage, domaincombat.TargetEnemy, domaincombat.AreaHorizontal, 3, .50, 0),
+	4739: forumControlPlan("Mê Tâm", 1, domaincombat.TargetRandomEnemy, domaincombat.AreaNone, 2, .60, 2, 187, domaincombat.ControlEffect{Confusion: true}),
+	4741: forumControlPlan("Mê Tâm", 2, domaincombat.TargetRandomEnemy, domaincombat.AreaNone, 3, .65, 2, 187, domaincombat.ControlEffect{Confusion: true}),
+	4742: forumControlPlan("Mê Tâm", 3, domaincombat.TargetRandomEnemy, domaincombat.AreaNone, 4, .70, 3, 187, domaincombat.ControlEffect{Confusion: true}),
+	2838: forumStatusPlan("Phản Ứng Trì Độn", 1, domaincombat.TargetEnemy, domaincombat.AreaNone, 1, .05, 2, 497, domaincombat.StatSpeed, -.05),
+	2843: forumStatusPlan("Phản Ứng Trì Độn", 2, domaincombat.TargetEnemy, domaincombat.AreaNone, 1, .10, 2, 498, domaincombat.StatSpeed, -.07),
+	2844: forumStatusPlan("Phản Ứng Trì Độn", 3, domaincombat.TargetEnemy, domaincombat.AreaNone, 1, .15, 2, 499, domaincombat.StatSpeed, -.10),
+	3542: forumDamagePlan("Táng Thần Quần Thể", 1, domaincombat.EffectPhysicalDamage, domaincombat.TargetEnemy, domaincombat.AreaCross, 4, .90, 1),
+	3544: forumDamagePlan("Táng Thần Quần Thể", 2, domaincombat.EffectPhysicalDamage, domaincombat.TargetEnemy, domaincombat.AreaCross, 4, 1.08, 1),
+	3546: forumDamagePlan("Táng Thần Quần Thể", 3, domaincombat.EffectPhysicalDamage, domaincombat.TargetEnemy, domaincombat.AreaCross, 4, 1.28, 1),
+	3540: forumControlPlan("Trào Phúng Quần Thể", 1, domaincombat.TargetEnemy, domaincombat.AreaVertical, 2, .66, 1, 893, domaincombat.ControlEffect{TauntSourceID: "caster"}),
+	3566: forumControlPlan("Trào Phúng Quần Thể", 2, domaincombat.TargetEnemy, domaincombat.AreaVertical, 2, .66, 2, 893, domaincombat.ControlEffect{TauntSourceID: "caster"}),
+	3567: forumControlPlan("Trào Phúng Quần Thể", 3, domaincombat.TargetEnemy, domaincombat.AreaCross, 4, .66, 2, 893, domaincombat.ControlEffect{TauntSourceID: "caster"}),
+	2725: forumDamagePlan("Uy Nhiếp Ý Chí", 1, domaincombat.EffectMagicDamage, domaincombat.TargetEnemy, domaincombat.AreaHorizontal, 3, .30, 0),
+	2690: forumDamagePlan("Uy Nhiếp Ý Chí", 2, domaincombat.EffectMagicDamage, domaincombat.TargetEnemy, domaincombat.AreaHorizontal, 3, .40, 0),
+	2727: forumDamagePlan("Uy Nhiếp Ý Chí", 3, domaincombat.EffectMagicDamage, domaincombat.TargetEnemy, domaincombat.AreaHorizontal, 3, .50, 0),
+	2615: forumControlPlan("Thạch Hóa Công Kích", 1, domaincombat.TargetEnemy, domaincombat.AreaNone, 1, .05, 2, 299, domaincombat.ControlEffect{Stone: true}),
 	6712: bianStrikePlan(1, 1.4, 6724),
 	6713: bianStrikePlan(2, 1.7, 6727),
 	6714: bianStrikePlan(3, 2.0, 6730),
@@ -183,11 +209,11 @@ func cloneIntMap(source map[int]int) map[int]int {
 	return clone
 }
 
-func rabbitHeartPlan(level int) domaincombat.SkillPlan {
+func rabbitHeartPlan(level int, coefficient float64) domaincombat.SkillPlan {
 	return domaincombat.SkillPlan{Family: "Nhịp Đập Trái Tim", Level: level,
 		Target: domaincombat.TargetEnemy, TargetCount: 1,
-		ChainChance: .30,
-		Effects:     []domaincombat.SkillEffect{{Kind: domaincombat.EffectMagicDamage, Coefficient: 1}},
+		ComboChain: true, ComboChainMaxCasts: level * 5, ComboChainDamageStep: .20,
+		Effects: []domaincombat.SkillEffect{{Kind: domaincombat.EffectMagicDamage, Coefficient: coefficient}},
 	}
 }
 
