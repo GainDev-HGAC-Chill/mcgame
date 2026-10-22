@@ -11,6 +11,9 @@ import (
 	"mcgame-server/internal/gamedata"
 	gamedatamodels "mcgame-server/internal/gamedata/models"
 	"strings"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -64,8 +67,8 @@ func buildSkillInfoFromGamedata(tpl *gamedatamodels.SkillTemplate) *combat.Skill
 		AttackEffID:   int(tpl.AttackEffID),
 		SkillEffID:    skillEffID,
 		BulletID:      int(tpl.BulletID),
-		BaseDamage:    resolveBaseDamage(tpl.ExpSkill),
-		Multiplier:    resolveMultiplier(tpl.DexSkill),
+		BaseDamage:    0,
+		Multiplier:    resolveCharacterSkillMultiplier(tpl.Description),
 		MPCost:        int(tpl.UseMP),
 		SPCost:        int(tpl.UseSP),
 		Cooldown:      0,
@@ -74,10 +77,9 @@ func buildSkillInfoFromGamedata(tpl *gamedatamodels.SkillTemplate) *combat.Skill
 		Description:   tpl.Description,
 	}
 
-	if st.BaseDamage == 0 && st.Multiplier == 0 {
-		st.BaseDamage = 10
-		st.Multiplier = 1.0
-	}
+		if st.Multiplier <= 0 {
+			st.Multiplier = 1.0
+		}
 
 	info := &combat.SkillInfo{
 		Template:     st,
