@@ -63,3 +63,24 @@ func TestShopSlotHasTemplateRejectsMissingCatalogReference(t *testing.T) {
 		t.Fatal("expected unsupported table type to be rejected")
 	}
 }
+
+func TestMissingTemplateShopSlotSerializesQuarantineOverride(t *testing.T) {
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	slot := &models.ShopSlotTemplate{ID: 2, Type: 29, ItemID: 100, Sid: 66, St: 0}
+	quarantined, valid := shopSlotForClient(manager, slot)
+	if valid || quarantined == nil {
+		t.Fatalf("shopSlotForClient = %#v, %v; want quarantine", quarantined, valid)
+	}
+	rows := buildShopConfigRows([]*models.ShopSlotTemplate{quarantined})
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	for _, want := range []string{"obj.id='2';", "obj.sid='0';", "obj.st='5';", "obj.itemId='100';"} {
+		if !strings.Contains(rows[0], want) {
+			t.Fatalf("quarantine row %q missing %q", rows[0], want)
+		}
+	}
+	if slot.Sid != 66 || slot.St != 0 {
+		t.Fatalf("source slot mutated: %#v", slot)
+	}
+}

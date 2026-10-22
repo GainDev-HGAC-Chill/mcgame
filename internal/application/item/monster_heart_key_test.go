@@ -5,6 +5,7 @@ package item
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strconv"
 	"testing"
@@ -16,6 +17,29 @@ import (
 
 	"go.uber.org/zap"
 )
+
+type monsterHeartGrantRecorder struct {
+	heartID int
+	count   int
+}
+
+func (r *monsterHeartGrantRecorder) AddHeart(_ context.Context, _ int64, heartID, count int) (map[string]interface{}, error) {
+	r.heartID = heartID
+	r.count += count
+	return map[string]interface{}{"bag": map[string]interface{}{}}, nil
+}
+
+type failingMonsterHeartKeyRepo struct {
+	*itemServiceTestRepo
+	failUpdate bool
+}
+
+func (r *failingMonsterHeartKeyRepo) UpdateStack(ctx context.Context, id int64, stackCount int) error {
+	if r.failUpdate {
+		return errors.New("forced stack failure")
+	}
+	return r.itemServiceTestRepo.UpdateStack(ctx, id, stackCount)
+}
 
 type monsterHeartCatalogFile[T any] struct {
 	Records []T `json:"records"`
@@ -98,6 +122,39 @@ func TestUseMultiItemReturnsActualUsedItemAndSpiritualityGrant(t *testing.T) {
 	used = result["used_item"].(*domainitem.Item)
 	if used.StackCount != 0 || result["remaining"] != 0 {
 		t.Fatalf("exhausted result = %#v", result)
+	}
+}
+
+func TestMonsterHeartKeyConsumesBeforeSingleAtomicGrant(t *testing.T) {
+	baseRepo := newItemServiceTestRepo()
+	baseRepo.items[90] = &domainitem.Item{ID: 90, CharacterID: 7, TemplateID: 5375, ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, SlotIndex: 5, StackCount: 3}
+	repo := &failingMonsterHeartKeyRepo{itemServiceTestRepo: baseRepo, failUpdate: true}
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadItemTestRecord(t, manager, models.TableItemTemplate, models.ItemTemplateTemplate{ID: 5375, Name: "Ma Tâm (Hình Xăm Thanh Long)", Type: 550, UseType: 1, Kind: 5, ProplNum: 1, StackMax: 99999})
+	loadItemTestRecord(t, manager, models.TableCreaturehHeart, models.CreaturehHeartTemplate{ID: 1, Type: 1})
+	recorder := &monsterHeartGrantRecorder{}
+	service := NewService(repo, zap.NewNop())
+	service.SetGameDataManager(manager)
+	service.SetMonsterHeartGranter(recorder)
+	char := &domainchar.Character{ID: 7}
+
+	if _, err := service.UseMultiItem(context.Background(), char, 90, 2, 1, -1); err == nil {
+		t.Fatal("expected forced inventory update failure")
+	}
+	if recorder.count != 0 {
+		t.Fatalf("heart granted before consumption: %#v", recorder)
+	}
+
+	repo.failUpdate = false
+	result, err := service.UseMultiItem(context.Background(), char, 90, 2, 1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorder.heartID != 1 || recorder.count != 2 {
+		t.Fatalf("heart grant = %#v, want heart 1 x2", recorder)
+	}
+	if _, ok := result["monster_heart_panel"].(map[string]interface{}); !ok {
+		t.Fatalf("missing monster-heart panel result: %#v", result)
 	}
 }
 

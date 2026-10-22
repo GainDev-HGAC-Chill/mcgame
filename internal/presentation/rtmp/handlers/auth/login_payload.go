@@ -37,7 +37,7 @@ func (h *Handler) buildOnChooseCharactorPayload(ctx context.Context, char *chara
 		} else {
 			allItems = items
 			for _, item := range items {
-				itemDTOs[fmt.Sprintf("%d", item.ID)] = item.ToDTO()
+				itemDTOs[fmt.Sprintf("%d", item.ID)] = h.itemService.BuildClientItemDTO(item)
 			}
 		}
 	}

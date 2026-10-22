@@ -32,15 +32,16 @@ func (h *questItemEffectHandler) CanHandle(tpl *models.ItemTemplateTemplate) boo
 
 func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *character.Character, it *domainitem.Item, tpl *models.ItemTemplateTemplate) (*ItemEffectResult, error) {
 	if isMonsterHeartKey(tpl) {
-		if h.service == nil || h.service.monsterHeartGranter == nil {
+		if h.service == nil || h.service.monsterHeartGranter == nil || h.gameData == nil {
 			return nil, pkgerrors.ErrCannotUseItem
 		}
-		panel, err := h.service.monsterHeartGranter.AddHeart(ctx, char.ID, int(tpl.ProplNum), 1)
-		if err != nil {
-			return nil, err
+		heart := h.gameData.GetCreatureHeart(int(tpl.ProplNum))
+		if heart == nil || int(heart.Type) < 1 || int(heart.Type) > 7 {
+			return nil, pkgerrors.ErrCannotUseItem
 		}
 		result := NewEffectResult()
-		result.MonsterHeartPanel = panel
+		result.MonsterHeartID = int(tpl.ProplNum)
+		result.MonsterHeartCount = 1
 		result.Message = fmt.Sprintf("Nhận Ma Tâm: %s.", strings.TrimSuffix(strings.TrimPrefix(tpl.Name, "Ma Tâm ("), ")"))
 		return result, nil
 	}

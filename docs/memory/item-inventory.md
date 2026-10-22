@@ -1,10 +1,16 @@
 # Item & Inventory System
 
+## Multi-use stack and game-currency refresh (2026-10-23)
+
+The generic award-backed `UseMultiItem` result must include the resolved inventory instance as `used_item`. The RTMP handler uses that actual record to send `onAddCharactorSlot` for a remaining stack and its calculated SID for `onDelCharactorSlot` when exhausted; using the incoming slot argument is unsafe because Flash may send a bag position rather than an instance ID/SID.
+
+Item 2336 (`Kết Tinh Thần Tu`) remains catalog-driven through its type-35 award `currency 241 × 400000`. Multi-use aggregates the award and sends the canonical `spirituality` currency callback with delta and final total. No hardcoded reward was added. Tests cover partial and exhausted stacks.
+
 ## Crafting panel safety and level-6 materials (2026-10-22)
 
-`EquipFuncBag.showSaleItems()` does not null-check system-shop template lookups. `getShopConfig` now publishes only shop rows whose type-12/19/29 target exists in the loaded creature/equipment/item catalog and logs rejected slot IDs, preventing one stale runtime shop row from crashing both the material and jewel sale tabs. Checked-in shop data has no broken reference; this guard handles runtime/catalog drift without inventing a replacement item.
+`EquipFuncBag.showSaleItems()` does not null-check system-shop template lookups. `getShopConfig` cannot merely omit rows whose type-12/19/29 target is missing because Flash retains its embedded `sid` index. It now publishes a same-ID quarantine override with `sid=0,st=5`, causing the parser to remove the stale row from its original system-shop index before either material or jewel sale tab iterates it. Checked-in shop data has no broken reference; this guard handles runtime/catalog drift without inventing a replacement item.
 
-Material level 6 keeps canonical server `colorCode=5` but uses the narrow Flash compatibility alias `color=4`. Lower material tiers keep their original client color, preserving the level-5 rare-mix rate, while `autoInputMake()` no longer excludes level 6 via its `color < 5` condition. Level 6 remains the catalog-authorized maximum; material mixing rejects it without consumption rather than clamping a result back to level 6.
+Material level 6 keeps canonical server `colorCode=5` but uses the narrow Flash compatibility alias `color=4`. Template `kind=6/14` is the authority so legacy rows persisted as consumables receive the alias too; login now uses the shared template-aware DTO instead of raw `Item.ToDTO()`. Lower material tiers keep their original client color, preserving the level-5 rare-mix rate, while `autoInputMake()` no longer excludes level 6 via its `color < 5` condition. Level 6 remains the catalog-authorized maximum; material mixing rejects it without consumption rather than clamping a result back to level 6.
 
 Change-prefix pending state now keeps and confirms the complete randomized preview property snapshot, including main/secondary stats, locked values and template-authorized soul fallback. Partial soul rolls below the current value are shown in the type-2 comparison payload but never persisted, matching the single “Không áp dụng” client state.
 

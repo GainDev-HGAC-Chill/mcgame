@@ -1,5 +1,12 @@
 # Monster Heart (Ma Vật Tâm)
 
+## Catalog-backed Ma Tâm keys (2026-10-23)
+
+- A directly usable key is recognized only by the exact catalog fingerprint `type=550`, `useType=1`, and name prefix `Ma Tâm (`. Its `proplNum` is the exact `TBL_CREATUREH_HEART.id`; missing rows and heart types outside 1–7 fail before consumption.
+- The item pipeline consumes the key stack first, then performs one persisted `AddHeart` mutation for the whole requested count. An inventory write failure therefore cannot grant free hearts. A later feature-state persistence failure is returned as an explicit non-replayable post-consumption error.
+- Heart template ID is also the stable bag entry ID. Existing entries stack by `n`; heart types 1–7 map to `ren/shou/zhi/ji/mo/lon/te`. Success pushes the full `{bag,data}` state via `updateMonsterHeartPanel` so the panel updates without relogging.
+- Checked-in catalog regression finds exactly 395 matching keys (`5375..5697`, `5770..5841`) and verifies every `proplNum` reference exists. No reward, type, category, or random result is inferred.
+
 Baseline-level DTO repair deployed17:34:09 (2026-10-12); tests/vet/build PASS, game running/restart_count0. No DB repair or synthesized heart rewards. Flash retest NOT TESTED. [Batch results](../research/2026-10-12_09_PANEL_PROTOCOL_ECONOMY_TRIAGE_RESEARCH.md).
 
 ## Panel-open contract correction (2026-10-12)

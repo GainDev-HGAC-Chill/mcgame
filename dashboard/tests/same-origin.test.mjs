@@ -6,8 +6,12 @@ import {
     SameOriginError,
 } from "../src/lib/server/same-origin.ts"
 
-function request(origin, fetchSite = "same-origin") {
-    return new Request("http://127.0.0.1:3000/api/box-items/awards", {
+function request(
+    origin,
+    fetchSite = "same-origin",
+    requestOrigin = "http://127.0.0.1:3000"
+) {
+    return new Request(`${requestOrigin}/api/box-items/awards`, {
         method: "POST",
         headers: {
             ...(origin ? { Origin: origin } : {}),
@@ -17,9 +21,15 @@ function request(origin, fetchSite = "same-origin") {
 }
 
 test("same-origin guard accepts only the request URL origin", () => {
-    assert.doesNotThrow(() =>
-        requireSameOrigin(request("http://127.0.0.1:3000"))
-    )
+    for (const origin of [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://26.31.111.123:3000",
+    ]) {
+        assert.doesNotThrow(() =>
+            requireSameOrigin(request(origin, "same-origin", origin))
+        )
+    }
     for (const candidate of [
         request(null),
         request("http://evil.example"),

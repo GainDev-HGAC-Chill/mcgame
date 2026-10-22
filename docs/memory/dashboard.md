@@ -1,5 +1,9 @@
 # Admin Dashboard
 
+## Host parity (2026-10-23)
+
+The dashboard is one application exposed on `localhost:3000`, `127.0.0.1:3000`, and the trusted VPN address `26.31.111.123:3000`; hostnames do not define different roles. Quest writes reuse the same exact-origin guard as NPC/System Shop and selectable gift-bag writes. Compose allow-lists all three served origins, while `/` and `/dashboard/**` return `Cache-Control: private, no-store` so separate browser origins cannot retain different stale navigation shells. Cross-site or malformed origins remain rejected. A deployment still requires rebuilding the single dashboard image; running a separate local dev server can create two versions and is not a supported parity setup.
+
 ## NPC Admin dashboard (2026-10-19)
 
 `/dashboard/npcs` now lists/filter NPCs by name/ID, map, type, dialogue and standard-shop presence. `/dashboard/npcs/[id]` has NPC/dialogue, related-quest and shop tabs. Quest relationships are reverse joins from `start_npc`, `finish_npc` and loop `nid`; they are read-only links to Quest Admin, while sparse legacy `npc.qid` is diagnostic only.

@@ -633,7 +633,7 @@ services:
       - SUPABASE_INTERNAL_URL=http://api-gw:8000
       - SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
       - ADMIN_SECRET=${ADMIN_DASHBOARD_SECRET:-admin}
-      - DASHBOARD_ALLOWED_ORIGINS=http://26.31.111.123:3000
+      - DASHBOARD_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://26.31.111.123:3000
 
   redis:
     container_name: mcgame-redis

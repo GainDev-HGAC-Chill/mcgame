@@ -19,6 +19,7 @@ func (s *Service) BuildClientItemDTO(it *domainitem.Item) map[string]interface{}
 
 	dto := it.ToDTO()
 	if it.ItemType != domainitem.ItemTypeEquipment {
+		applyMaterialDTOContract(dto, it, s)
 		return dto
 	}
 
@@ -29,6 +30,25 @@ func (s *Service) BuildClientItemDTO(it *domainitem.Item) map[string]interface{}
 
 	applyEquipmentDTOContract(dto, it, equipTpl)
 	return dto
+}
+
+func applyMaterialDTOContract(dto map[string]interface{}, it *domainitem.Item, service *Service) {
+	if dto == nil || it == nil || service == nil || service.gameDataRec == nil {
+		return
+	}
+	tpl := service.gameDataRec.GetItem(it.TemplateID)
+	if tpl == nil || (int(tpl.Kind) != 6 && int(tpl.Kind) != 14) {
+		return
+	}
+	colorCode := it.ColorCode
+	if colorCode <= 0 {
+		colorCode = displayContractInt(dto["colorCode"])
+	}
+	if colorCode < 5 {
+		return
+	}
+	dto["color"] = 4
+	dto["colorCode"] = colorCode
 }
 
 func (s *Service) BuildClientItemDTOList(items []*domainitem.Item) []map[string]interface{} {

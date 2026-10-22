@@ -112,12 +112,12 @@ func (h *Handler) GetShopConfig(ctx *rtmp.RPCContext, args []interface{}) (inter
 		slots := h.gameData.GetAllShopSlots()
 		renderableSlots := make([]*models.ShopSlotTemplate, 0, len(slots))
 		for _, slot := range slots {
-			if shopSlotHasTemplate(h.gameData, slot) {
-				renderableSlots = append(renderableSlots, slot)
-				continue
+			clientSlot, valid := shopSlotForClient(h.gameData, slot)
+			if clientSlot != nil {
+				renderableSlots = append(renderableSlots, clientSlot)
 			}
-			if slot != nil {
-				h.logger.Warn("GetShopConfig: skipped slot with missing template", zap.Int64("slot_id", slot.ID), zap.Int("table_type", int(slot.Type)), zap.Int("template_id", int(slot.ItemID)))
+			if !valid && slot != nil {
+				h.logger.Warn("GetShopConfig: quarantined slot with missing template", zap.Int64("slot_id", slot.ID), zap.Int("table_type", int(slot.Type)), zap.Int("template_id", int(slot.ItemID)))
 			}
 		}
 		rows = buildShopConfigRows(renderableSlots)
@@ -128,6 +128,19 @@ func (h *Handler) GetShopConfig(ctx *rtmp.RPCContext, args []interface{}) (inter
 	}
 
 	return nil, nil
+}
+
+func shopSlotForClient(gameData *gamedata.Manager, slot *models.ShopSlotTemplate) (*models.ShopSlotTemplate, bool) {
+	if slot == nil {
+		return nil, false
+	}
+	if shopSlotHasTemplate(gameData, slot) {
+		return slot, true
+	}
+	quarantined := *slot
+	quarantined.Sid = 0
+	quarantined.St = 5
+	return &quarantined, false
 }
 
 func shopSlotHasTemplate(gameData *gamedata.Manager, slot *models.ShopSlotTemplate) bool {

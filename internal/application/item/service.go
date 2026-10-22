@@ -1244,6 +1244,13 @@ func (s *Service) UseItem(ctx context.Context, char *character.Character, itemID
 				}
 			}
 		}
+		if effectResult.MonsterHeartCount > 0 {
+			panel, err := s.monsterHeartGranter.AddHeart(ctx, char.ID, effectResult.MonsterHeartID, effectResult.MonsterHeartCount)
+			if err != nil {
+				return nil, nil, fmt.Errorf("monster-heart grant failed after item consumption; do not automatically replay: %w", err)
+			}
+			effectResult.MonsterHeartPanel = panel
+		}
 
 		result = s.effectResultToMap(effectResult)
 	} else {
@@ -1494,6 +1501,8 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	grantedBuffIndexes := make(map[int]int)
 	refreshCharacterView := false
 	var monsterHeartPanel map[string]interface{}
+	monsterHeartID := 0
+	monsterHeartCount := 0
 
 	for i := 0; i < count; i++ {
 		if tpl != nil {
@@ -1506,6 +1515,13 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 			refreshCharacterView = refreshCharacterView || effectResult.RefreshCharacterView
 			if effectResult.MonsterHeartPanel != nil {
 				monsterHeartPanel = effectResult.MonsterHeartPanel
+			}
+			if effectResult.MonsterHeartCount > 0 {
+				if monsterHeartID != 0 && monsterHeartID != effectResult.MonsterHeartID {
+					return nil, pkgerrors.ErrCannotUseItem
+				}
+				monsterHeartID = effectResult.MonsterHeartID
+				monsterHeartCount += effectResult.MonsterHeartCount
 			}
 			for _, grant := range effectResult.GrantedCurrencies {
 				if index, ok := grantedCurrencyIndexes[grant.ClientKey]; ok {
@@ -1541,6 +1557,13 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 		if err := s.itemRepo.UpdateStack(ctx, it.ID, it.StackCount); err != nil {
 			return nil, err
 		}
+	}
+	if monsterHeartCount > 0 {
+		panel, err := s.monsterHeartGranter.AddHeart(ctx, char.ID, monsterHeartID, monsterHeartCount)
+		if err != nil {
+			return nil, fmt.Errorf("monster-heart grant failed after item consumption; do not automatically replay: %w", err)
+		}
+		monsterHeartPanel = panel
 	}
 
 	s.logger.Info("Multi item used",

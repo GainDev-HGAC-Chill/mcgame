@@ -1,5 +1,11 @@
 # Shop System
 
+## Crystal credit-shop exchange (2026-10-23)
+
+`exchangeItem(creditId, exNum)` now resolves real `TBL_CREDIT` rows instead of returning mock equipment 2001. The implemented authority is intentionally narrow: unlimited Crystal Shop rows with `shopId=1`, equipment `type=19`, primary score `cType1=32`, no secondary score, and valid equipment templates. Other credit shops remain unsupported rather than sharing an unverified currency mapping.
+
+Credit score 32 maps to character currency `CurrencyWisdomCrystal` and Flash's intentional field typo `wisdonCrystal`. The service serializes purchases per character, validates cost/quantity, persists the debit before granting unbound/bound equipment according to the row, and compensates the currency if inventory grant fails. The responder remains truthy; callbacks send a complete `onAddItem` popup (`n/i/q/t/tt/c`), every changed `onAddCharactorSlot` DTO, and `onAddMoney(characterId,"wisdonCrystal",-cost,total)`.
+
 ## Dynamic standard-shop catalog publication (2026-10-19)
 
 `getShopConfig` now serializes every cached `TBL_SHOP_SLOT` row in stable ID order using the exact `var obj={};obj.camelCase='value';...` format consumed by `CallBackGlobal.parseAndSetShopSlot`. Existing client rows are overridden except `position` (the Flash parser deliberately skips it); inserted rows enter the client's `sid`/`st` indexes. This does not publish or replace `TBL_SHOP` containers.

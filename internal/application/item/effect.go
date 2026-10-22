@@ -44,6 +44,8 @@ type ItemEffectResult struct {
 	GrantedCurrencies    []GrantedCurrencyResult
 	GrantedMedals        []GrantedMedalResult
 	MonsterHeartPanel    map[string]interface{}
+	MonsterHeartID       int
+	MonsterHeartCount    int
 	Message              string
 	ConsumeItem          bool
 	RefreshCharacterView bool

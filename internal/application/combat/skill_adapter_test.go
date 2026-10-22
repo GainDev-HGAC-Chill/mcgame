@@ -82,6 +82,28 @@ func TestBuildSkillInfoFromGamedata_NoFallbackForNonDamage(t *testing.T) {
 	}
 }
 
+func TestResolveCharacterSkillMultiplier(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		want        float64
+	}{
+		{name: "damage", description: "Gây ra tối thiểu 278% sát thương vật lý", want: 2.78},
+		{name: "leading buff", description: "Tăng 30% tốc độ, gây 150% sát thương vật lý", want: 1.5},
+		{name: "decimal comma", description: "Tạo thành 120,5% tấn công ma pháp", want: 1.205},
+		{name: "buff only", description: "Tăng 200% tấn công vật lý", want: 0},
+		{name: "ambiguous conditional", description: "Khi HP cao tạo thành 285% sát thương, khi HP thấp tạo thành 315% sát thương", want: 0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveCharacterSkillMultiplier(tc.description); got != tc.want {
+				t.Fatalf("resolveCharacterSkillMultiplier(%q) = %v, want %v", tc.description, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBuildSkillInfoFromGamedata_UsesExactBachBienTemplatePlan(t *testing.T) {
 	tpl := &gamedatamodels.SkillTemplate{
 		ID:       6712,

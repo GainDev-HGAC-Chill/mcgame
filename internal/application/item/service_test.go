@@ -537,6 +537,26 @@ func TestBuildClientItemDTO_EquipmentAppliesDisplayContract(t *testing.T) {
 	}
 }
 
+func TestBuildClientItemDTO_LevelSixMaterialAliasesLegacyConsumableColor(t *testing.T) {
+	logger := zap.NewNop()
+	service := NewService(newItemServiceTestRepo(), logger)
+	manager := gamedata.NewManager(nil, logger)
+	raw, err := json.Marshal(models.ItemTemplateTemplate{ID: 7, Kind: 6, Type: 601})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{raw}); err != nil {
+		t.Fatal(err)
+	}
+	service.SetGameDataManager(manager)
+	it := &domainitem.Item{ID: 1, TemplateID: 7, ItemType: domainitem.ItemTypeConsumable, ColorCode: 5, StackCount: 3}
+
+	dto := service.BuildClientItemDTO(it)
+	if dto["color"] != 4 || dto["colorCode"] != 5 {
+		t.Fatalf("material color contract = color %#v colorCode %#v", dto["color"], dto["colorCode"])
+	}
+}
+
 func TestApplyEquipmentDisplayContract_UsesQualityFallbacks(t *testing.T) {
 	recordData := map[string]interface{}{
 		"quality": 14,

@@ -1,5 +1,37 @@
 # MCGame Fix History
 
+## FIX-2026-10-23-04 — Khôi phục Docker build sau commit character damage
+
+- Root cause: commit HEAD `bfdcc50 update fix dmg` đổi generic skill adapter từ heuristic `expSkill/dexSkill` sang `resolveCharacterSkillMultiplier(description)` nhưng không thêm hàm được gọi, đồng thời thêm `strings` hai lần và để `regexp`/`strconv` chưa dùng. Vì vậy `Start server` build dashboard/edge xong nhưng dừng ở compile `mcgame-server`.
+- Sửa: hoàn thiện parser phần trăm damage hẹp cho cụm gây/tạo `% sát thương` hoặc `% tấn công`, hỗ trợ dấu thập phân chấm/phẩy. Câu chỉ tăng buff không bị hiểu là damage; mô tả có nhiều hệ số damage khác nhau fail-closed về multiplier mặc định `1.0` thay vì tùy tiện chọn một nhánh điều kiện. Helper duplicate xuất hiện đồng thời trong file được hợp nhất vào một implementation.
+- Test: application/domain combat và combat handler PASS; targeted vet PASS; Windows `bin/gameserver.exe`, Linux `CGO_ENABLED=0 bin/gameserver-linux` và `docker compose -f docker/docker-compose.yml build mcgame-server` PASS.
+- Trạng thái: FIXED/VERIFIED — image đã build nhưng assistant không tự chạy lại Start/restart, không mutate DB/player/catalog, commit hoặc push.
+
+## FIX-2026-10-23-03 — Đồng nhất Dashboard giữa localhost và VPN IP
+
+- Hiện tượng: hai origin `http://localhost:3000` và `http://26.31.111.123:3000` hiển thị/cho sửa các nhóm Quest và Shop/Túi quà không đồng nhất. Source không có chủ đích phân vai theo hostname; compose thiết kế một dashboard bind cả hai địa chỉ, nhưng Quest dùng guard riêng, allow-list chỉ nêu VPN IP và shell dashboard có thể được giữ theo cache riêng của từng origin/build.
+- Sửa quyền: Quest Admin gọi chung `requireSameOrigin` với Shop hệ thống/Túi quà tự chọn, nhưng vẫn ánh xạ lỗi sang contract `QuestAuthError`. Regression khóa cùng quyền write-origin cho `localhost`, `127.0.0.1` và `26.31.111.123`; cross-site/missing/invalid origin vẫn bị chặn.
+- Sửa deployment/UI: `DASHBOARD_ALLOWED_ORIGINS` khai báo đủ ba origin được phục vụ. Response `/` và `/dashboard/**` dùng `Cache-Control: private, no-store`, tránh hai hostname giữ hai shell navigation từ build khác nhau.
+- Test: 26 Quest/editor/validation/box/origin test PASS, 1 live test SKIP; dashboard typecheck PASS; `docker compose config --quiet` PASS. Next compile/lint/typecheck/static-generation đủ 28 trang rồi chỉ fail standalone trace-copy do Windows symlink `EPERM` baseline. Dashboard container đang dừng nên chưa rebuild/restart hoặc HTTP smoke-test; không mutate DB/catalog/player data, commit hoặc push.
+- Trạng thái: CODE_FIXED/FOCUSED_VERIFIED — cần rebuild/start dashboard được cho phép, sau đó hard refresh hai origin và xác nhận cả hai cùng sửa được Quest, Shop hệ thống và Túi quà tự chọn.
+
+## FIX-2026-10-23-02 — Túi Nguyên liệu/Bảo thạch và Tự đặt NL cấp 6 follow-up
+
+- Root cause panel: `EquipFuncBag.getAllShopList()` giữ index shop nhúng trong Flash. Guard cũ bỏ row server lỗi khỏi callback nhưng không xóa row đã có; `showSaleItems()` gọi `_core.getTemplateData(...).type` trước khi kiểm tra `st`, nên cả tab Nguyên liệu và Bảo thạch vẫn có thể lỗi #1009.
+- Sửa catalog override: mọi `TBL_SHOP_SLOT` thiếu template được gửi dưới cùng ID nhưng `sid=0,st=5`. `CallBackGlobal.parseAndSetShopSlot()` vì vậy xóa row khỏi index `sid` system shop cũ rồi chỉ đưa tombstone vào index 0; chỉ đặt `st=5` là không đủ. Source cache không bị mutate.
+- Root cause Tự đặt: inventory login dùng raw `Item.ToDTO()` và alias cấp 6 trước đây chỉ nhận persisted `ItemTypeMaterial`. Row legacy lưu `ItemTypeConsumable` dù template `kind=6/14` vẫn phát `color=5`, bị điều kiện Flash `color < 5` loại.
+- Sửa DTO: shared `BuildClientItemDTO` nhận diện nguyên liệu bằng template `kind=6/14`, giữ canonical `colorCode=5` nhưng phát `color=4` cho cấp 6 bất kể persisted item type. Login dùng shared DTO; các callback item handler đã dùng cùng builder. Cấp 6 vẫn là max và không được ghép lên cấp 7.
+- Test: focused application-item, item handler, shop handler và auth handler tests + targeted vet PASS; diff-check sạch ngoài LF→CRLF. Windows/Linux whole-server build vẫn BLOCKED bởi compile ngoài phạm vi ở `internal/application/combat/skill_adapter.go`. Không restart/deploy, sửa ActionScript, mutate DB/catalog/player data, commit hoặc push.
+- Trạng thái: CODE_FIXED/FOCUSED_VERIFIED — cần restart được cho phép và kết nối Flash mới để `getShopConfig` áp tombstone, rồi smoke-test hai tab và Tự đặt.
+
+## FIX-2026-10-23-01 — Đồng bộ Kết Tinh Thần Tu, Chìa Ma Tâm và Shop Kết Tinh
+
+- Kết Tinh Thần Tu: generic `UseMultiItem` luôn trả actual `used_item`, kể cả award-backed item. Handler vì vậy refresh đúng DTO khi còn stack và dùng SID thật khi stack hết; award currency 241 tiếp tục phát `onAddMoney(...,"spirituality",delta,total)` ngay sau persist character. Regression phủ dùng 2/3 rồi dùng hết item 2336 và tổng 400.000 mỗi viên.
+- Chìa Ma Tâm: exact fingerprint chỉ nhận `type=550,useType=1,name` bắt đầu `Ma Tâm (` và `proplNum` phải trỏ tới `TBL_CREATUREH_HEART` type 1..7. Grant được gộp theo lần multi-use, chỉ persist sau khi inventory consumption thành công, dùng heart template ID làm bag entry ID, phân loại `ren/shou/zhi/ji/mo/lon/te`, rồi push toàn bộ `updateMonsterHeartPanel`. Catalog regression xác nhận đủ 395 key và không có reference hỏng.
+- Shop Kết Tinh: bỏ mock `exchangeItem`. Chỉ xử lý authority hiện có `shopId=1,type=19,cType1=32,cType2=0,limit=0`; ánh xạ score 32 sang persisted `CurrencyWisdomCrystal`/client key typo `wisdonCrystal`, debit và persist trước grant, compensation nếu grant thất bại. Equipment được tạo theo template/quality/bind thật; popup `onAddItem` có đủ tên/màu/type/kind và mọi slot đổi được phát `onAddCharactorSlot`.
+- Test: focused item/monsterheart/shop/RTMP/gamedata suites PASS và diff-check không có whitespace error ngoài cảnh báo LF→CRLF. Windows/Linux gameserver builds đã PASS trước correction consume-before-grant cuối; rerun cuối của `cmd/gameserver` và targeted vet bị BLOCKED bởi thay đổi đồng thời ngoài phạm vi ở `internal/application/combat/skill_adapter.go` (import trùng/không dùng và thiếu `resolveCharacterSkillMultiplier`). Không restart/deploy, không dùng vật phẩm hoặc người chơi thật, không mutate DB/catalog/player data, không sửa ActionScript, commit hoặc push.
+- Trạng thái: CODE_FIXED/FOCUSED_VERIFIED — final whole-server verify chờ compile baseline combat được hoàn tất; sau đó cần restart được cho phép và Flash smoke-test để xác nhận ba panel thực tế.
+
 ## FIX-2026-10-22-03 — Năm nhóm gameplay/progression
 
 - Quest Thần Khí: thêm exact fingerprint cho `4707..4712`, bắt buộc đúng class và trả tại NPC 272; sáu reward main magic weapon `1348..1353` tiếp tục đi qua reward pipeline type 19. Catalog/dialogue/class drift fail-closed.

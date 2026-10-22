@@ -6,14 +6,14 @@
 package combat
 
 import (
+	"regexp"
+	"strconv"
+	"strings"
+
 	"mcgame-server/internal/domain/combat"
 	"mcgame-server/internal/domain/skill"
 	"mcgame-server/internal/gamedata"
 	gamedatamodels "mcgame-server/internal/gamedata/models"
-	"strings"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -77,9 +77,9 @@ func buildSkillInfoFromGamedata(tpl *gamedatamodels.SkillTemplate) *combat.Skill
 		Description:   tpl.Description,
 	}
 
-		if st.Multiplier <= 0 {
-			st.Multiplier = 1.0
-		}
+	if st.Multiplier <= 0 {
+		st.Multiplier = 1.0
+	}
 
 	info := &combat.SkillInfo{
 		Template:     st,
@@ -258,6 +258,29 @@ func resolveMultiplier(dexSkill float64) float64 {
 		return dexSkill / 100.0
 	}
 	return dexSkill
+}
+
+var characterSkillDamagePercent = regexp.MustCompile(`(?i)(?:gây(?:\s+ra)?(?:\s+tối\s+thiểu)?|tạo(?:\s+thành)?)[^\d%]{0,24}(\d+(?:[.,]\d+)?)\s*%\s*(?:sát\s*thương|tấn\s*công)`)
+
+func resolveCharacterSkillMultiplier(description string) float64 {
+	matches := characterSkillDamagePercent.FindAllStringSubmatch(description, -1)
+	if len(matches) == 0 {
+		return 0
+	}
+
+	var multiplier float64
+	for _, match := range matches {
+		value, err := strconv.ParseFloat(strings.ReplaceAll(match[1], ",", "."), 64)
+		if err != nil || value <= 0 {
+			return 0
+		}
+		value /= 100
+		if multiplier != 0 && multiplier != value {
+			return 0
+		}
+		multiplier = value
+	}
+	return multiplier
 }
 
 func resolveAttackCount(attackNum float64) int {
