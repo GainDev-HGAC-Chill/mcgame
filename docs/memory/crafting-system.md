@@ -8,6 +8,10 @@ Request: `getMakeColor(materials, recipeID)`. Materials object: `{1: {tempBagFla
 
 Response: `{canMake: true, colorPerList: {makePer1: 85, makePer2: 60, makePer3: 30, makePer4: 5}, flag: 0}`.
 
+## Flash material color contract
+
+Material instances keep canonical server `colorCode` 1..5. Flash `autoInputMake()` rejects raw `color >= 5`, so runtime DTOs expose only level-6 material through the compatibility alias `color=4,colorCode=5`; lower tiers keep their original client color, preserving the `color=4` rare-mix rate for level 5. The server still resolves the aliased instance as level 6. Level 6 is the maximum configured material level, so `materialMixOne`/`materialMixAll` reject it before consumption instead of producing the same tier.
+
 Preview bucket mapping: `makePer1`=green (color code 2), `makePer2`=blue (3), `makePer3`=purple (4), `makePer4`=orange (5).
 
 ## Quality Tier Determination
@@ -68,6 +72,8 @@ Result by Material Level:
 - Both preview and confirm reroll element. Sockets unchanged.
 
 Pending preview stored per character between `changePrefix` and `sureChangePrefix`.
+
+The pending state contains the complete preview property snapshot. Confirmation persists that snapshot atomically at the item-repository level, including randomized main/secondary values, locked values, quality, element, star and binding. A missing/zero soul value falls back to the equipment template's `activePropType`/`activePropNum`; an already rolled soul remains unchanged.
 
 ## Orange Equipment System Notice
 

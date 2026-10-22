@@ -63,6 +63,10 @@ Local env: `GM_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgr
 
 ## Box Items Management
 
+Selectable-package editing is implemented in the existing award workspace. The editor has `award` and `selectable` modes; selectable mode permits only Pet (`12`), equipment (`19`) and item (`29`), stores display order plus selection count in `payload.selection`, hides weighted/guaranteed/random-range controls and warns that gameserver data must be reloaded. Switching back to ordinary mode removes only the reserved selection metadata, while non-reserved payload, count, quality and equipment prefix remain intact.
+
+Award writes are now complete snapshots rather than per-row upserts/deletes. `POST /api/box-items/awards` uses a strict 128 KiB same-origin envelope, MD5 optimistic revision and one `data.box_item_admin_save` RPC; omitted rows are deleted and an empty ordinary snapshot can clear all rows. Existing positive row IDs must belong to the same package. Mixed, malformed, fractional or non-contiguous selection metadata fails closed when read. The SQL function remains only in `supabase/data/selectable_gift_bag_admin.sql`: Docker Linux and the Supabase CLI were unavailable on 2026-10-22, so it has not been applied, rollback-smoked or captured as a migration, and the new API is not operational end-to-end yet.
+
 Dashboard route `/dashboard/box-items` displays items that when opened/used grant other items. Three box types are identified:
 
 - **Simple Box**: `use_type=1` and `I1>0` in `data_tbl_item_template` (grants item I1 with count I2)

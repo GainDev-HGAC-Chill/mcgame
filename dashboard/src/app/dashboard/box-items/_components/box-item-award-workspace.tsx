@@ -12,6 +12,8 @@ import Image from "next/image"
 import Link from "next/link"
 import {
     ArrowLeft,
+    ArrowDown,
+    ArrowUp,
     ChevronLeft,
     ChevronRight,
     RefreshCcw,
@@ -44,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
     BOX_ITEM_AWARD_GUARANTEED_KEY,
+    BOX_ITEM_AWARD_SELECTION_KEY,
     BOX_ITEM_AWARD_TYPE_OPTIONS,
     BOX_ITEM_BOUND_CURRENCY_OPTIONS,
     BOX_ITEM_MOUNT_OPTIONS,
@@ -56,15 +59,18 @@ import {
     boxItemAwardQualityLabel,
     boxItemAwardSupportsPreNameType,
     boxItemAwardSupportsQuality,
+    boxItemAwardSupportsSelection,
     boxItemAwardTypeName,
     boxItemAwardUsesCurrencyOptions,
     boxItemAwardUsesFixedCount,
     boxItemAwardUsesGameCurrencyOptions,
     boxItemAwardUsesLookup,
+    normalizeBoxItemAwardModePayload,
     normalizeBoxItemAwardPayload,
     normalizeBoxItemAwardPreNameType,
     normalizeBoxItemAwardQuality,
     normalizeBoxItemAwardType,
+    type BoxItemAwardMode,
 } from "@/lib/box-item-awards"
 import { getErrorMessage } from "@/services/api"
 import {
@@ -172,27 +178,49 @@ function createStaticAvailableAwards(
         }))
         const boundItems = BOX_ITEM_BOUND_CURRENCY_OPTIONS.map(option => ({
             key: `${type}:bound:${option.value}`,
-            awardId: Number(option.value), type, name: option.label,
+            awardId: Number(option.value),
+            type,
+            name: option.label,
             subtitle: `Thêm phần thưởng ${option.label.toLowerCase()}`,
-            iconId: 0, iconDataUrl: "", count: 1, rate: 100,
-            quality: 0, preNameType: 0,
+            iconId: 0,
+            iconDataUrl: "",
+            count: 1,
+            rate: 100,
+            quality: 0,
+            preNameType: 0,
             payloadText: JSON.stringify(option.payload),
         }))
-        return [...basicItems, ...boundItems].filter(item =>
-            !normalizedSearch || item.name.toLowerCase().includes(normalizedSearch)
+        return [...basicItems, ...boundItems].filter(
+            item =>
+                !normalizedSearch ||
+                item.name.toLowerCase().includes(normalizedSearch)
         )
     }
 
     if (type === 37 || type === 38) {
-        const options = type === 37 ? BOX_ITEM_MOUNT_OPTIONS : BOX_ITEM_FAIRY_OPTIONS
-        return options.map(option => ({
-            key: `${type}:${option.value}`, awardId: Number(option.value),
-            type, name: option.label, subtitle: type === 37 ? 'Mở khóa vĩnh viễn' : 'Nhận tinh linh',
-            iconId: 0, iconDataUrl: "", count: 1, rate: 100,
-            quality: 0, preNameType: 0, payloadText: "",
-        })).filter(item => !normalizedSearch ||
-            item.name.toLowerCase().includes(normalizedSearch) ||
-            String(item.awardId).includes(normalizedSearch))
+        const options =
+            type === 37 ? BOX_ITEM_MOUNT_OPTIONS : BOX_ITEM_FAIRY_OPTIONS
+        return options
+            .map(option => ({
+                key: `${type}:${option.value}`,
+                awardId: Number(option.value),
+                type,
+                name: option.label,
+                subtitle: type === 37 ? "Mở khóa vĩnh viễn" : "Nhận tinh linh",
+                iconId: 0,
+                iconDataUrl: "",
+                count: 1,
+                rate: 100,
+                quality: 0,
+                preNameType: 0,
+                payloadText: "",
+            }))
+            .filter(
+                item =>
+                    !normalizedSearch ||
+                    item.name.toLowerCase().includes(normalizedSearch) ||
+                    String(item.awardId).includes(normalizedSearch)
+            )
     }
 
     if (boxItemAwardUsesGameCurrencyOptions(type)) {
@@ -249,6 +277,7 @@ function rowToDraft(row: ItemAwardRow): DraftAward {
     const isGuaranteed = !!payload[BOX_ITEM_AWARD_GUARANTEED_KEY]
     const displayPayload = { ...payload }
     delete displayPayload[BOX_ITEM_AWARD_GUARANTEED_KEY]
+    delete displayPayload[BOX_ITEM_AWARD_SELECTION_KEY]
     return {
         _key: row.id > 0 ? `db-${row.id}` : nextKey(),
         id: row.id,
@@ -258,8 +287,11 @@ function rowToDraft(row: ItemAwardRow): DraftAward {
         type: row.type,
         typeName: row.typeName || boxItemAwardTypeName(row.type),
         count: row.count,
-        countText: (typeof payload.countMin === "number" && typeof payload.countMax === "number")
-            ? `${payload.countMin}-${payload.countMax}` : String(row.count),
+        countText:
+            typeof payload.countMin === "number" &&
+            typeof payload.countMax === "number"
+                ? `${payload.countMin}-${payload.countMax}`
+                : String(row.count),
         rate: row.rate,
         quality: row.quality,
         preNameType: row.preNameType,
@@ -330,6 +362,9 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
     const [drafts, setDrafts] = useState<DraftAward[]>([])
     const [awardsLoading, setAwardsLoading] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [mode, setMode] = useState<BoxItemAwardMode>("award")
+    const [selectionCount, setSelectionCount] = useState(1)
+    const [revision, setRevision] = useState("")
     const [availableType, setAvailableType] = useState<string>("29")
     const [availableSearch, setAvailableSearch] = useState("")
     const [availableResults, setAvailableResults] = useState<AvailableAward[]>(
@@ -370,11 +405,14 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
         setAwardsLoading(true)
 
         try {
-            const rows = await boxItemService.getAwards(nextItemId)
+            const config = await boxItemService.getAwards(nextItemId)
             const hydratedDrafts = await Promise.all(
-                rows.map(row => hydrateDraftIcon(row))
+                config.awards.map(row => hydrateDraftIcon(row))
             )
             setDrafts(hydratedDrafts)
+            setMode(config.mode)
+            setSelectionCount(config.selectionCount)
+            setRevision(config.revision)
         } catch (error) {
             toast.error(getErrorMessage(error))
             setDrafts([])
@@ -435,25 +473,46 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
         [drafts]
     )
 
-    const removeDraft = useCallback(async (draft: DraftAward) => {
-        if (draft.id && draft.id > 0) {
-            try {
-                await boxItemService.deleteAward(draft.id)
-            } catch (error) {
-                toast.error(getErrorMessage(error))
-                return
-            }
-        }
-
+    const removeDraft = useCallback((draft: DraftAward) => {
         setDrafts(prev => prev.filter(item => item._key !== draft._key))
+    }, [])
+
+    const moveDraft = useCallback((index: number, offset: number) => {
+        setDrafts(prev => {
+            const target = index + offset
+            if (target < 0 || target >= prev.length) return prev
+            const next = [...prev]
+            ;[next[index], next[target]] = [next[target], next[index]]
+            return next
+        })
     }, [])
 
     const handleSave = useCallback(async () => {
         if (!item) return
 
         const validDrafts = drafts.filter(isValidAward)
-        if (validDrafts.length === 0) {
+        if (validDrafts.length !== drafts.length) {
+            toast.error("Danh sách có phần thưởng không hợp lệ.")
+            return
+        }
+        if (mode === "selectable" && validDrafts.length === 0) {
             toast.error("Cần ít nhất 1 phần thưởng hợp lệ.")
+            return
+        }
+        if (
+            mode === "selectable" &&
+            (selectionCount < 1 || selectionCount > validDrafts.length)
+        ) {
+            toast.error("Số lượt chọn phải nằm trong số phần thưởng hiện có.")
+            return
+        }
+        if (
+            mode === "selectable" &&
+            validDrafts.some(
+                draft => !boxItemAwardSupportsSelection(draft.type)
+            )
+        ) {
+            toast.error("Túi tự chọn chỉ hỗ trợ Pet, trang bị và vật phẩm.")
             return
         }
 
@@ -461,17 +520,20 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
 
         try {
             const payload: ItemAwardInput[] = validDrafts.map(
-                ({
-                    _key,
-                    awardName,
-                    typeName,
-                    iconId,
-                    iconDataUrl,
-                    guaranteed,
-                    payloadText,
-                    countText,
-                    ...draft
-                }) => {
+                (
+                    {
+                        _key,
+                        awardName,
+                        typeName,
+                        iconId,
+                        iconDataUrl,
+                        guaranteed,
+                        payloadText,
+                        countText,
+                        ...draft
+                    },
+                    index
+                ) => {
                     const trimmedPayloadText = payloadText.trim()
                     let normalizedPayload: Record<string, unknown> = {}
 
@@ -496,16 +558,32 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                         }
                     }
 
-                    // Range is stored in payload; DB count stays an integer.
                     const countInput = (countText ?? String(draft.count)).trim()
                     if (!boxItemAwardUsesFixedCount(draft.type)) {
-                        const match = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(countInput)
-                        if (!match) throw new Error(`Số lượng của ${awardName} không hợp lệ: ${countInput}`)
+                        const match = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(
+                            countInput
+                        )
+                        if (!match)
+                            throw new Error(
+                                `Số lượng của ${awardName} không hợp lệ: ${countInput}`
+                            )
                         const min = Number(match[1])
                         const max = Number(match[2] ?? match[1])
-                        if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) ||
-                            min < 1 || max < min || max > 100000000) {
-                            throw new Error(`Khoảng số lượng không hợp lệ cho ${awardName}.`)
+                        if (
+                            !Number.isSafeInteger(min) ||
+                            !Number.isSafeInteger(max) ||
+                            min < 1 ||
+                            max < min ||
+                            max > 100000000
+                        ) {
+                            throw new Error(
+                                `Khoảng số lượng không hợp lệ cho ${awardName}.`
+                            )
+                        }
+                        if (mode === "selectable" && min !== max) {
+                            throw new Error(
+                                `Túi tự chọn không hỗ trợ số lượng ngẫu nhiên cho ${awardName}.`
+                            )
                         }
                         if (min === max) {
                             delete normalizedPayload.countMin
@@ -520,11 +598,18 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                         delete normalizedPayload.countMax
                     }
 
-                    if (guaranteed) {
+                    if (mode !== "selectable" && guaranteed) {
                         normalizedPayload[BOX_ITEM_AWARD_GUARANTEED_KEY] = true
                     } else {
                         delete normalizedPayload[BOX_ITEM_AWARD_GUARANTEED_KEY]
                     }
+
+                    normalizedPayload = normalizeBoxItemAwardModePayload(
+                        normalizedPayload,
+                        mode,
+                        index,
+                        selectionCount
+                    )
 
                     return {
                         ...draft,
@@ -536,11 +621,20 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                 }
             )
 
-            const saved = await boxItemService.saveAwards(item.itemId, payload)
+            const saved = await boxItemService.saveAwards(
+                item.itemId,
+                payload,
+                mode,
+                selectionCount,
+                revision
+            )
             const hydratedDrafts = await Promise.all(
-                saved.map(row => hydrateDraftIcon(row))
+                saved.awards.map(row => hydrateDraftIcon(row))
             )
             setDrafts(hydratedDrafts)
+            setMode(saved.mode)
+            setSelectionCount(saved.selectionCount)
+            setRevision(saved.revision)
             toast.success(
                 `Đã lưu ${hydratedDrafts.length} phần thưởng cho item #${item.itemId}`
             )
@@ -549,7 +643,7 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
         } finally {
             setSaving(false)
         }
-    }, [drafts, item])
+    }, [drafts, item, mode, revision, selectionCount])
 
     const handleDragStart = useCallback((availableAward: AvailableAward) => {
         return (event: DragEvent<HTMLDivElement>) => {
@@ -592,13 +686,13 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
     useEffect(() => {
         const requestId = ++availableRequestRef.current
 
-		if (
-			boxItemAwardUsesCurrencyOptions(selectedAvailableType) ||
-			boxItemAwardUsesGameCurrencyOptions(selectedAvailableType) ||
+        if (
+            boxItemAwardUsesCurrencyOptions(selectedAvailableType) ||
+            boxItemAwardUsesGameCurrencyOptions(selectedAvailableType) ||
             selectedAvailableType === 37 ||
             selectedAvailableType === 38 ||
-			boxItemAwardIsExperience(selectedAvailableType)
-		) {
+            boxItemAwardIsExperience(selectedAvailableType)
+        ) {
             setAvailableLoading(false)
             setAvailableResults(
                 createStaticAvailableAwards(
@@ -635,6 +729,15 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
 
         return () => window.clearTimeout(timer)
     }, [availableSearch, selectedAvailableType])
+
+    useEffect(() => {
+        if (
+            mode === "selectable" &&
+            !boxItemAwardSupportsSelection(selectedAvailableType)
+        ) {
+            setAvailableType("29")
+        }
+    }, [mode, selectedAvailableType])
 
     if (itemLoading) {
         return (
@@ -755,6 +858,64 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                 </Button>
             </div>
 
+            <Card>
+                <CardContent className="grid gap-4 pt-6 md:grid-cols-[240px_180px_minmax(0,1fr)] md:items-end">
+                    <div className="space-y-1">
+                        <Label>Cách mở túi</Label>
+                        <Select
+                            value={mode}
+                            onValueChange={value =>
+                                setMode(value as BoxItemAwardMode)
+                            }
+                            disabled={saving}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="award">
+                                    Cố định / ngẫu nhiên
+                                </SelectItem>
+                                <SelectItem value="selectable">
+                                    Người chơi tự chọn
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {mode === "selectable" ? (
+                        <div className="space-y-1">
+                            <Label htmlFor="selection-count">
+                                Số phần thưởng được chọn
+                            </Label>
+                            <Input
+                                id="selection-count"
+                                type="number"
+                                min={1}
+                                max={Math.max(1, drafts.length)}
+                                value={selectionCount}
+                                onChange={event =>
+                                    setSelectionCount(
+                                        Math.max(
+                                            1,
+                                            Number(event.target.value) || 1
+                                        )
+                                    )
+                                }
+                            />
+                        </div>
+                    ) : (
+                        <div />
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                        {mode === "selectable"
+                            ? "Thứ tự bên phải là thứ tự lựa chọn trên Flash. Chỉ Pet, trang bị và vật phẩm được hỗ trợ."
+                            : "Giữ cơ chế phần thưởng cố định và pool trọng số hiện tại."}{" "}
+                        Thay đổi chỉ có hiệu lực sau khi gameserver được tải lại
+                        dữ liệu.
+                    </p>
+                </CardContent>
+            </Card>
+
             <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
                 <Card className="flex min-h-0 flex-col">
                     <CardHeader>
@@ -777,7 +938,13 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                     <SelectValue placeholder="Loại phần thưởng" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {BOX_ITEM_AWARD_TYPE_OPTIONS.map(option => (
+                                    {BOX_ITEM_AWARD_TYPE_OPTIONS.filter(
+                                        option =>
+                                            mode !== "selectable" ||
+                                            boxItemAwardSupportsSelection(
+                                                Number(option.value)
+                                            )
+                                    ).map(option => (
                                         <SelectItem
                                             key={option.value}
                                             value={option.value}
@@ -885,9 +1052,7 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                             type="button"
                             size="sm"
                             onClick={() => void handleSave()}
-                            disabled={
-                                saving || awardsLoading || drafts.length === 0
-                            }
+                            disabled={saving || awardsLoading}
                         >
                             <Save className="mr-2 h-4 w-4" />
                             {saving ? "Đang lưu..." : "Lưu thay đổi"}
@@ -917,7 +1082,7 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                     mũi tên hoặc kéo thả từ danh sách bên trái.
                                 </div>
                             ) : (
-                                drafts.map(draft => (
+                                drafts.map((draft, index) => (
                                     <div
                                         key={draft._key}
                                         className="rounded-lg border bg-background p-4"
@@ -975,18 +1140,62 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                                 </div>
                                             </div>
 
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() =>
-                                                    void removeDraft(draft)
-                                                }
-                                                disabled={saving}
-                                                aria-label={`Gỡ ${draft.awardName}`}
-                                            >
-                                                <ChevronLeft className="h-4 w-4" />
-                                            </Button>
+                                            <div className="flex gap-1">
+                                                {mode === "selectable" ? (
+                                                    <>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={() =>
+                                                                moveDraft(
+                                                                    index,
+                                                                    -1
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                saving ||
+                                                                index === 0
+                                                            }
+                                                            aria-label={`Đưa ${draft.awardName} lên`}
+                                                        >
+                                                            <ArrowUp className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={() =>
+                                                                moveDraft(
+                                                                    index,
+                                                                    1
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                saving ||
+                                                                index ===
+                                                                    drafts.length -
+                                                                        1
+                                                            }
+                                                            aria-label={`Đưa ${draft.awardName} xuống`}
+                                                        >
+                                                            <ArrowDown className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                ) : null}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        void removeDraft(draft)
+                                                    }
+                                                    disabled={saving}
+                                                    aria-label={`Gỡ ${draft.awardName}`}
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
 
                                         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -998,26 +1207,46 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                                     type="text"
                                                     inputMode="numeric"
                                                     placeholder="10 hoặc 1-100"
-                                                    value={draft.countText ?? String(draft.count)}
-                                                    disabled={boxItemAwardUsesFixedCount(draft.type)}
+                                                    value={
+                                                        draft.countText ??
+                                                        String(draft.count)
+                                                    }
+                                                    disabled={boxItemAwardUsesFixedCount(
+                                                        draft.type
+                                                    )}
                                                     onChange={event => {
-                                                        const value = event.target.value
-                                                        setDrafts(prev => prev.map(d =>
-                                                            d._key === draft._key ? { ...d, countText: value } : d
-                                                        ))
+                                                        const value =
+                                                            event.target.value
+                                                        setDrafts(prev =>
+                                                            prev.map(d =>
+                                                                d._key ===
+                                                                draft._key
+                                                                    ? {
+                                                                          ...d,
+                                                                          countText:
+                                                                              value,
+                                                                      }
+                                                                    : d
+                                                            )
+                                                        )
                                                     }}
                                                 />
                                             </div>
 
                                             <div className="space-y-1">
                                                 <p className="text-xs font-medium text-muted-foreground">
-                                                    Trọng số
+                                                    {mode === "selectable"
+                                                        ? `Thứ tự #${index + 1}`
+                                                        : "Trọng số"}
                                                 </p>
                                                 <Input
                                                     type="number"
                                                     min={0}
                                                     value={draft.rate}
-                                                    disabled={draft.guaranteed}
+                                                    disabled={
+                                                        mode === "selectable" ||
+                                                        draft.guaranteed
+                                                    }
                                                     onChange={event =>
                                                         updateDraft(
                                                             draft._key,
@@ -1025,46 +1254,48 @@ export function BoxItemAwardWorkspace({ itemId }: BoxItemAwardWorkspaceProps) {
                                                             Math.max(
                                                                 0,
                                                                 Number(
-                                                                    event
-                                                                        .target
+                                                                    event.target
                                                                         .value
                                                                 ) || 0
                                                             )
                                                         )
                                                     }
                                                 />
-                                                {!draft.guaranteed &&
+                                                {mode !== "selectable" &&
+                                                !draft.guaranteed &&
                                                 poolTotalWeight > 0 ? (
                                                     <p className="text-[11px] text-muted-foreground">
                                                         ~
-                                                        {
-                                                            Math.round(
-                                                                (draft.rate /
-                                                                    poolTotalWeight) *
-                                                                    100
-                                                            )
-                                                        }
+                                                        {Math.round(
+                                                            (draft.rate /
+                                                                poolTotalWeight) *
+                                                                100
+                                                        )}
                                                         % xác suất chọn
                                                     </p>
                                                 ) : null}
-                                                <div className="flex items-center gap-2 pt-1">
-                                                    <Switch
-                                                        id={`guaranteed-${draft._key}`}
-                                                        checked={draft.guaranteed}
-                                                        onCheckedChange={checked =>
-                                                            updateDraftGuaranteed(
-                                                                draft._key,
-                                                                checked
-                                                            )
-                                                        }
-                                                    />
-                                                    <Label
-                                                        htmlFor={`guaranteed-${draft._key}`}
-                                                        className="cursor-pointer text-xs"
-                                                    >
-                                                        Phần thưởng cố định
-                                                    </Label>
-                                                </div>
+                                                {mode !== "selectable" ? (
+                                                    <div className="flex items-center gap-2 pt-1">
+                                                        <Switch
+                                                            id={`guaranteed-${draft._key}`}
+                                                            checked={
+                                                                draft.guaranteed
+                                                            }
+                                                            onCheckedChange={checked =>
+                                                                updateDraftGuaranteed(
+                                                                    draft._key,
+                                                                    checked
+                                                                )
+                                                            }
+                                                        />
+                                                        <Label
+                                                            htmlFor={`guaranteed-${draft._key}`}
+                                                            className="cursor-pointer text-xs"
+                                                        >
+                                                            Phần thưởng cố định
+                                                        </Label>
+                                                    </div>
+                                                ) : null}
                                             </div>
 
                                             {boxItemAwardSupportsQuality(

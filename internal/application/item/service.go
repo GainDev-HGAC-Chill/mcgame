@@ -66,6 +66,10 @@ type FairyRewardGranter interface {
 	GrantReward(ctx context.Context, charID int64, tid int) (map[string]interface{}, error)
 }
 
+type MonsterHeartGranter interface {
+	AddHeart(ctx context.Context, charID int64, heartID, count int) (map[string]interface{}, error)
+}
+
 type Service struct {
 	itemRepo            item.Repository
 	charRepo            character.Repository
@@ -83,6 +87,7 @@ type Service struct {
 	typeHandlers        map[int]ItemEffectHandler
 	mountRewardGranter  MountRewardGranter
 	fairyRewardGranter  FairyRewardGranter
+	monsterHeartGranter MonsterHeartGranter
 	awardHandler        *awardEffectHandler
 	fallbackHandlers    []ItemEffectHandler
 	bloodBag            *appbloodbag.Service
@@ -126,6 +131,10 @@ func NewService(itemRepo item.Repository, logger *zap.Logger) *Service {
 func (s *Service) SetGameDataManager(mgr *gamedata.Manager) {
 	s.gameDataRec = mgr
 	s.initEffectHandlers()
+}
+
+func (s *Service) SetMonsterHeartGranter(granter MonsterHeartGranter) {
+	s.monsterHeartGranter = granter
 }
 
 func (s *Service) SetCharacterBonusProvider(provider CharacterBonusProvider) {
@@ -1329,6 +1338,9 @@ func (s *Service) effectResultToMap(r *ItemEffectResult) map[string]interface{} 
 	if len(r.GrantedMedals) > 0 {
 		result["granted_medals"] = r.GrantedMedals
 	}
+	if r.MonsterHeartPanel != nil {
+		result["monster_heart_panel"] = r.MonsterHeartPanel
+	}
 	if r.GiftBox != nil {
 		result["gift_box"] = r.GiftBox
 	}
@@ -1404,6 +1416,12 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	if s.gameDataRec != nil {
 		tpl = s.gameDataRec.GetItem(it.TemplateID)
 	}
+	if tpl != nil && s.gameDataRec != nil {
+		_, configured, _ := buildSelectableGiftBox(s.gameDataRec.GetItemAwardsByItemID(it.TemplateID))
+		if configured {
+			return nil, pkgerrors.ErrCannotUseItem
+		}
+	}
 
 	_, _, isExpBook := expBookConfig(it.TemplateID)
 	_, _, isEncounterBook := encounterBookConfig(it.TemplateID)
@@ -1475,6 +1493,7 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	grantedBuffs := make([]*domainbuff.Buff, 0)
 	grantedBuffIndexes := make(map[int]int)
 	refreshCharacterView := false
+	var monsterHeartPanel map[string]interface{}
 
 	for i := 0; i < count; i++ {
 		if tpl != nil {
@@ -1485,6 +1504,9 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 			totalHPHealed += effectResult.HPHealed
 			totalMPRestored += effectResult.MPRestored
 			refreshCharacterView = refreshCharacterView || effectResult.RefreshCharacterView
+			if effectResult.MonsterHeartPanel != nil {
+				monsterHeartPanel = effectResult.MonsterHeartPanel
+			}
 			for _, grant := range effectResult.GrantedCurrencies {
 				if index, ok := grantedCurrencyIndexes[grant.ClientKey]; ok {
 					grantedCurrencies[index].Delta += grant.Delta
@@ -1533,6 +1555,7 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 		"consumed":  count,
 		"remaining": it.StackCount,
 		"item_id":   it.ID,
+		"used_item": it,
 	}
 
 	if totalHPHealed > 0 {
@@ -1549,6 +1572,9 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	}
 	if refreshCharacterView {
 		result["refresh_character_view"] = true
+	}
+	if monsterHeartPanel != nil {
+		result["monster_heart_panel"] = monsterHeartPanel
 	}
 
 	return result, nil
@@ -2427,6 +2453,39 @@ func (s *Service) UpdateColorCode(ctx context.Context, itemID int64, colorCode i
 
 func (s *Service) UpdateEquipmentQuality(ctx context.Context, itemID int64, quality int) (*item.Item, error) {
 	return s.updateEquipmentQuality(ctx, itemID, quality, item.EquipmentColorCodeFromQuality(quality), false, 0)
+}
+
+func (s *Service) ApplyEquipmentPrefixChange(ctx context.Context, itemID int64, quality int, element int, starLevel int, properties map[string]interface{}) (*item.Item, error) {
+	it, err := s.itemRepo.FindByID(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if it.ItemType != item.ItemTypeEquipment {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+
+	clonedProperties := make(map[string]interface{}, len(properties)+8)
+	for key, value := range properties {
+		clonedProperties[key] = value
+	}
+	colorCode := item.EquipmentColorCodeFromQuality(quality)
+	clonedProperties["q"] = quality
+	clonedProperties["quality"] = quality
+	clonedProperties["color"] = strconv.Itoa(item.EquipmentDisplayColorFromColorCode(colorCode))
+	clonedProperties["preNameType"] = item.EquipmentPrefixTypeFromQuality(quality)
+	clonedProperties["element"] = element
+	clonedProperties["upgradeNum"] = starLevel
+	clonedProperties["binded"] = "1"
+
+	it.ColorCode = colorCode
+	it.StarLevel = max(0, starLevel)
+	it.IsBound = true
+	it.Properties = clonedProperties
+	if err := s.itemRepo.Update(ctx, it); err != nil {
+		return nil, err
+	}
+
+	return it, nil
 }
 
 func (s *Service) UpdateCraftedEquipmentQuality(ctx context.Context, itemID int64, quality int) (*item.Item, error) {

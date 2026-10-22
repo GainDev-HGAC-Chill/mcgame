@@ -211,34 +211,6 @@ func (h *Handler) rejectHMTXLSMutation(ctx *rtmp.RPCContext, method string, args
 	return nil, err
 }
 
-func (h *Handler) GetTXKCData(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	characterID, _, err := h.loadActivityCharacter(ctx, "GetTXKCData")
-	if err != nil {
-		return nil, err
-	}
-
-	now := time.Now()
-	response := map[string]interface{}{
-		"start": now.Format("2006-01-02"),
-		"end":   now.Add(7 * 24 * time.Hour).Format("2006-01-02"),
-		"days":  7,
-		"flag": map[string]interface{}{
-			"lev":  1,
-			"exp":  0,
-			"p":    0,
-			"awd1": 0,
-			"awd2": 0,
-		},
-	}
-
-	h.sendActivityCallback(ctx, "onTXKCGetData", response)
-	h.logger.Info("GetTXKCData: returning starter payload",
-		zap.Uint32("conn_id", ctx.ConnID),
-		zap.Int64("character_id", characterID))
-
-	return response, nil
-}
-
 func (h *Handler) loadActivityCharacter(ctx *rtmp.RPCContext, method string) (int64, *domainchar.Character, error) {
 	_, characterID, err := h.characterID(ctx, method)
 	if err != nil {

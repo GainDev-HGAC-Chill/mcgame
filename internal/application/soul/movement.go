@@ -92,9 +92,22 @@ func (s *Service) SeedPetOpenNum(ctx context.Context, petID int64, openNum int) 
 }
 
 func (s *Service) OpenPetSoulBag(ctx context.Context, charID, petID int64) (map[string]any, error) {
+	if s.petRepo == nil {
+		return nil, ErrPetBagLocked
+	}
+	pet, err := s.petRepo.FindByID(ctx, petID)
+	if err != nil || pet == nil || pet.CharacterID != charID || pet.Level < 80 {
+		return nil, ErrPetBagLocked
+	}
 	state, err := s.loadPetState(ctx, petID)
 	if err != nil {
 		return nil, err
+	}
+	if state.OpenNum < 8 {
+		state.OpenNum = 8
+		if err := s.savePetState(ctx, petID, state); err != nil {
+			return nil, err
+		}
 	}
 	if state.OpenNum < 5 {
 		return nil, ErrPetBagLocked

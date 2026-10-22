@@ -242,6 +242,45 @@ func (h *awardEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *
 	return result, nil
 }
 
+func (h *awardEffectHandler) applySelectableChoice(ctx context.Context, char *character.Character, choice *GiftBoxChoice) (*ItemEffectResult, error) {
+	award := resolvedItemAward{
+		AwardID:     choice.ID,
+		AwardType:   choice.TableType,
+		Count:       choice.StackNum,
+		ItemQuality: normalizeAwardQuality(choice.Quality),
+		PetQuality:  normalizePetAwardQuality(float64(choice.Quality)),
+		PreNameType: domainitem.NormalizeEquipmentPrefixType(choice.PreNameType),
+		Payload:     choice.Payload,
+	}
+	if err := h.ensureAwardCapacity(ctx, char.ID, []resolvedItemAward{award}); err != nil {
+		return nil, err
+	}
+	result := NewEffectResult()
+	switch award.AwardType {
+	case 12:
+		pets, err := h.grantPetAward(ctx, char.ID, award.AwardID, award.Count, award.PetQuality)
+		if err != nil {
+			return nil, err
+		}
+		if len(pets) != award.Count {
+			return nil, fmt.Errorf("selectable pet award grant incomplete")
+		}
+		result.Pets = append(result.Pets, pets...)
+	case 19, 29:
+		granted, err := h.grantItemAward(ctx, char.ID, award.AwardID, award.AwardType, award.Count, award.ItemQuality, award.PreNameType, award.Payload)
+		if err != nil {
+			return nil, err
+		}
+		if len(granted) == 0 {
+			return nil, fmt.Errorf("selectable item award grant incomplete")
+		}
+		result.GrantedItems = append(result.GrantedItems, granted...)
+	default:
+		return nil, fmt.Errorf("unsupported selectable item award type: %d", award.AwardType)
+	}
+	return result, nil
+}
+
 // Fixed-count unlocks are not stackable; do not randomize their quantity.
 func boxAwardFixedQuantity(awardType int) bool {
 	return awardType == 33 || awardType == 34 || awardType == 37 || awardType == 38
@@ -543,22 +582,22 @@ func (h *awardEffectHandler) grantBuffAward(ctx context.Context, charID int64, b
 }
 
 func (h *awardEffectHandler) grantGameCurrencyAward(char *character.Character, currencyType int, amount int) error {
-    if char == nil {
-        return fmt.Errorf("character not available")
-    }
+	if char == nil {
+		return fmt.Errorf("character not available")
+	}
 
-    if currencyType == character.CurrencySpirituality {
-        accessor, ok := character.LookupGameKVAccessor(currencyType)
-        if !ok {
-            return fmt.Errorf("unsupported currency type: %d", currencyType)
-        }
+	if currencyType == character.CurrencySpirituality {
+		accessor, ok := character.LookupGameKVAccessor(currencyType)
+		if !ok {
+			return fmt.Errorf("unsupported currency type: %d", currencyType)
+		}
 
-        current := accessor.Get(char)
-        accessor.Set(char, current+int64(amount))
-        return nil
-    }
+		current := accessor.Get(char)
+		accessor.Set(char, current+int64(amount))
+		return nil
+	}
 
-    return char.AddCurrency(currencyType, amount)
+	return char.AddCurrency(currencyType, amount)
 }
 
 func (h *awardEffectHandler) grantMedalAward(ctx context.Context, charID int64, tid, count int) (bool, int, int, error) {

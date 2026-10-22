@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	domainchar "mcgame-server/internal/domain/character"
+	domainpet "mcgame-server/internal/domain/pet"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
@@ -55,8 +56,13 @@ var (
 type Service struct {
 	featureRepo domainfeature.Repository
 	charRepo    domainchar.Repository
+	petRepo     PetRepository
 	gameData    *gamedata.Manager
 	logger      *zap.Logger
+}
+
+type PetRepository interface {
+	FindByID(ctx context.Context, id int64) (*domainpet.Pet, error)
 }
 
 func NewService(featureRepo domainfeature.Repository, charRepo domainchar.Repository, gameData *gamedata.Manager, logger *zap.Logger) *Service {
@@ -64,6 +70,10 @@ func NewService(featureRepo domainfeature.Repository, charRepo domainchar.Reposi
 		logger = zap.NewNop()
 	}
 	return &Service{featureRepo: featureRepo, charRepo: charRepo, gameData: gameData, logger: logger}
+}
+
+func (s *Service) SetPetRepository(repo PetRepository) {
+	s.petRepo = repo
 }
 
 func (s *Service) loadCharState(ctx context.Context, charID int64) (*CharSoulState, error) {
@@ -152,6 +162,17 @@ func (s *Service) PetSoulInfo(ctx context.Context, petID int64) map[string]any {
 	if err != nil {
 		s.logger.Warn("soul: login pet info load failed", zap.Int64("pet_id", petID), zap.Error(err))
 		return map[string]any{"openNum": 0, "openNum2": 0, "data": map[string]any{}}
+	}
+	if s.petRepo != nil {
+		pet, petErr := s.petRepo.FindByID(ctx, petID)
+		if petErr != nil {
+			s.logger.Warn("soul: login pet lookup failed", zap.Int64("pet_id", petID), zap.Error(petErr))
+		} else if pet != nil && pet.Level >= 80 && state.OpenNum < 8 {
+			state.OpenNum = 8
+			if saveErr := s.savePetState(ctx, petID, state); saveErr != nil {
+				s.logger.Warn("soul: reconcile pet base slots failed", zap.Int64("pet_id", petID), zap.Error(saveErr))
+			}
+		}
 	}
 	return state.LoginObj()
 }

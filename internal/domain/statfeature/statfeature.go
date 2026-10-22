@@ -42,6 +42,7 @@ const (
 	FeatureFairySkin       = "fairy_skin"
 	FeaturePetStoneInlay   = "pet_stone_inlay"
 	FeatureBloodBag        = "blood_bag"
+	FeatureSpecialTraining = "special_training_course"
 )
 
 type CharacterProgression struct {

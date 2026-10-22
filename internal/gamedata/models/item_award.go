@@ -52,6 +52,12 @@ func (t *ItemAwardTemplate) ToDTO() map[string]interface{} {
 }
 
 const AwardPayloadGuaranteedKey = "guaranteed"
+const AwardPayloadSelectionKey = "selection"
+
+type ItemAwardSelection struct {
+	Order  int
+	GetNum int
+}
 
 func (t *ItemAwardTemplate) IsGuaranteed() bool {
 	if t == nil || t.Payload == nil {
@@ -64,4 +70,48 @@ func (t *ItemAwardTemplate) IsGuaranteed() bool {
 		return x != 0
 	}
 	return false
+}
+
+func (t *ItemAwardTemplate) Selection() (ItemAwardSelection, bool) {
+	if t == nil || t.Payload == nil {
+		return ItemAwardSelection{}, false
+	}
+	raw, ok := t.Payload[AwardPayloadSelectionKey]
+	if !ok {
+		return ItemAwardSelection{}, false
+	}
+	selection, ok := raw.(map[string]interface{})
+	if !ok {
+		return ItemAwardSelection{}, false
+	}
+	order, orderOK := itemAwardPayloadInt(selection["order"])
+	getNum, getNumOK := itemAwardPayloadInt(selection["getNum"])
+	if !orderOK || !getNumOK || order < 0 || getNum <= 0 {
+		return ItemAwardSelection{}, false
+	}
+	return ItemAwardSelection{Order: order, GetNum: getNum}, true
+}
+
+func (t *ItemAwardTemplate) HasSelectionMetadata() bool {
+	if t == nil || t.Payload == nil {
+		return false
+	}
+	_, ok := t.Payload[AwardPayloadSelectionKey]
+	return ok
+}
+
+func itemAwardPayloadInt(value interface{}) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int64:
+		return int(typed), true
+	case float64:
+		if typed != float64(int(typed)) {
+			return 0, false
+		}
+		return int(typed), true
+	default:
+		return 0, false
+	}
 }

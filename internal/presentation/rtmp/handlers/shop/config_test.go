@@ -3,10 +3,14 @@
 package shop
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
+	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
+
+	"go.uber.org/zap"
 )
 
 func TestBuildShopConfigRowsUsesFlashFieldNames(t *testing.T) {
@@ -36,5 +40,26 @@ func TestBuildShopConfigRowsSkipsNil(t *testing.T) {
 	rows := buildShopConfigRows([]*models.ShopSlotTemplate{nil, {ID: 1}})
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+}
+
+func TestShopSlotHasTemplateRejectsMissingCatalogReference(t *testing.T) {
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	raw, err := json.Marshal(models.ItemTemplateTemplate{ID: 99})
+	if err != nil {
+		t.Fatalf("marshal item template: %v", err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{raw}); err != nil {
+		t.Fatalf("load item template: %v", err)
+	}
+
+	if !shopSlotHasTemplate(manager, &models.ShopSlotTemplate{ID: 1, Type: 29, ItemID: 99}) {
+		t.Fatal("expected existing item template to be renderable")
+	}
+	if shopSlotHasTemplate(manager, &models.ShopSlotTemplate{ID: 2, Type: 29, ItemID: 100}) {
+		t.Fatal("expected missing item template to be rejected")
+	}
+	if shopSlotHasTemplate(manager, &models.ShopSlotTemplate{ID: 3, Type: 999, ItemID: 99}) {
+		t.Fatal("expected unsupported table type to be rejected")
 	}
 }

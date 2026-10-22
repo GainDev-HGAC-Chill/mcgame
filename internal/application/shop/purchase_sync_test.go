@@ -356,6 +356,43 @@ func TestBuySystemItemSerializesConcurrentPointPurchases(t *testing.T) {
 	}
 }
 
+func TestExchangeItemUsesCrystalCreditCatalogAndReturnsCompleteDTOs(t *testing.T) {
+	ctx := context.Background()
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadPurchaseSyncRecord(t, manager, models.TableEquiptTemplate, models.EquiptTemplateTemplate{
+		ID: 1255, Name: "Pet Helm", Kind: 8, StackMax: 1, SingleFlag: 1, ColorCode: 2,
+	})
+	loadPurchaseSyncRecord(t, manager, models.TableCredit, models.CreditTemplate{
+		ID: 1, ShopID: 1, ItemID: 1255, Type: 19, CType1: 32, CNum1: 1, LimitType: 0, LimitNum: 0,
+	})
+	itemRepo := newPurchaseSyncItemRepo()
+	itemService := appitem.NewService(itemRepo, zap.NewNop())
+	itemService.SetGameDataManager(manager)
+	charRepo := newVIPShopCharacterRepo(&character.Character{ID: 1, Name: "buyer", WisdomCrystal: 3, BagSlotNum: 30})
+	service := NewService()
+	service.SetGameDataManager(manager)
+	service.SetItemService(itemService)
+	service.SetCharacterRepository(charRepo)
+
+	result, err := service.ExchangeItem(ctx, 1, "1", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.NewPoints != 1 || result.Cost != 2 || result.CurrencyKey != "wisdonCrystal" {
+		t.Fatalf("currency result = %#v", result)
+	}
+	if result.ItemData["n"] == nil || result.ItemData["n"] == "" || result.ItemData["t"] != 19 || result.ItemData["i"] != 1255 {
+		t.Fatalf("popup DTO = %#v", result.ItemData)
+	}
+	if len(result.AddedItemDTOs) != 2 {
+		t.Fatalf("added DTO count = %d, want 2", len(result.AddedItemDTOs))
+	}
+	updated, _ := charRepo.FindByID(ctx, 1)
+	if updated.WisdomCrystal != 1 {
+		t.Fatalf("persisted wisdom crystal = %d, want 1", updated.WisdomCrystal)
+	}
+}
+
 func newPurchaseSyncTestManager(t *testing.T, itemTpl models.ItemTemplateTemplate) *gamedata.Manager {
 	t.Helper()
 

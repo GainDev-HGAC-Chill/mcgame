@@ -1243,6 +1243,17 @@ func (c *Cache) GetItemAwardsByItemID(itemID int) []*models.ItemAwardTemplate {
 			result = append(result, award)
 		}
 	}
+	sort.Slice(result, func(i, j int) bool {
+		left, leftOK := result[i].Selection()
+		right, rightOK := result[j].Selection()
+		if leftOK && rightOK && left.Order != right.Order {
+			return left.Order < right.Order
+		}
+		if leftOK != rightOK {
+			return leftOK
+		}
+		return result[i].ID < result[j].ID
+	})
 	return result
 }
 
@@ -1256,6 +1267,12 @@ func (c *Cache) GetShop(id int) *models.ShopTemplate {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.shops[id]
+}
+
+func (c *Cache) GetCredit(id int) *models.CreditTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.credits[id]
 }
 
 func (c *Cache) GetShopSlot(id int) *models.ShopSlotTemplate {

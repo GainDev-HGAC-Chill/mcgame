@@ -1,21 +1,16 @@
 import { DASHBOARD_API_ENDPOINTS } from "@/lib/api/endpoints"
-import type { BoxItemAwardPayload } from "@/lib/box-item-awards"
+import type {
+    BoxItemAwardMode,
+    BoxItemAwardPayload,
+} from "@/lib/box-item-awards"
 
 import { fetchAPI, buildQueryString } from "./api"
 
 export type BoxItemSortBy =
-    | "item_id"
-    | "name"
-    | "template_type"
-    | "required_level"
-    | "kind"
+    "item_id" | "name" | "template_type" | "required_level" | "kind"
 export type BoxItemSortDir = "asc" | "desc"
 export type BoxItemSourceFilter =
-    | "all"
-    | "quest_reward"
-    | "shop"
-    | "creature_loot"
-    | "award_config"
+    "all" | "quest_reward" | "shop" | "creature_loot" | "award_config"
 
 export interface BoxItemSearchQuery {
     search?: string
@@ -88,18 +83,22 @@ export interface ItemAwardOption {
 interface AwardsResponse {
     ok: boolean
     awards: ItemAwardRow[]
+    mode: BoxItemAwardMode
+    selectionCount: number
+    revision: string
     message?: string
+}
+
+export interface ItemAwardConfiguration {
+    awards: ItemAwardRow[]
+    mode: BoxItemAwardMode
+    selectionCount: number
+    revision: string
 }
 
 interface AwardOptionsResponse {
     ok: boolean
     items: ItemAwardOption[]
-    message?: string
-}
-
-interface DeleteResponse {
-    ok: boolean
-    deletedId?: number
     message?: string
 }
 
@@ -124,18 +123,40 @@ export const boxItemService = {
         const res = await fetchAPI<AwardsResponse>(
             `${DASHBOARD_API_ENDPOINTS.boxItemAwards}?itemId=${itemId}`
         )
-        return res.awards || []
+        return {
+            awards: res.awards || [],
+            mode: res.mode || "award",
+            selectionCount: res.selectionCount || 1,
+            revision: res.revision || "",
+        } satisfies ItemAwardConfiguration
     },
 
-    async saveAwards(itemId: number, awards: ItemAwardInput[]) {
+    async saveAwards(
+        itemId: number,
+        awards: ItemAwardInput[],
+        mode: BoxItemAwardMode,
+        selectionCount: number,
+        revision: string
+    ) {
         const res = await fetchAPI<AwardsResponse>(
             DASHBOARD_API_ENDPOINTS.boxItemAwards,
             {
                 method: "POST",
-                body: JSON.stringify({ itemId, awards }),
+                body: JSON.stringify({
+                    itemId,
+                    awards,
+                    mode,
+                    selectionCount,
+                    revision,
+                }),
             }
         )
-        return res.awards || []
+        return {
+            awards: res.awards || [],
+            mode: res.mode || mode,
+            selectionCount: res.selectionCount || selectionCount,
+            revision: res.revision || "",
+        } satisfies ItemAwardConfiguration
     },
 
     async searchAwardOptions(type: number, search: string, limit = 20) {
@@ -144,12 +165,5 @@ export const boxItemService = {
             `${DASHBOARD_API_ENDPOINTS.boxItemAwardOptions}?${queryString}`
         )
         return res.items || []
-    },
-
-    async deleteAward(id: number) {
-        return fetchAPI<DeleteResponse>(DASHBOARD_API_ENDPOINTS.boxItemAwards, {
-            method: "DELETE",
-            body: JSON.stringify({ id }),
-        })
     },
 }

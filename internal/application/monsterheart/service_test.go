@@ -129,3 +129,33 @@ func TestSetSlotRequiresCatalogBackedOwnedEntryAndOpenHole(t *testing.T) {
 		t.Fatalf("forged type error = %v, want %v", err, ErrHeartType)
 	}
 }
+
+func TestAddHeartPersistsInCatalogCategoryAndStacks(t *testing.T) {
+	repo := &mutationRepository{}
+	service := NewService(repo, zap.NewNop())
+	service.SetCatalog(testCatalog{hearts: map[int]*models.CreaturehHeartTemplate{
+		101: {ID: 101, Type: 4},
+	}})
+
+	panel, err := service.AddHeart(context.Background(), 8, 101, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := DecodeState(panel)
+	entry, ok := state.Bag["ji"][101]
+	if !ok || entry.ID != 101 || entry.ItemID != 101 || entry.N != 2 {
+		t.Fatalf("first grant = %#v", state.Bag["ji"])
+	}
+
+	panel, err = service.AddHeart(context.Background(), 8, 101, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state = DecodeState(panel)
+	if got := state.Bag["ji"][101].N; got != 5 {
+		t.Fatalf("stack = %d, want 5", got)
+	}
+	if _, err := service.AddHeart(context.Background(), 8, 999, 1); err != ErrCatalogEntry {
+		t.Fatalf("unknown heart error = %v, want %v", err, ErrCatalogEntry)
+	}
+}

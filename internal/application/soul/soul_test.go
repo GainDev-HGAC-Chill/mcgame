@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	domainchar "mcgame-server/internal/domain/character"
+	domainpet "mcgame-server/internal/domain/pet"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
@@ -77,6 +78,14 @@ func (r *fakeFeatureRepo) PPVEChallengeNextFloor(ctx context.Context, charID int
 
 type fakeCharRepo struct {
 	chars map[int64]*domainchar.Character
+}
+
+type fakePetRepo struct {
+	pets map[int64]*domainpet.Pet
+}
+
+func (r *fakePetRepo) FindByID(ctx context.Context, id int64) (*domainpet.Pet, error) {
+	return r.pets[id], nil
 }
 
 func (r *fakeCharRepo) FindByID(ctx context.Context, id int64) (*domainchar.Character, error) {

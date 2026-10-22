@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 
 	"mcgame-server/internal/application/item"
@@ -461,14 +462,81 @@ func (s *shopService) SellItem(ctx context.Context, characterID int64, inventory
 }
 
 func (s *shopService) ExchangeItem(ctx context.Context, characterID int64, creditID string, amount int) (*ExchangeResult, error) {
-	// Mock: assume exchange is successful
+	unlock := s.lockCharacterPurchase(characterID)
+	defer unlock()
+	if s.charRepo == nil || s.gameDataRec == nil || s.itemService == nil {
+		return nil, errors.New("credit shop dependencies not initialized")
+	}
+	id, err := strconv.Atoi(creditID)
+	if err != nil || id <= 0 || amount <= 0 {
+		return nil, errors.New("invalid credit exchange request")
+	}
+	credit := s.gameDataRec.GetCredit(id)
+	if credit == nil {
+		return nil, errors.New("credit entry not found")
+	}
+	if int(credit.ShopID) != 1 || int(credit.Type) != 19 || int(credit.CType1) != 32 || int(credit.CType2) != 0 || int(credit.LimitType) != 0 || int(credit.LimitNum) != 0 {
+		return nil, errors.New("unsupported credit entry")
+	}
+	if credit.CNum1 <= 0 || credit.CNum1 != math.Trunc(credit.CNum1) || int64(credit.CNum1) > math.MaxInt64/int64(amount) {
+		return nil, errors.New("invalid credit cost")
+	}
+	equipment := s.gameDataRec.GetEquipment(int(credit.ItemID))
+	if equipment == nil {
+		return nil, errors.New("credit equipment template not found")
+	}
+	isBound := int(credit.Bind) > 0
+	before, err := s.snapshotPurchaseBagStacks(ctx, characterID, int(credit.ItemID), pkgitem.ItemTypeEquipment, isBound)
+	if err != nil {
+		return nil, err
+	}
+	cost := int(credit.CNum1) * amount
+	char, err := s.charRepo.FindByID(ctx, characterID)
+	if err != nil {
+		return nil, err
+	}
+	if err := char.DeductCurrency(character.CurrencyWisdomCrystal, cost); err != nil {
+		return nil, err
+	}
+	if err := s.charRepo.Update(ctx, char); err != nil {
+		return nil, err
+	}
+
+	colorCode := int(math.Ceil(credit.Quality / 5))
+	added, err := s.itemService.AddItemWithBindAndColor(ctx, characterID, int(credit.ItemID), pkgitem.ItemTypeEquipment, amount, isBound, colorCode)
+	if err != nil {
+		return nil, s.compensateCreditExchange(ctx, char, cost, err)
+	}
+	addedDTOs, err := s.changedPurchaseBagDTOs(ctx, characterID, int(credit.ItemID), pkgitem.ItemTypeEquipment, isBound, before)
+	if err != nil {
+		addedDTOs = []map[string]interface{}{s.itemService.BuildClientItemDTO(added)}
+	}
+	name := pkgitem.FormatEquipmentDisplayName(equipment.Name, added.ColorCode)
 	return &ExchangeResult{
-		NewPoints: 500,
+		NewPoints:     char.WisdomCrystal,
+		Cost:          cost,
+		CurrencyKey:   "wisdonCrystal",
+		AddedItemDTOs: addedDTOs,
 		ItemData: map[string]interface{}{
-			"t": 19,   // TBL_EQUIPT_TEMPLATE
-			"i": 2001, // Mock equipment ID
+			"i":  int(credit.ItemID),
+			"q":  amount,
+			"s":  "",
+			"c":  pkgitem.PopupNoticeColor(pkgitem.ItemTypeEquipment, added.ColorCode),
+			"t":  19,
+			"n":  name,
+			"tt": int(equipment.Kind),
 		},
 	}, nil
+}
+
+func (s *shopService) compensateCreditExchange(ctx context.Context, char *character.Character, amount int, cause error) error {
+	if addErr := char.AddCurrency(character.CurrencyWisdomCrystal, amount); addErr != nil {
+		return fmt.Errorf("credit exchange failed after debit (%v); compensation failed: %w", cause, addErr)
+	}
+	if saveErr := s.charRepo.Update(ctx, char); saveErr != nil {
+		return fmt.Errorf("credit exchange failed after debit (%v); compensation persistence failed: %w", cause, saveErr)
+	}
+	return cause
 }
 
 func (s *shopService) RepairItems(ctx context.Context, characterID int64, repairType int) (*RepairResult, error) {
@@ -635,13 +703,25 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 		} else if shopSlot.Gold > 0 {
 			cost = int64(shopSlot.Gold) * int64(req.Amount)
 			pType = goldType
-			if int(shopSlot.Gt) == 1 { pType = 4 }
-			if pType == 3 { totalGoldBind += cost } else { totalGold += cost }
+			if int(shopSlot.Gt) == 1 {
+				pType = 4
+			}
+			if pType == 3 {
+				totalGoldBind += cost
+			} else {
+				totalGold += cost
+			}
 		} else if shopSlot.Money > 0 {
 			cost = int64(shopSlot.Money) * int64(req.Amount)
 			pType = moneyType
-			if int(shopSlot.Gt) == 1 { pType = 2 }
-			if pType == 1 { totalMoneyBind += cost } else { totalMoney += cost }
+			if int(shopSlot.Gt) == 1 {
+				pType = 2
+			}
+			if pType == 1 {
+				totalMoneyBind += cost
+			} else {
+				totalMoney += cost
+			}
 		} else {
 			return nil, fmt.Errorf("shop slot %d has no supported price", req.ShopSlotID)
 		}
@@ -758,16 +838,26 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 		currencyType = 0
 	}
 	updates := map[string]int64{}
-	if totalGold > 0 { updates["gold"] = char.Gold }
-	if totalGoldBind > 0 { updates["goldBind"] = char.GoldBind }
-	if totalMoney > 0 { updates["money"] = char.Money }
-	if totalMoneyBind > 0 { updates["moneyBind"] = char.MoneyBind }
-	if totalPoint > 0 { updates["exPoint"] = int64(char.ExPoint) }
+	if totalGold > 0 {
+		updates["gold"] = char.Gold
+	}
+	if totalGoldBind > 0 {
+		updates["goldBind"] = char.GoldBind
+	}
+	if totalMoney > 0 {
+		updates["money"] = char.Money
+	}
+	if totalMoneyBind > 0 {
+		updates["moneyBind"] = char.MoneyBind
+	}
+	if totalPoint > 0 {
+		updates["exPoint"] = int64(char.ExPoint)
+	}
 
 	return &BuySystemItemMultiResult{
-		Success:       true,
-		Items:         resultItems,
-		AddedItemDTOs: resultDTOs,
+		Success:         true,
+		Items:           resultItems,
+		AddedItemDTOs:   resultDTOs,
 		NewMoney:        newMoney,
 		CurrencyType:    currencyType,
 		CurrencyUpdates: updates,

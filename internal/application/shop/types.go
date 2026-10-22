@@ -19,8 +19,11 @@ type SellResult struct {
 
 // ExchangeResult contains the result of an item exchange
 type ExchangeResult struct {
-	NewPoints int                    `json:"newPoints"`
-	ItemData  map[string]interface{} `json:"itemData"`
+	NewPoints     int                      `json:"newPoints"`
+	Cost          int                      `json:"cost"`
+	CurrencyKey   string                   `json:"currencyKey"`
+	ItemData      map[string]interface{}   `json:"itemData"`
+	AddedItemDTOs []map[string]interface{} `json:"addedItemDtos"`
 }
 
 // RepairResult contains the result of repairing items

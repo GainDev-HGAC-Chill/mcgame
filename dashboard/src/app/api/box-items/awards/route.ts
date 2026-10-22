@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-
 import { API_MESSAGES } from "@/constants/api-messages"
 import { HTTP_STATUS } from "@/constants/http-status"
 import {
@@ -8,14 +7,20 @@ import {
     boxItemAwardUsesFixedCount,
     boxItemAwardSupportsPreNameType,
     boxItemAwardSupportsQuality,
+    boxItemAwardSupportsSelection,
     boxItemAwardTypeName,
+    normalizeBoxItemAwardModePayload,
     normalizeBoxItemAwardPayload,
     normalizeBoxItemAwardPreNameType,
     normalizeBoxItemAwardQuality,
     normalizeBoxItemAwardType,
+    orderBoxItemAwardRows,
+    resolveBoxItemAwardMode,
 } from "@/lib/box-item-awards"
+import { boxItemAwardSaveSchema } from "@/lib/box-item-award-config"
 import { resolveErrorMessage } from "@/lib/api/response"
 import { readAdminSessionFromRequest } from "@/lib/server/admin-session"
+import { requireSameOrigin, SameOriginError } from "@/lib/server/same-origin"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 type DbAwardRow = {
@@ -42,12 +47,11 @@ type AwardInput = {
 }
 
 type SaveAwardsRequest = {
-    itemId?: number
-    awards?: AwardInput[]
-}
-
-type DeleteAwardRequest = {
-    id?: number
+    itemId: number
+    awards: AwardInput[]
+    mode: "award" | "selectable"
+    selectionCount: number
+    revision: string
 }
 
 export const dynamic = "force-dynamic"
@@ -94,6 +98,17 @@ function mapAwardRow(row: DbAwardRow, nameMap: Map<string, string>) {
             : 0,
         payload: normalizeBoxItemAwardPayload(row.payload),
     }
+}
+
+async function readAwardRevision(
+    admin: ReturnType<typeof createAdminClient>,
+    itemId: number
+) {
+    const { data, error } = await admin
+        .schema("data")
+        .rpc("box_item_award_revision", { p_item_id: itemId })
+    if (error) throw new Error(error.message)
+    return typeof data === "string" ? data : ""
 }
 
 async function resolveAwardNames(
@@ -278,11 +293,13 @@ export async function GET(request: NextRequest) {
 
         if (error) throw new Error(error.message)
 
-        const awardRows = (rows || []) as DbAwardRow[]
+        const awardRows = orderBoxItemAwardRows((rows || []) as DbAwardRow[])
         const nameMap = await resolveAwardNames(admin, awardRows)
         const awards = awardRows.map(r => mapAwardRow(r, nameMap))
+        const config = resolveBoxItemAwardMode(awardRows)
+        const revision = await readAwardRevision(admin, itemId)
 
-        return NextResponse.json({ ok: true, awards })
+        return NextResponse.json({ ok: true, awards, revision, ...config })
     } catch (error) {
         const message = resolveErrorMessage(
             error,
@@ -310,8 +327,23 @@ export async function POST(request: NextRequest) {
 
     let payload: SaveAwardsRequest
     try {
-        payload = (await request.json()) as SaveAwardsRequest
-    } catch {
+        requireSameOrigin(request)
+        const contentLength = Number(request.headers.get("content-length") || 0)
+        if (contentLength > 131072) throw new Error("Payload quá lớn.")
+        const rawBody = await request.text()
+        if (new TextEncoder().encode(rawBody).byteLength > 131072) {
+            throw new Error("Payload quá lớn.")
+        }
+        payload = boxItemAwardSaveSchema.parse(
+            JSON.parse(rawBody)
+        ) as SaveAwardsRequest
+    } catch (error) {
+        if (error instanceof SameOriginError) {
+            return NextResponse.json(
+                { ok: false, message: error.message },
+                { status: HTTP_STATUS.FORBIDDEN }
+            )
+        }
         return NextResponse.json(
             { ok: false, message: API_MESSAGES.common.invalidRequestPayload },
             { status: HTTP_STATUS.BAD_REQUEST }
@@ -335,19 +367,16 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const admin = createAdminClient()
-
-        const { data: maxRow } = await admin
-            .schema("data")
-            .from("data_tbl_item_award")
-            .select("id")
-            .order("id", { ascending: false })
-            .limit(1)
-            .single()
-
-        let nextId = asInt(maxRow?.id) + 1
-
-        for (const award of awards) {
+        const mode = payload.mode === "selectable" ? "selectable" : "award"
+        const selectionCount = asInt(payload.selectionCount, 1)
+        if (mode === "selectable" && selectionCount > awards.length) {
+            return NextResponse.json(
+                { ok: false, message: API_MESSAGES.boxItems.invalidAwardData },
+                { status: HTTP_STATUS.BAD_REQUEST }
+            )
+        }
+        const normalizedRows = []
+        for (const [index, award] of awards.entries()) {
             const awardType = normalizeBoxItemAwardType(asInt(award.type, 29))
             const awardId =
                 awardType === 31
@@ -365,11 +394,26 @@ export async function POST(request: NextRequest) {
                     { status: HTTP_STATUS.BAD_REQUEST }
                 )
             }
-
-            const existingId = asInt(award.id)
-            const row = {
-                id: existingId > 0 ? existingId : nextId++,
-                item_id: itemId,
+            if (
+                mode === "selectable" &&
+                !boxItemAwardSupportsSelection(awardType)
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        message: API_MESSAGES.boxItems.invalidAwardData,
+                    },
+                    { status: HTTP_STATUS.BAD_REQUEST }
+                )
+            }
+            const normalizedPayload = normalizeBoxItemAwardModePayload(
+                award.payload,
+                mode,
+                index,
+                selectionCount
+            )
+            normalizedRows.push({
+                id: award.id ?? 0,
                 award_id: awardId,
                 type: awardType,
                 count: boxItemAwardUsesFixedCount(awardType)
@@ -382,16 +426,21 @@ export async function POST(request: NextRequest) {
                 pre_name_type: boxItemAwardSupportsPreNameType(awardType)
                     ? normalizeBoxItemAwardPreNameType(award.preNameType)
                     : 0,
-                payload: normalizeBoxItemAwardPayload(award.payload),
-            }
-
-            const { error } = await admin
-                .schema("data")
-                .from("data_tbl_item_award")
-                .upsert(row, { onConflict: "id" })
-
-            if (error) throw new Error(error.message)
+                payload: normalizedPayload,
+            })
         }
+
+        const admin = createAdminClient()
+        const { error: saveError } = await admin
+            .schema("data")
+            .rpc("box_item_admin_save", {
+                p_item_id: itemId,
+                p_mode: mode,
+                p_selection_count: selectionCount,
+                p_expected_revision: payload.revision || "",
+                p_awards: normalizedRows,
+            })
+        if (saveError) throw new Error(saveError.message)
 
         const { data: updatedRows, error: fetchError } = await admin
             .schema("data")
@@ -402,75 +451,27 @@ export async function POST(request: NextRequest) {
 
         if (fetchError) throw new Error(fetchError.message)
 
-        const awardRows = (updatedRows || []) as DbAwardRow[]
+        const awardRows = orderBoxItemAwardRows(
+            (updatedRows || []) as DbAwardRow[]
+        )
         const nameMap = await resolveAwardNames(admin, awardRows)
+        const config = resolveBoxItemAwardMode(awardRows)
+        const revision = await readAwardRevision(admin, itemId)
 
         return NextResponse.json({
             ok: true,
             awards: awardRows.map(r => mapAwardRow(r, nameMap)),
+            revision,
+            ...config,
         })
     } catch (error) {
         const message = resolveErrorMessage(
             error,
             API_MESSAGES.boxItems.awardSaveFailed
         )
-        return NextResponse.json(
-            { ok: false, message },
-            { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
-        )
-    }
-}
-
-export async function DELETE(request: NextRequest) {
-    const session = await readAdminSessionFromRequest(request)
-    if (!session) {
-        return NextResponse.json(
-            {
-                ok: false,
-                error_code: "admin_auth_required",
-                message: API_MESSAGES.admin.loginRequired,
-            },
-            { status: HTTP_STATUS.UNAUTHORIZED }
-        )
-    }
-
-    let payload: DeleteAwardRequest
-    try {
-        payload = (await request.json()) as DeleteAwardRequest
-    } catch {
-        return NextResponse.json(
-            { ok: false, message: API_MESSAGES.common.invalidRequestPayload },
-            { status: HTTP_STATUS.BAD_REQUEST }
-        )
-    }
-
-    try {
-        const id = asInt(payload.id)
-        if (id <= 0) {
-            return NextResponse.json(
-                { ok: false, message: API_MESSAGES.boxItems.invalidAwardId },
-                { status: HTTP_STATUS.BAD_REQUEST }
-            )
-        }
-
-        const admin = createAdminClient()
-        const { error } = await admin
-            .schema("data")
-            .from("data_tbl_item_award")
-            .delete()
-            .eq("id", id)
-
-        if (error) throw new Error(error.message)
-
-        return NextResponse.json({ ok: true, deletedId: id })
-    } catch (error) {
-        const message = resolveErrorMessage(
-            error,
-            API_MESSAGES.boxItems.awardDeleteFailed
-        )
-        return NextResponse.json(
-            { ok: false, message },
-            { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
-        )
+        const status = message.includes("stale box item award revision")
+            ? HTTP_STATUS.CONFLICT
+            : HTTP_STATUS.INTERNAL_SERVER_ERROR
+        return NextResponse.json({ ok: false, message }, { status })
     }
 }

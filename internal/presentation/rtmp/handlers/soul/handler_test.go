@@ -9,6 +9,7 @@ import (
 
 	appsoul "mcgame-server/internal/application/soul"
 	domainchar "mcgame-server/internal/domain/character"
+	domainpet "mcgame-server/internal/domain/pet"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
@@ -43,6 +44,7 @@ func newTestHandler(t *testing.T, char *domainchar.Character) (*Handler, *appsou
 		charRepo.chars[char.ID] = char
 	}
 	svc := appsoul.NewService(newFakeFeatureRepo(), charRepo, mgr, zap.NewNop())
+	svc.SetPetRepository(&fakeSoulPetRepo{pets: map[int64]*domainpet.Pet{99: {ID: 99, CharacterID: char.ID, Level: 80}}})
 	h := NewHandler(svc, zap.NewNop())
 	calls := &[]capturedCall{}
 	h.sendCallbackFn = func(_ *rtmp.Connection, method string, args ...interface{}) error {
@@ -50,6 +52,14 @@ func newTestHandler(t *testing.T, char *domainchar.Character) (*Handler, *appsou
 		return nil
 	}
 	return h, svc, calls
+}
+
+type fakeSoulPetRepo struct {
+	pets map[int64]*domainpet.Pet
+}
+
+func (r *fakeSoulPetRepo) FindByID(ctx context.Context, id int64) (*domainpet.Pet, error) {
+	return r.pets[id], nil
 }
 
 func ctxFor(charID string) *rtmp.RPCContext {

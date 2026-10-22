@@ -27,10 +27,11 @@ type changePrefixRequest struct {
 }
 
 type pendingChangePrefix struct {
-	request   changePrefixRequest
-	quality   int
-	element   int
-	starLevel int
+	request    changePrefixRequest
+	quality    int
+	element    int
+	starLevel  int
+	properties map[string]interface{}
 }
 
 type changePrefixSelection struct {
@@ -158,6 +159,7 @@ func (h *Handler) getPendingChangePrefix(characterID int64) (*pendingChangePrefi
 	}
 
 	copyPending := *pending
+	copyPending.properties = cloneChangePrefixProperties(pending.properties)
 	return &copyPending, true
 }
 
@@ -171,6 +173,7 @@ func (h *Handler) setPendingChangePrefix(characterID int64, pending *pendingChan
 	}
 
 	copyPending := *pending
+	copyPending.properties = cloneChangePrefixProperties(pending.properties)
 	h.pendingPrefixChanges[characterID] = &copyPending
 }
 
@@ -315,6 +318,21 @@ func buildChangePrefixPreviewItem(equipment *domainitem.Item, quality int, eleme
 	return &preview
 }
 
+func applyChangePrefixSoulFallback(preview *domainitem.Item, equipTemplate *gamedatamodels.EquiptTemplateTemplate) {
+	if preview == nil || equipTemplate == nil {
+		return
+	}
+	if preview.Properties == nil {
+		preview.Properties = make(map[string]interface{})
+	}
+	if changeSoulPropertyInt(preview.Properties["activeProp"]) <= 0 {
+		preview.Properties["activeProp"] = int(equipTemplate.ActivePropType)
+	}
+	if changeSoulPropertyInt(preview.Properties["activePropNum"]) <= 0 {
+		preview.Properties["activePropNum"] = int(equipTemplate.ActivePropNum)
+	}
+}
+
 func (h *Handler) resolveChangePrefix(ctx *rtmp.RPCContext, characterID int64, request changePrefixRequest, logPrefix string) (*changePrefixResolved, bool) {
 	equipment, err := h.itemService.GetItemByID(ctx.Context, characterID, request.equipmentID)
 	if err != nil || equipment == nil || !equipment.IsEquipment() {
@@ -437,12 +455,14 @@ func (h *Handler) ChangePrefix(ctx *rtmp.RPCContext, args []interface{}) (interf
 		return map[string]interface{}{"f": false}, nil
 	}
 	h.itemService.ApplyRandomizedEquipmentPropertyRolls(previewItem, resolved.equipmentTemplate, previewQuality)
+	applyChangePrefixSoulFallback(previewItem, resolved.equipmentTemplate)
 
 	h.setPendingChangePrefix(characterID, &pendingChangePrefix{
-		request:   request,
-		quality:   previewQuality,
-		element:   previewElement,
-		starLevel: previewStarLevel,
+		request:    request,
+		quality:    previewQuality,
+		element:    previewElement,
+		starLevel:  previewStarLevel,
+		properties: previewItem.Properties,
 	})
 
 	h.logger.Info("ChangePrefix: generated preview",
@@ -500,22 +520,7 @@ func (h *Handler) SureChangePrefix(ctx *rtmp.RPCContext, args []interface{}) (in
 		return map[string]interface{}{"f": false}, nil
 	}
 
-	updatedEquipment, err := h.itemService.UpdateEquipmentQuality(ctx.Context, resolved.equipment.ID, pending.quality)
-	if err != nil {
-		return rtmp.ErrorToResponse(err), nil
-	}
-	updatedEquipment, err = h.itemService.UpdateEquipmentElement(ctx.Context, updatedEquipment.ID, pending.element)
-	if err != nil {
-		return rtmp.ErrorToResponse(err), nil
-	}
-	updatedEquipment, err = h.itemService.UpdateEquipmentStarLevel(ctx.Context, updatedEquipment.ID, pending.starLevel)
-	if err != nil {
-		return rtmp.ErrorToResponse(err), nil
-	}
-	if err := h.itemService.BindItem(ctx.Context, characterID, updatedEquipment.ID); err != nil {
-		return rtmp.ErrorToResponse(err), nil
-	}
-	updatedEquipment, err = h.itemService.GetItemByID(ctx.Context, characterID, updatedEquipment.ID)
+	updatedEquipment, err := h.itemService.ApplyEquipmentPrefixChange(ctx.Context, resolved.equipment.ID, pending.quality, pending.element, pending.starLevel, pending.properties)
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}

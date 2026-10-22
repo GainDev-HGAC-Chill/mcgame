@@ -1,5 +1,13 @@
 # Item & Inventory System
 
+## Crafting panel safety and level-6 materials (2026-10-22)
+
+`EquipFuncBag.showSaleItems()` does not null-check system-shop template lookups. `getShopConfig` now publishes only shop rows whose type-12/19/29 target exists in the loaded creature/equipment/item catalog and logs rejected slot IDs, preventing one stale runtime shop row from crashing both the material and jewel sale tabs. Checked-in shop data has no broken reference; this guard handles runtime/catalog drift without inventing a replacement item.
+
+Material level 6 keeps canonical server `colorCode=5` but uses the narrow Flash compatibility alias `color=4`. Lower material tiers keep their original client color, preserving the level-5 rare-mix rate, while `autoInputMake()` no longer excludes level 6 via its `color < 5` condition. Level 6 remains the catalog-authorized maximum; material mixing rejects it without consumption rather than clamping a result back to level 6.
+
+Change-prefix pending state now keeps and confirms the complete randomized preview property snapshot, including main/secondary stats, locked values and template-authorized soul fallback. Partial soul rolls below the current value are shown in the type-2 comparison payload but never persisted, matching the single “Không áp dụng” client state.
+
 ## Wish-Tree claim visibility and food buffs (2026-10-17)
 
 Wish-Tree/lotto holding-bag claims persist rewards through `item.Service.AddItemWithBind`, but refreshing only `updateLottoBag` does not repaint the character inventory. `ClaimSingle` and `ClaimAll` now return the actual granted item records; the RTMP handler deduplicates stacked grants by instance ID and sends normalized `onAddCharactorSlot` DTOs before refreshing the relevant holding bag. New items and changed stacks therefore render immediately without `bagSort`.
@@ -84,6 +92,8 @@ Redeploy completed: startup22:51:18 confirms itemAwards54 and RTMP started; infr
 ## Item-Use Target Gate
 
 The Flash item-use contract uses `useType` only as a target gate (`1` character, `2` pet, `3` either, `4` not directly usable) before branching by item `type` and special item IDs. The choose-one package panel contract is `useItem` -> server callback `itemMultitoSel({packItemList:{idx:{ti,ii,n,q}}, packGetNum}, sid)` -> client RPC `selMultiItemByIdx(packItemSid, selectedIdx)`; the responder returns `0` to close the panel or a positive remaining count to keep it open. Current server support matches this choose-one flow, but generic item use still misses full server-side `useType` target enforcement, general pet-target consumable routing, paid package `usePackageByMoney` / `onUsePackageByMoney`, and `onItemUseCallBack` confirmation wiring. See `docs/research/2026-04-25_02_ITEM_USE_PANEL_CONTRACT_RESEARCH.md`.
+
+Configured selectable packages now reuse `data.data_tbl_item_award` with reserved metadata `payload.selection={order,getNum}`. Runtime accepts the mode only when every row has valid metadata, orders are exactly `0..N-1`, `getNum` is consistent and bounded, and every reward type is Pet (`12`), equipment (`19`) or item (`29`); mixed/malformed definitions fail closed before the weighted picker. Opening does not consume the package, multi-use is rejected, and selection reuses ordinary award capacity/quality/prefix/material grant logic. Pending selections are serialized per character, revalidate package ownership/template/stack/index, reject duplicate choices and consume only after the final grant. Final reward callbacks are delayed until consume succeeds and precede the package slot callback. A consume failure can still leave an already-persisted reward without consuming the package—the documented legacy cross-domain atomicity risk—but emits no false success callback and drops the pending snapshot to prevent replay. The 3376 blue quality/color override remains only on its legacy description/hardcoded fallback; configured rows control their own visible quality.
 
 ## Core Data Tables
 
@@ -231,7 +241,7 @@ Focused tests cover:
 
 Quest reward equipment now randomizes core prop-line assignment from the template stat pool (`mainProp1/2`, `prop1/2`) before rolling the numeric values from the client `EQUIPT_QUALITY[q-1..q]` range. This keeps reward equipment template-derived while no longer forcing a fixed prop layout.
 
-Crafted equipment produced by `newMake` now uses the same template-pool prop shuffle and multiplier-based value rolls when a preview-selected quality is applied. The plain `UpdateEquipmentQuality` path remains non-rerolling so systems like change-prefix do not overwrite existing rolled stats.
+Crafted equipment produced by `newMake` now uses the same template-pool prop shuffle and multiplier-based value rolls when a preview-selected quality is applied. The plain `UpdateEquipmentQuality` path remains non-rerolling. Change-prefix uses its dedicated preview-snapshot apply path so confirmation persists exactly the values shown to the player.
 
 ## Item Handler RPCs (40+ methods)
 

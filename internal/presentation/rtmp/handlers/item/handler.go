@@ -31,10 +31,24 @@ import (
 )
 
 type pendingGiftBox struct {
-	ItemID  int64
-	SlotSID int
-	Choices []*appitem.GiftBoxChoice
-	GetNum  int
+	ItemID     int64
+	TemplateID int
+	SlotSID    int
+	Choices    []*appitem.GiftBoxChoice
+	GetNum     int
+}
+
+func (h *Handler) pendingGiftBoxLock(characterID int64) *sync.Mutex {
+	lock, _ := h.pendingGiftBoxLocks.LoadOrStore(characterID, &sync.Mutex{})
+	return lock.(*sync.Mutex)
+}
+
+func (h *Handler) deletePendingGiftBox(characterID int64, pending *pendingGiftBox) {
+	h.pendingGiftBoxesMu.Lock()
+	if h.pendingGiftBoxes[characterID] == pending {
+		delete(h.pendingGiftBoxes, characterID)
+	}
+	h.pendingGiftBoxesMu.Unlock()
 }
 
 type MWSkillGranter interface {
@@ -77,6 +91,7 @@ type Handler struct {
 	pendingChangeBindsMu    sync.Mutex
 	pendingGiftBoxes        map[int64]*pendingGiftBox
 	pendingGiftBoxesMu      sync.Mutex
+	pendingGiftBoxLocks     sync.Map
 	groupStateRefresher     func(ctx context.Context, groupID int64)
 	groupPersonalLeave      func(ctx context.Context, charID int64)
 	mwSkillGranter          MWSkillGranter

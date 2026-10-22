@@ -79,8 +79,8 @@ func TestConversationRegistryMatchesCheckedCatalog(t *testing.T) {
 		byID[id] = row
 	}
 	counts := make(map[int]int)
-	if len(reviewedConversationQuests) != 227 {
-		t.Fatalf("registry count=%d want=227", len(reviewedConversationQuests))
+	if len(reviewedConversationQuests) != 242 {
+		t.Fatalf("registry count=%d want=242", len(reviewedConversationQuests))
 	}
 	for id, spec := range reviewedConversationQuests {
 		row, ok := byID[id]
@@ -88,7 +88,7 @@ func TestConversationRegistryMatchesCheckedCatalog(t *testing.T) {
 			t.Fatalf("quest %d missing from checked catalog", id)
 		}
 		tpl := checkedRecordTemplate(t, row)
-		if tpl.Name != spec.Name || tpl.Type != float64(spec.QuestType) || tpl.StartNPC != float64(spec.StartNPC) || tpl.FinishNPC != float64(spec.FinishNPC) {
+		if tpl.Name != spec.Name || tpl.Type != float64(spec.QuestType) || tpl.StartNPC != float64(spec.StartNPC) || tpl.FinishNPC != float64(spec.FinishNPC) || (spec.ClassID > 0 && tpl.ReqClass != "|"+strconv.Itoa(spec.ClassID)+"|") {
 			t.Fatalf("quest %d registry drift: spec=%+v catalog=%+v", id, spec, tpl)
 		}
 		if policy, target := ClassifyQuestCompletion(tpl, nil); policy != PolicyConversation || target != spec.FinishNPC {
@@ -96,7 +96,7 @@ func TestConversationRegistryMatchesCheckedCatalog(t *testing.T) {
 		}
 		counts[spec.QuestType]++
 	}
-	if counts[1] != 67 || counts[2] != 67 || counts[4] != 93 || len(counts) != 3 {
+	if counts[1] != 75 || counts[2] != 67 || counts[4] != 94 || counts[10] != 6 || len(counts) != 4 {
 		t.Fatalf("registry type counts=%v", counts)
 	}
 }

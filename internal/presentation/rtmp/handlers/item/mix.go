@@ -70,6 +70,9 @@ func (h *Handler) MaterialMixOne(ctx *rtmp.RPCContext, args []interface{}) (inte
 	if num < 2 || num > 5 || it.StackCount < num {
 		return map[string]interface{}{"flag": false}, nil
 	}
+	if kind == 6 && craftMaterialLevel(h.gameData, it) >= 6 {
+		return map[string]interface{}{"flag": false}, nil
+	}
 
 	itemColor := it.ColorCode
 	if itemColor == 0 {
@@ -206,6 +209,9 @@ func (h *Handler) MaterialMixAll(ctx *rtmp.RPCContext, args []interface{}) (inte
 	}
 
 	if num < 2 || num > 5 || it.StackCount < num {
+		return map[string]interface{}{"flag": false}, nil
+	}
+	if kind == 6 && craftMaterialLevel(h.gameData, it) >= 6 {
 		return map[string]interface{}{"flag": false}, nil
 	}
 

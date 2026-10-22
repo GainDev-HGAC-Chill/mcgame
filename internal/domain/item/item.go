@@ -248,6 +248,13 @@ func (i *Item) ToDTO() map[string]interface{} {
 		if prefixType > 0 {
 			dto["preNameType"] = prefixType
 		}
+	} else if i.ItemType == ItemTypeMaterial && i.ColorCode > 0 {
+		clientColor := i.ColorCode
+		if clientColor >= 5 {
+			clientColor = 4
+		}
+		dto["color"] = clientColor
+		dto["colorCode"] = i.ColorCode
 	}
 
 	dto["id"] = i.ID

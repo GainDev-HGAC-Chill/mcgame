@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	PolicyCatalog        = "catalog"
-	PolicyConversation   = "reviewed_conversation"
-	PolicyCharacterLevel = "character_level"
-	PolicyPetLevel       = "pet_level"
-	PolicyPetCount       = "pet_count"
-	PolicyFriendship     = "friendship"
-	PolicyClassRank      = "class_rank"
-	PolicyUnconfigured   = "unconfigured"
-	PolicyCurrency       = "unsupported_currency_condition"
-	PolicyInvalid        = "invalid_catalog"
+	PolicyCatalog         = "catalog"
+	PolicyConversation    = "reviewed_conversation"
+	PolicyCharacterLevel  = "character_level"
+	PolicyPetLevel        = "pet_level"
+	PolicyPetCount        = "pet_count"
+	PolicyFriendship      = "friendship"
+	PolicyClassRank       = "class_rank"
+	PolicyUnconfigured    = "unconfigured"
+	PolicyCurrency        = "unsupported_currency_condition"
+	PolicyInvalid         = "invalid_catalog"
 	PolicyCurrencyBalance = "currency_balance"
 )
 
@@ -40,7 +40,7 @@ func ClassifyQuestCompletion(tpl *models.QuestTemplate, requirements []*models.Q
 		}
 
 		return PolicyCurrency, 0
-	}	
+	}
 	if len(requirements) > 0 {
 		for _, row := range requirements {
 			if row == nil || row.ItemID <= 0 || row.ItemID != float64(int(row.ItemID)) || row.Num <= 0 || row.Num != float64(int(row.Num)) {
@@ -92,6 +92,7 @@ func conversationFingerprintMatches(tpl *models.QuestTemplate, spec conversation
 		tpl.StartNPC == float64(spec.StartNPC) &&
 		tpl.FinishNPC == float64(spec.FinishNPC) &&
 		spec.FinishNPC > 0 &&
+		(spec.ClassID == 0 || tpl.ReqClass == "|"+strconv.Itoa(spec.ClassID)+"|") &&
 		tpl.Name == spec.Name &&
 		strings.TrimSpace(tpl.StartText) != "" &&
 		strings.TrimSpace(tpl.CompleteText) != ""

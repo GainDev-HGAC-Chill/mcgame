@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	domainchar "mcgame-server/internal/domain/character"
+	domainpet "mcgame-server/internal/domain/pet"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
 
@@ -39,7 +40,9 @@ func newAcquireService(t *testing.T, char *domainchar.Character) (*Service, *fak
 	if char != nil {
 		charRepo.chars[char.ID] = char
 	}
-	return NewService(newFakeRepo(), charRepo, mgr, zap.NewNop()), charRepo
+	service := NewService(newFakeRepo(), charRepo, mgr, zap.NewNop())
+	service.SetPetRepository(&fakePetRepo{pets: map[int64]*domainpet.Pet{77: {ID: 77, CharacterID: char.ID, Level: 80}}})
+	return service, charRepo
 }
 
 func openSlots(t *testing.T, svc *Service, charID int64, n int) {
@@ -397,6 +400,7 @@ func TestOpenPetSoulBag_Success(t *testing.T) {
 func TestOpenPetSoulBag_LockedWhenOpenNumBelow5(t *testing.T) {
 	svc, _ := newAcquireService(t, &domainchar.Character{ID: 1, SoulExp: 99999})
 	ctx := context.Background()
+	svc.petRepo.(*fakePetRepo).pets[77].Level = 79
 	petState := defaultPetSoulState()
 	petState.OpenNum = 4
 	_ = svc.savePetState(ctx, 77, petState)
@@ -426,6 +430,60 @@ func TestOpenPetSoulBag_InsufficientExp(t *testing.T) {
 	_ = svc.savePetState(ctx, 77, petState)
 	if _, err := svc.OpenPetSoulBag(ctx, 1, 77); err != ErrInsufficientExp {
 		t.Fatalf("want ErrInsufficientExp, got %v", err)
+	}
+}
+
+func TestPetSoulInfoReconcilesEightBaseSlotsAtLevelEighty(t *testing.T) {
+	svc, _ := newAcquireService(t, &domainchar.Character{ID: 1})
+	info := svc.PetSoulInfo(context.Background(), 77)
+	if info["openNum"] != 8 || info["openNum2"] != 0 {
+		t.Fatalf("info=%v want openNum=8 openNum2=0", info)
+	}
+	state, err := svc.loadPetState(context.Background(), 77)
+	if err != nil || state.OpenNum != 8 {
+		t.Fatalf("persisted state=%+v error=%v", state, err)
+	}
+}
+
+func TestPetSoulInfoKeepsLevelSeventyNineLockedAndPreservesLegacyState(t *testing.T) {
+	svc, _ := newAcquireService(t, &domainchar.Character{ID: 1})
+	repo := svc.petRepo.(*fakePetRepo)
+	repo.pets[77].Level = 79
+	if info := svc.PetSoulInfo(context.Background(), 77); info["openNum"] != 0 {
+		t.Fatalf("level 79 info=%v", info)
+	}
+	legacy := defaultPetSoulState()
+	legacy.OpenNum = 5
+	if err := svc.savePetState(context.Background(), 77, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if info := svc.PetSoulInfo(context.Background(), 77); info["openNum"] != 5 {
+		t.Fatalf("legacy info=%v", info)
+	}
+}
+
+func TestOpenPetSoulBagRejectsForeignOrUnderLevelPetWithoutSpending(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		owner int64
+		level int
+	}{
+		{name: "foreign", owner: 2, level: 80},
+		{name: "under level", owner: 1, level: 79},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			char := &domainchar.Character{ID: 1, SoulExp: 99999}
+			svc, _ := newAcquireService(t, char)
+			repo := svc.petRepo.(*fakePetRepo)
+			repo.pets[77].CharacterID = tc.owner
+			repo.pets[77].Level = tc.level
+			if _, err := svc.OpenPetSoulBag(context.Background(), 1, 77); err != ErrPetBagLocked {
+				t.Fatalf("error=%v", err)
+			}
+			if char.SoulExp != 99999 {
+				t.Fatalf("soul exp=%d", char.SoulExp)
+			}
+		})
 	}
 }
 

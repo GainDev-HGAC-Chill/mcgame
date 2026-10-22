@@ -194,3 +194,42 @@ func TestIntermediatePromotionQuestsRequireExactClassRankAtExaminer(t *testing.T
 		}
 	}
 }
+
+func TestMagicWeaponQuestsRequireExactClassAtTurnInNPC(t *testing.T) {
+	for questID, spec := range reviewedConversationQuests {
+		if spec.ClassID == 0 {
+			continue
+		}
+		for _, tc := range []struct {
+			name     string
+			classID  int
+			mapID    int
+			complete bool
+		}{
+			{name: "matching class", classID: spec.ClassID, mapID: 1, complete: true},
+			{name: "wrong class", classID: (spec.ClassID % 6) + 1, mapID: 1},
+			{name: "wrong map", classID: spec.ClassID, mapID: 2},
+		} {
+			t.Run(strconv.Itoa(questID)+"_"+tc.name, func(t *testing.T) {
+				svc := specialQuestService(t, questID, spec.Name, spec.QuestType)
+				tpl := models.QuestTemplate{ID: int64(questID), Name: spec.Name, Type: float64(spec.QuestType), ReqClass: "|" + strconv.Itoa(spec.ClassID) + "|", StartNPC: float64(spec.StartNPC), FinishNPC: float64(spec.FinishNPC), StartText: "start", CompleteText: "complete"}
+				if err := svc.gameDataManager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{mustQuestJSON(t, tpl)}); err != nil {
+					t.Fatal(err)
+				}
+				if err := svc.gameDataManager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustQuestJSON(t, models.NpcTemplate{ID: int64(spec.FinishNPC), PosMapID: 1, PosX: 100, PosY: 100})}); err != nil {
+					t.Fatal(err)
+				}
+				svc.SetCharacterRepository(&questTestCharacterRepo{char: &domainchar.Character{ID: 2, ClassID: tc.classID, MapID: tc.mapID, PosX: 100, PosY: 100}})
+				qp := domainquest.NewQuestProgress(2, questID, nil)
+				dto := svc.EnrichQuestDTO(context.Background(), qp)
+				wantState := 103
+				if tc.complete {
+					wantState = 104
+				}
+				if dto["state"] != wantState || qp.CanComplete() != tc.complete {
+					t.Fatalf("state=%v complete=%v want state=%d complete=%v", dto["state"], qp.CanComplete(), wantState, tc.complete)
+				}
+			})
+		}
+	}
+}

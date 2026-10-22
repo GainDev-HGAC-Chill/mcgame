@@ -127,7 +127,10 @@ func (h *Handler) ExchangeItem(ctx *rtmp.RPCContext, args []interface{}) (interf
 		return nil, nil
 	}
 
-	creditID, _ := args[0].(string)
+	creditID := fmt.Sprint(args[0])
+	if numeric, ok := args[0].(float64); ok {
+		creditID = strconv.FormatInt(int64(numeric), 10)
+	}
 	amount := parseIntVal(args[1])
 	charID, _ := strconv.ParseInt(ctx.CharacterID, 10, 64)
 
@@ -137,7 +140,10 @@ func (h *Handler) ExchangeItem(ctx *rtmp.RPCContext, args []interface{}) (interf
 	}
 
 	_ = ctx.Connection.SendCallback("onAddItem", res.ItemData)
-	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"cbM": res.NewPoints})
+	for _, dto := range res.AddedItemDTOs {
+		_ = ctx.Connection.SendCallback("onAddCharactorSlot", dto)
+	}
+	_ = ctx.Connection.SendCallback("onAddMoney", float64(charID), res.CurrencyKey, float64(-res.Cost), float64(res.NewPoints))
 
 	return 1, nil
 }

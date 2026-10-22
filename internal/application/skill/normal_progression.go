@@ -21,6 +21,7 @@ var (
 	ErrNormalSkillBookNotFound  = errors.New("normal skill book mapping not found")
 	ErrNormalSkillNotLearned    = errors.New("normal skill not learned")
 	ErrNormalSkillInvalidStep   = errors.New("normal skill upgrade must target the next level")
+	ErrTrainingSkillInvalid     = errors.New("invalid training skill")
 	ErrSkillExperienceNotEnough = errors.New("skill experience not enough")
 )
 
@@ -96,6 +97,27 @@ func (s *Service) LearnOrdinarySkillByBook(ctx context.Context, charID int64, te
 	return entry, validated, nil
 }
 
+func (s *Service) LearnTrainingSkill(ctx context.Context, charID int64, skillID int) (*domainskill.CharacterSkill, error) {
+	unlock := s.lockCharacterMutation(charID)
+	defer unlock()
+
+	template, char, err := s.validateNormalSkillRequest(ctx, charID, skillID, false)
+	if err != nil {
+		return nil, err
+	}
+	if !isTrainingSkillTemplate(template) || skillTemplateLevel(template) != 1 {
+		return nil, ErrTrainingSkillInvalid
+	}
+	learned, err := s.skillRepo.FindByCharacterID(ctx, charID)
+	if err != nil {
+		return nil, err
+	}
+	if current, _ := s.findSkillFamilyEntry(learned, template); current != nil {
+		return nil, pkgerrors.ErrAlreadyExists
+	}
+	return s.createNormalSkill(ctx, charID, skillID, template, char)
+}
+
 func (s *Service) UpgradeSkillWithResult(ctx context.Context, charID int64, requestedSkillID int) (*UpgradeResult, error) {
 	unlock := s.lockCharacterMutation(charID)
 	defer unlock()
@@ -104,7 +126,7 @@ func (s *Service) UpgradeSkillWithResult(ctx context.Context, charID int64, requ
 	if err != nil {
 		return nil, err
 	}
-	if !isOrdinarySkillTemplate(requestedTemplate) {
+	if !isProgressionSkillTemplate(requestedTemplate) {
 		return nil, pkgerrors.ErrInvalidInput
 	}
 	exact, err := s.skillRepo.FindByCharacterAndSkill(ctx, charID, requestedSkillID)
@@ -122,7 +144,7 @@ func (s *Service) UpgradeSkillWithResult(ctx context.Context, charID int64, requ
 	if current == nil || currentTemplate == nil {
 		return nil, ErrNormalSkillNotLearned
 	}
-	if !sameOrdinarySkillFamily(currentTemplate, requestedTemplate) || skillTemplateLevel(requestedTemplate) != skillTemplateLevel(currentTemplate)+1 {
+	if !sameProgressionSkillFamily(currentTemplate, requestedTemplate) || skillTemplateLevel(requestedTemplate) != skillTemplateLevel(currentTemplate)+1 {
 		return nil, ErrNormalSkillInvalidStep
 	}
 	expCost := positiveInt64(requestedTemplate.ExpSkill)
@@ -185,8 +207,16 @@ func isOrdinarySkillTemplate(template *models.SkillTemplate) bool {
 	return (env == 0 && kind == 1) || (env == 1 && kind == 2)
 }
 
-func sameOrdinarySkillFamily(current, requested *models.SkillTemplate) bool {
-	if !isOrdinarySkillTemplate(current) || !isOrdinarySkillTemplate(requested) {
+func isTrainingSkillTemplate(template *models.SkillTemplate) bool {
+	return template != nil && int(template.UseEnv) == 3 && int(template.Kind) == 5
+}
+
+func isProgressionSkillTemplate(template *models.SkillTemplate) bool {
+	return isOrdinarySkillTemplate(template) || isTrainingSkillTemplate(template)
+}
+
+func sameProgressionSkillFamily(current, requested *models.SkillTemplate) bool {
+	if !isProgressionSkillTemplate(current) || !isProgressionSkillTemplate(requested) {
 		return false
 	}
 	return current.CodeName != "" && current.CodeName == requested.CodeName &&

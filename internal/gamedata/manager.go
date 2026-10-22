@@ -107,6 +107,10 @@ func (m *Manager) GetCreatureHeartPoint(id int) *models.CreaturehPointTemplate {
 	return m.cache.GetCreatureHeartPoint(id)
 }
 
+func (m *Manager) GetCredit(id int) *models.CreditTemplate {
+	return m.cache.GetCredit(id)
+}
+
 func (m *Manager) GetAllCreatures() []*models.CreatureTemplate {
 	return m.cache.GetAllCreatures()
 }

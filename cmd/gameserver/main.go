@@ -61,6 +61,7 @@ import (
 	appsocial "mcgame-server/internal/application/social"
 	appsoul "mcgame-server/internal/application/soul"
 	appsoultrain "mcgame-server/internal/application/soultrain"
+	appspecialtraining "mcgame-server/internal/application/specialtraining"
 	appstar "mcgame-server/internal/application/star"
 	appstarinstance "mcgame-server/internal/application/starinstance"
 	appstatfeature "mcgame-server/internal/application/statfeature"
@@ -709,6 +710,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 
 	monsterHeartService := appmonsterheart.NewService(statFeatureRepo, log)
 	monsterHeartService.SetCatalog(gameDataManager)
+	itemService.SetMonsterHeartGranter(monsterHeartService)
 	monsterHeartHandler := monsterhearthandler.NewHandler(monsterHeartService, log)
 	monsterHeartHandler.SetItemService(itemService)
 	monsterHeartHandler.SetCharacterService(charService)
@@ -755,6 +757,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	lottoHandler.RegisterHandlers(dispatcher)
 
 	soulService := appsoul.NewService(statFeatureRepo, characterRepo, gameDataManager, log)
+	soulService.SetPetRepository(petRepo)
 	authHandler.SetSoulService(soulService)
 	petService.SetSoulProvider(soulService)
 	soulHandler := soulhandler.NewHandler(soulService, log)
@@ -777,7 +780,14 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	chatHandler.SetSkillService(skillService)
 	chatHandler.RegisterHandlers(dispatcher)
 
-	explorerMedalService := appexplorermedal.NewService(statFeatureRepo, gameDataManager)
+	explorerMedalService := appexplorermedal.NewService(statFeatureRepo, characterRepo, gameDataManager)
+	txkcLocation := time.FixedZone("Asia/Ho_Chi_Minh", 7*60*60)
+	txkcService := appspecialtraining.NewService(statFeatureRepo, characterRepo, appspecialtraining.Config{
+		Key:      "2026-10-22_2026-12-31",
+		Start:    time.Date(2026, time.October, 22, 0, 0, 0, 0, txkcLocation),
+		End:      time.Date(2026, time.December, 31, 0, 0, 0, 0, txkcLocation),
+		Location: txkcLocation,
+	})
 
 	ppveService := apppet.NewPPVEService(statFeatureRepo, characterRepo, log)
 	ppveService.SetGameData(gameDataManager)
@@ -795,6 +805,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	activityHandler.SetBuffService(buffService)
 	activityHandler.SetGameDataManager(gameDataManager)
 	activityHandler.SetExplorerMedalService(explorerMedalService)
+	activityHandler.SetSpecialTrainingService(txkcService)
 	activityHandler.SetRTMPServer(rtmpServer)
 	activityHandler.SetStartedActivityService(startedActivityService)
 	activityHandler.SetEventBus(eventBus)

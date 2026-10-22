@@ -1,5 +1,31 @@
 # MCGame Fix History
 
+## FIX-2026-10-22-03 — Năm nhóm gameplay/progression
+
+- Quest Thần Khí: thêm exact fingerprint cho `4707..4712`, bắt buộc đúng class và trả tại NPC 272; sáu reward main magic weapon `1348..1353` tiếp tục đi qua reward pipeline type 19. Catalog/dialogue/class drift fail-closed.
+- Tu Luyện: đăng ký RPC `addTrainingSkill`, chỉ học level đầu `useEnv=3,kind=5`, nâng exact-next trong cùng `codeName` qua `skillLearnByClient`; giữ gate level/class-rank, EXP, bạc đã chọn, mutation lock và rollback. Catalog regression khóa 120 row = 12 family × 10 level, dùng chung sáu class. Không tự tạo công thức stat khi buff catalog bằng 0.
+- Mệnh Hồn Pet: soul service dùng Pet repository để reconcile/persist tám slot cơ bản cho Pet cấp 80+, giữ legacy state không giảm; mua slot 9–16 kiểm tra owner+level trước khi tiêu Soul EXP và giữ giá client `20000..55000`.
+- Huy Chương Mạo Hiểm: state đổi thành `level|progress`; panel trả đúng ví `explorerPnt` và progress. Nâng thường chuyển tối đa điểm ví cần thiết; RPC `levelUpEMedalByGold` hỗ trợ 50 Gold/50 progress và 500 Gold/500 progress, carry nhiều cấp, lock và compensation. Không thêm bạo kích thiếu authority.
+- TXKC: mùa cố định `2026-10-22 00:00`–`2026-12-31 00:00` end-exclusive theo `Asia/Ho_Chi_Minh`; state version theo season trong `special_training_course`, reset ngày 00:00/tuần thứ Hai, premium 680 Gold, mua 500 EXP/300 Gold, max 70, task claim 120/280 EXP và reward free/premium 70 cấp từ Flash. Shop thiếu slot catalog bị chặn; `spIndex=-1` nên không phát bonus đặc biệt thiếu authority. Task engine có API idempotent theo state nhưng các business-event chưa có exact hook không được tự cộng giả.
+- Test: focused quest/skill/soul/Pet/Explorer Medal/TXKC/handler/cmd suites, targeted vet, Windows và Linux `CGO_ENABLED=0` builds PASS; reward catalog 140 level-entry đều trỏ item tồn tại; diff-check không có whitespace error ngoài cảnh báo LF→CRLF. `go test ./internal/...` còn baseline ngoài phạm vi: battle test goroutine log sau test, activity SendCombine hết event window và hai chat stat expectation. Không restart/deploy, mutate DB/player data, sửa ActionScript, commit hoặc push.
+- Trạng thái: CODE_FIXED/FOCUSED_VERIFIED — cần restart để runtime nạp RPC mới; Flash smoke-test và event-hook TXKC authoritative còn chờ.
+
+## FIX-2026-10-22-02 — Cải tạo và túi Chế tạo
+
+- Đổi chất lượng: pending preview giữ toàn bộ properties; confirm dùng một item update để lưu đúng chỉ số cơ bản/phụ, thuộc tính khóa, quality/prefix, element, star và bind đã hiển thị. Soul 0 dùng `activePropType/activePropNum` từ equipment template, còn soul hợp lệ hiện hữu được giữ.
+- Đổi linh hồn một phần: roll thấp hơn vẫn trả payload so sánh type 2 nhưng không mutate trang bị/callback stat; lựa chọn “Không áp dụng” vì vậy không còn áp chỉ số thấp. Roll bằng hoặc cao hơn tiếp tục auto-apply theo flow hiện tại.
+- Túi Nguyên liệu/Bảo thạch: `getShopConfig` bỏ và log row type 12/19/29 không có template trước khi Flash nhận catalog, ngăn `EquipFuncBag.showSaleItems()` dereference null. Catalog checked-in 2.542 slot đã đối chiếu không có reference lỗi; guard xử lý drift runtime.
+- Nguyên liệu cấp 6: DTO dùng alias hẹp `color=4,colorCode=5`, khớp điều kiện `autoInputMake color < 5`; màu cấp dưới không đổi nên tỷ lệ hiếm cấp 5→6 vẫn đúng. Server vẫn resolve level 6. Đây là bậc tối đa nên mix one/all fail trước tiêu hao thay vì clamp 6→6; không tạo cấp 7.
+- Test: full item handler/shop/application-item/domain-item suites, targeted vet, Windows và Linux `CGO_ENABLED=0` gameserver builds PASS; diff-check không có whitespace error ngoài cảnh báo LF→CRLF. Chưa restart/deploy, Flash smoke-test, mutate catalog/player data, commit hoặc push.
+
+## FIX-2026-10-22-01 — Dashboard và runtime túi quà tự chọn
+
+- Runtime: `data_tbl_item_award.payload.selection={order,getNum}` là authority cho túi tự chọn khi và chỉ khi toàn bộ row hợp lệ, liên tục và cùng số lượt chọn. Route này chạy trước weighted picker, chỉ nhận Pet/trang bị/vật phẩm, không consume lúc mở panel và chặn multi-use. Grant dùng chung capacity/quality/prefix/material pipeline; pending snapshot khóa theo từng nhân vật, revalidate instance/template/stack/index, chặn duplicate/concurrent selection và không phát callback thành công nếu consume cuối thất bại.
+- Dashboard/API: Box Items có mode thường/tự chọn, sắp thứ tự, số lượt chọn, type restriction và cảnh báo reload. Save là full snapshot atomic với strict 128 KiB same-origin POST, row ownership, MD5 revision, stale conflict và hỗ trợ delete-all ở mode thường; endpoint DELETE từng row đã bỏ. Metadata malformed/mixed/fractional fail closed.
+- Database: draft `supabase/data/selectable_gift_bag_admin.sql` dùng global allocation lock, giữ ID row thuộc đúng package, full replacement trong transaction và chỉ cấp execute cho `service_role`. Docker Linux engine không chạy và Supabase CLI không có trên PATH, nên function chưa apply/rollback/concurrency/privilege smoke và chưa được `db diff` sinh migration. Không seed/chuyển hardcode item 3376 hoặc mutate catalog/player data.
+- Test: focused Go gamedata/application item/item handler PASS, gồm order/malformed/mixed/unsupported, no-consume, wrong/stale/duplicate/concurrent selection, capacity failure, consume-failure callback và grant→consume callback order; targeted vet và Windows gameserver build PASS. Dashboard typecheck, 5 focused config/same-origin tests và Next compile/type/static generation 28 trang PASS; production build vẫn chỉ fail standalone symlink `EPERM` Windows baseline. `-race` không chạy được vì Windows CGO tắt; all-dashboard raw Node runner còn baseline alias `@/lib` ở `npc-editor.test.mjs`.
+- Trạng thái: CODE_FIXED/SQL_DRAFTED — chưa end-to-end vì schema compose chưa apply, chưa restart/deploy hoặc Flash smoke-test, không commit/push.
+
 ## FIX-2026-10-21-07 — Học kỹ năng Pet Siêu Cấp
 
 - Contract: đối chiếu bài chính thức `4000.html`, Flash và catalog. Giữ RPC `petBook(petId, bookItemInstanceId)`/responder `f,rf,n`; 11 sách exact `3216..3226`. Ghi đè lưu ý legacy “lấy cấp thấp nhất” theo yêu cầu operator: phải có đủ Sơ/Trung/Cao cùng family ở cấp 3 và kết quả luôn Super cấp 1.

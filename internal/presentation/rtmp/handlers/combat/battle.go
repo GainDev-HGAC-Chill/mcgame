@@ -676,6 +676,35 @@ func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interfac
 	return true, nil
 }
 
+func (h *Handler) AddTrainingSkill(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	if len(args) < 1 {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
+	skillID, ok := parseSkillLearnID(args[0])
+	if !ok {
+		return nil, pkgerrors.ErrInvalidArgs
+	}
+	characterID, err := strconv.ParseInt(ctx.CharacterID, 10, 64)
+	if err != nil {
+		return nil, pkgerrors.ErrUnauthorized
+	}
+	if h.skillService == nil {
+		return false, nil
+	}
+	if _, err := h.skillService.LearnTrainingSkill(ctx.Context, characterID, skillID); err != nil {
+		h.logger.Warn("Failed to learn training skill",
+			zap.Int64("character_id", characterID),
+			zap.Int("skill_id", skillID),
+			zap.Error(err))
+		return false, nil
+	}
+	h.sendSkillStateUpdate(ctx, characterID)
+	h.logger.Info("Training skill learned",
+		zap.Int64("character_id", characterID),
+		zap.Int("skill_id", skillID))
+	return true, nil
+}
+
 func parseSkillLearnID(value interface{}) (int, bool) {
 	switch typed := value.(type) {
 	case float64:

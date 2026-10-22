@@ -5,6 +5,7 @@ package item
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appbuff "mcgame-server/internal/application/buff"
 	domainbuff "mcgame-server/internal/domain/buff"
@@ -30,6 +31,19 @@ func (h *questItemEffectHandler) CanHandle(tpl *models.ItemTemplateTemplate) boo
 }
 
 func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *character.Character, it *domainitem.Item, tpl *models.ItemTemplateTemplate) (*ItemEffectResult, error) {
+	if isMonsterHeartKey(tpl) {
+		if h.service == nil || h.service.monsterHeartGranter == nil {
+			return nil, pkgerrors.ErrCannotUseItem
+		}
+		panel, err := h.service.monsterHeartGranter.AddHeart(ctx, char.ID, int(tpl.ProplNum), 1)
+		if err != nil {
+			return nil, err
+		}
+		result := NewEffectResult()
+		result.MonsterHeartPanel = panel
+		result.Message = fmt.Sprintf("Nhận Ma Tâm: %s.", strings.TrimSuffix(strings.TrimPrefix(tpl.Name, "Ma Tâm ("), ")"))
+		return result, nil
+	}
 
 	// Tinh Linh Cáº§u: cá»™ng 3 nÄƒng lá»±c báº¯t thÃº trong 10 lÆ°á»£t.
 	if tpl.ID == 790 || tpl.ID == 1480 {
@@ -61,6 +75,16 @@ func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, ch
 	}
 
 	if h.awardHandler != nil && h.awardHandler.CanHandle(tpl) {
+		giftBox, configured, err := buildSelectableGiftBox(h.gameData.GetItemAwardsByItemID(int(tpl.ID)))
+		if configured {
+			if err != nil {
+				return nil, pkgerrors.ErrCannotUseItem
+			}
+			result := NewEffectResult()
+			result.ConsumeItem = false
+			result.GiftBox = giftBox
+			return result, nil
+		}
 		return h.awardHandler.Apply(ctx, uctx, char, it, tpl)
 	}
 	// Ưu tiên mở giao diện lựa chọn cho hai túi Hắc Diệu Thạch.
@@ -101,6 +125,10 @@ func (h *questItemEffectHandler) Apply(ctx context.Context, uctx *UseContext, ch
 	}
 
 	return nil, pkgerrors.ErrCannotUseItem
+}
+
+func isMonsterHeartKey(tpl *models.ItemTemplateTemplate) bool {
+	return tpl != nil && int(tpl.Type) == 550 && int(tpl.UseType) == 1 && strings.HasPrefix(tpl.Name, "Ma Tâm (") && int(tpl.ProplNum) > 0
 }
 
 func (h *questItemEffectHandler) tryAutoContractPets(ctx context.Context, char *character.Character, giftBox *GiftBoxData) ([]*domainpet.Pet, error) {

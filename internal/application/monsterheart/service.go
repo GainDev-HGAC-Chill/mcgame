@@ -16,20 +16,57 @@ import (
 )
 
 var (
-	ErrInvalidBox       = errors.New("invalid box index")
-	ErrInvalidHole      = errors.New("invalid hole index")
-	ErrItemNotInBag     = errors.New("item not in monster-heart bag")
-	ErrSlotAlreadyFull  = errors.New("target hole already occupied")
-	ErrSlotEmpty        = errors.New("target hole already empty")
-	ErrCatalogEntry     = errors.New("invalid monster-heart catalog entry")
-	ErrHeartType        = errors.New("monster-heart type mismatch")
-	ErrHoleClosed       = errors.New("target hole is closed")
-	ErrHeartUnavailable = errors.New("monster-heart ownership count exhausted")
+	ErrInvalidBox        = errors.New("invalid box index")
+	ErrInvalidHole       = errors.New("invalid hole index")
+	ErrItemNotInBag      = errors.New("item not in monster-heart bag")
+	ErrSlotAlreadyFull   = errors.New("target hole already occupied")
+	ErrSlotEmpty         = errors.New("target hole already empty")
+	ErrCatalogEntry      = errors.New("invalid monster-heart catalog entry")
+	ErrHeartType         = errors.New("monster-heart type mismatch")
+	ErrHoleClosed        = errors.New("target hole is closed")
+	ErrHeartUnavailable  = errors.New("monster-heart ownership count exhausted")
+	ErrInvalidHeartCount = errors.New("invalid monster-heart count")
 )
 
 type Catalog interface {
 	GetCreatureHeart(id int) *models.CreaturehHeartTemplate
 	GetCreatureHeartPoint(id int) *models.CreaturehPointTemplate
+}
+
+func (s *Service) AddHeart(ctx context.Context, charID int64, heartID, count int) (map[string]interface{}, error) {
+	if count <= 0 {
+		return nil, ErrInvalidHeartCount
+	}
+	if s == nil || s.catalog == nil {
+		return nil, ErrCatalogEntry
+	}
+	heart := s.catalog.GetCreatureHeart(heartID)
+	if heart == nil {
+		return nil, ErrCatalogEntry
+	}
+	category := categoryForHeartType(int(heart.Type))
+	if category == "" {
+		return nil, ErrHeartType
+	}
+
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	defer lock.Unlock()
+
+	state, err := s.Load(ctx, charID)
+	if err != nil {
+		return nil, err
+	}
+	entry := state.Bag[category][heartID]
+	if entry.ID == 0 {
+		entry = BagEntry{ID: heartID, ItemID: heartID}
+	}
+	entry.N += count
+	state.Bag[category][heartID] = entry
+	if err := s.saveState(ctx, charID, state); err != nil {
+		return nil, fmt.Errorf("monsterheart: save after add: %w", err)
+	}
+	return state.Encode(), nil
 }
 
 type Service struct {

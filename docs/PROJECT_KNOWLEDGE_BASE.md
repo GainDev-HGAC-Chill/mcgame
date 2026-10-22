@@ -11,6 +11,7 @@ This file is an **index** of per-feature memory documents under `docs/memory/`. 
 ## Architecture & Protocol
 
 - [Architecture & Protocol](memory/architecture-protocol.md) — RTMP/AMF0, channel isolation, creature hierarchy, RTMPE v6 fixes.
+- [Gameplay Progression](memory/gameplay-progression.md) — quest Thần Khí, Tu Luyện, Mệnh Hồn Pet, Huy Chương Mạo Hiểm và TXKC.
 - [Login & Auth Flow](memory/login-auth-flow.md) — deployment modes, connection handling, character list, chooseCharactor, force-login, dual-device, kick, secondary password.
 - [Handler Package Structure](memory/handler-package-structure.md) — feature directory layout under `internal/presentation/rtmp/handlers/`.
 - [Application Services](memory/application-services.md) — full list of `internal/application/*` services and responsibilities.

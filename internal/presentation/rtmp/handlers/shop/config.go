@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
 	"mcgame-server/internal/infrastructure/rtmp"
 
@@ -108,7 +109,18 @@ func getCurrencyKey(currencyType int) string {
 func (h *Handler) GetShopConfig(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	rows := []string{}
 	if h.gameData != nil {
-		rows = buildShopConfigRows(h.gameData.GetAllShopSlots())
+		slots := h.gameData.GetAllShopSlots()
+		renderableSlots := make([]*models.ShopSlotTemplate, 0, len(slots))
+		for _, slot := range slots {
+			if shopSlotHasTemplate(h.gameData, slot) {
+				renderableSlots = append(renderableSlots, slot)
+				continue
+			}
+			if slot != nil {
+				h.logger.Warn("GetShopConfig: skipped slot with missing template", zap.Int64("slot_id", slot.ID), zap.Int("table_type", int(slot.Type)), zap.Int("template_id", int(slot.ItemID)))
+			}
+		}
+		rows = buildShopConfigRows(renderableSlots)
 	}
 	result := []interface{}{0, "", rows}
 	if err := ctx.Connection.SendCallback("onGetShopConfig", result); err != nil {
@@ -116,6 +128,23 @@ func (h *Handler) GetShopConfig(ctx *rtmp.RPCContext, args []interface{}) (inter
 	}
 
 	return nil, nil
+}
+
+func shopSlotHasTemplate(gameData *gamedata.Manager, slot *models.ShopSlotTemplate) bool {
+	if gameData == nil || slot == nil || slot.ItemID <= 0 {
+		return false
+	}
+	templateID := int(slot.ItemID)
+	switch int(slot.Type) {
+	case 12:
+		return gameData.GetCreature(templateID) != nil
+	case 19:
+		return gameData.GetEquipment(templateID) != nil
+	case 29:
+		return gameData.GetItem(templateID) != nil
+	default:
+		return false
+	}
 }
 
 func buildShopConfigRows(slots []*models.ShopSlotTemplate) []string {

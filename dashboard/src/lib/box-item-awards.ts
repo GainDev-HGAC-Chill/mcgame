@@ -1,8 +1,18 @@
-export type BoxItemAwardType = 12 | 19 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 37 | 38
+export type BoxItemAwardType =
+    12 | 19 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 37 | 38
 
 export type BoxItemAwardPayload = Record<string, unknown>
 
 export const BOX_ITEM_AWARD_GUARANTEED_KEY = "guaranteed"
+export const BOX_ITEM_AWARD_SELECTION_KEY = "selection"
+export const BOX_ITEM_SELECTABLE_TYPES = [12, 19, 29] as const
+
+export type BoxItemAwardMode = "award" | "selectable"
+
+export interface BoxItemAwardSelection {
+    order: number
+    getNum: number
+}
 
 export const BOX_ITEM_AWARD_TYPE_OPTIONS = [
     { value: "29", label: "Vật phẩm" },
@@ -247,12 +257,122 @@ export function boxItemAwardIsExperience(type: number): boolean {
 
 export function boxItemAwardUsesFixedCount(type: number): boolean {
     const normalized = normalizeBoxItemAwardType(type)
-    return normalized === 33 || normalized === 34 || normalized === 37 || normalized === 38
+    return (
+        normalized === 33 ||
+        normalized === 34 ||
+        normalized === 37 ||
+        normalized === 38
+    )
 }
 
 export function boxItemAwardSupportsQuality(type: number): boolean {
     const normalized = normalizeBoxItemAwardType(type)
     return normalized === 12 || normalized === 19 || normalized === 29
+}
+
+export function boxItemAwardSupportsSelection(type: number): boolean {
+    return BOX_ITEM_SELECTABLE_TYPES.includes(
+        normalizeBoxItemAwardType(
+            type
+        ) as (typeof BOX_ITEM_SELECTABLE_TYPES)[number]
+    )
+}
+
+export function boxItemAwardSelection(
+    payload: unknown
+): BoxItemAwardSelection | null {
+    const normalized = normalizeBoxItemAwardPayload(payload)
+    const raw = normalized[BOX_ITEM_AWARD_SELECTION_KEY]
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+        return null
+    const selection = raw as Record<string, unknown>
+    const order = strictAwardInteger(selection.order)
+    const getNum = strictAwardInteger(selection.getNum)
+    if (order === null || getNum === null) return null
+    return order >= 0 && getNum > 0 ? { order, getNum } : null
+}
+
+export function hasBoxItemAwardSelectionMetadata(payload: unknown): boolean {
+    const normalized = normalizeBoxItemAwardPayload(payload)
+    return Object.prototype.hasOwnProperty.call(
+        normalized,
+        BOX_ITEM_AWARD_SELECTION_KEY
+    )
+}
+
+export function resolveBoxItemAwardMode(rows: Array<{ payload: unknown }>): {
+    mode: BoxItemAwardMode
+    selectionCount: number
+} {
+    if (rows.length === 0) return { mode: "award", selectionCount: 1 }
+
+    const metadataRows = rows.filter(row =>
+        hasBoxItemAwardSelectionMetadata(row.payload)
+    )
+    if (metadataRows.length === 0) return { mode: "award", selectionCount: 1 }
+    if (metadataRows.length !== rows.length) {
+        throw new Error(
+            "Cấu hình túi đang trộn phần thưởng tự chọn và thông thường."
+        )
+    }
+
+    const selections = rows.map(row => boxItemAwardSelection(row.payload))
+    if (selections.some(selection => selection === null)) {
+        throw new Error("Metadata lựa chọn của túi không hợp lệ.")
+    }
+
+    const getNum = selections[0]!.getNum
+    const orders = selections
+        .map(selection => selection!.order)
+        .sort((left, right) => left - right)
+    if (
+        getNum < 1 ||
+        getNum > rows.length ||
+        selections.some(selection => selection!.getNum !== getNum) ||
+        orders.some((order, index) => order !== index)
+    ) {
+        throw new Error("Cấu hình thứ tự hoặc số lượt chọn không hợp lệ.")
+    }
+
+    return { mode: "selectable", selectionCount: getNum }
+}
+
+export function orderBoxItemAwardRows<
+    T extends { id: number; payload: unknown },
+>(rows: T[]): T[] {
+    return [...rows].sort((left, right) => {
+        const leftSelection = boxItemAwardSelection(left.payload)
+        const rightSelection = boxItemAwardSelection(right.payload)
+        if (leftSelection && rightSelection) {
+            return (
+                leftSelection.order - rightSelection.order || left.id - right.id
+            )
+        }
+        if (leftSelection) return -1
+        if (rightSelection) return 1
+        return left.id - right.id
+    })
+}
+
+export function normalizeBoxItemAwardModePayload(
+    payload: unknown,
+    mode: BoxItemAwardMode,
+    order: number,
+    selectionCount: number
+): BoxItemAwardPayload {
+    const normalized = normalizeBoxItemAwardPayload(payload)
+    if (mode === "selectable") {
+        delete normalized[BOX_ITEM_AWARD_GUARANTEED_KEY]
+        delete normalized.countMin
+        delete normalized.countMax
+        normalized[BOX_ITEM_AWARD_SELECTION_KEY] = {
+            order,
+            getNum: selectionCount,
+        }
+    } else {
+        delete normalized[BOX_ITEM_AWARD_SELECTION_KEY]
+    }
+    return normalized
 }
 
 export function boxItemAwardSupportsPreNameType(type: number): boolean {
@@ -311,9 +431,15 @@ export function boxItemAwardFallbackName(
         case 35:
             return boxItemGameCurrencyName(awardId)
         case 37:
-            return BOX_ITEM_MOUNT_OPTIONS.find(x => Number(x.value) === awardId)?.label || `Skin thú cưỡi #${awardId}`
+            return (
+                BOX_ITEM_MOUNT_OPTIONS.find(x => Number(x.value) === awardId)
+                    ?.label || `Skin thú cưỡi #${awardId}`
+            )
         case 38:
-            return BOX_ITEM_FAIRY_OPTIONS.find(x => Number(x.value) === awardId)?.label || `Tinh linh #${awardId}`
+            return (
+                BOX_ITEM_FAIRY_OPTIONS.find(x => Number(x.value) === awardId)
+                    ?.label || `Tinh linh #${awardId}`
+            )
         default:
             return awardId > 0 ? `Vật phẩm #${awardId}` : "Vật phẩm"
     }
@@ -343,6 +469,12 @@ function normalizeAwardNumber(value: unknown, fallback = 0): number {
         if (Number.isFinite(parsed)) return parsed
     }
     return fallback
+}
+
+function strictAwardInteger(value: unknown): number | null {
+    return typeof value === "number" && Number.isSafeInteger(value)
+        ? value
+        : null
 }
 
 export function normalizeBoxItemAwardQuality(value: unknown): number {

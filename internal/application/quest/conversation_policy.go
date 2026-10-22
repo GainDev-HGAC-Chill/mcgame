@@ -5,6 +5,7 @@ type conversationQuestSpec struct {
 	QuestType int
 	StartNPC  int
 	FinishNPC int
+	ClassID   int
 	Name      string
 }
 
@@ -12,6 +13,7 @@ type ConversationQuestFingerprint struct {
 	QuestType int
 	StartNPC  int
 	FinishNPC int
+	ClassID   int
 	Name      string
 }
 
@@ -213,6 +215,12 @@ var reviewedConversationQuests = map[int]conversationQuestSpec{
 	4645:  {QuestType: 2, StartNPC: 639, FinishNPC: 1130, Name: "Nhờ Cậy Của Đạo Sư Lưu Hỏa"},
 	4647:  {QuestType: 2, StartNPC: 466, FinishNPC: 272, Name: "Báo Tin Mừng Cho Tộc Trưởng"},
 	4648:  {QuestType: 2, StartNPC: 272, FinishNPC: 929, Name: "Báo Tin Mừng Cho Thành Chủ Quyến Cố"},
+	4707:  {QuestType: 10, StartNPC: 310, FinishNPC: 272, ClassID: 1, Name: "Diêm Ma Tâm"},
+	4708:  {QuestType: 10, StartNPC: 311, FinishNPC: 272, ClassID: 3, Name: "Thánh Quang Thập Tự"},
+	4709:  {QuestType: 10, StartNPC: 312, FinishNPC: 272, ClassID: 2, Name: "Trấn Hồn Nhạc Phổ"},
+	4710:  {QuestType: 10, StartNPC: 427, FinishNPC: 272, ClassID: 5, Name: "Tự Nhiên Mị"},
+	4711:  {QuestType: 10, StartNPC: 489, FinishNPC: 272, ClassID: 4, Name: "Tinh Hỏa Trụy"},
+	4712:  {QuestType: 10, StartNPC: 639, FinishNPC: 272, ClassID: 6, Name: "Thần Võ Huân Chương"},
 	4719:  {QuestType: 4, StartNPC: 290, FinishNPC: 541, Name: "Băng Tan 9-5"},
 	4756:  {QuestType: 2, StartNPC: 566, FinishNPC: 272, Name: "Phù Chú Hoàn Chỉnh"},
 	4778:  {QuestType: 2, StartNPC: 669, FinishNPC: 1167, Name: "Hỏi Tướng Quân Tường Tận"},

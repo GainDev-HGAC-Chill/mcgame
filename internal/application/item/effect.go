@@ -43,6 +43,7 @@ type ItemEffectResult struct {
 	GrantedBuffs         []*domainbuff.Buff
 	GrantedCurrencies    []GrantedCurrencyResult
 	GrantedMedals        []GrantedMedalResult
+	MonsterHeartPanel    map[string]interface{}
 	Message              string
 	ConsumeItem          bool
 	RefreshCharacterView bool
@@ -87,10 +88,13 @@ type GiftBoxData struct {
 }
 
 type GiftBoxChoice struct {
-	TableType int
-	ID        int
-	StackNum  int
-	Quality   int
+	AwardRowID  int64
+	TableType   int
+	ID          int
+	StackNum    int
+	Quality     int
+	PreNameType int
+	Payload     map[string]interface{}
 }
 
 type TempBagItemData struct {

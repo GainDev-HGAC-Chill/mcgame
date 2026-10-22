@@ -9,7 +9,7 @@ The client sends `changeSoulRadioGroup.selectedValue` as `args[2]` (1=full chang
 Fixed in `internal/presentation/rtmp/handlers/item/change_soul.go`:
 
 - **Mode 1 (Full change)**: 1 Soul Stone + 50k silver. Re-rolls both attribute type AND value. Returns type `"1"` response, stores pending, waits for `sureChangeSoul` confirmation. Response fields: `ap`/`apn` = current (old), `apro`/`apropnum` = new.
-- **Mode 2 (Partial change)**: 2 Soul Stones + 100k silver. Keeps existing attribute type, re-rolls value only. Auto-applied immediately. Returns type `"2"` with comparison fields: `apro` = new value, `apropnum` = old value, `apropnu` = old value.
+- **Mode 2 (Partial change)**: 2 Soul Stones + 100k silver. Keeps existing attribute type and re-rolls value only. A value equal to or above the current value is applied immediately; a lower preview is returned for the client's “Không áp dụng” state but is not persisted. Returns type `"2"` with comparison fields: `apro` = new value, `apropnum` = old value, `apropnu` = old value.
 - **First activation** (no existing soul): Falls through to full change flow regardless of mode.
 
 Soul stone materials by equipment required level: 1659 (level 1-60), 1660 (61-80), 1661 (81-100), 1662 (101+).

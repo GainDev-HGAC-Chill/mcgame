@@ -17,6 +17,7 @@ import (
 	appexplorermedal "mcgame-server/internal/application/explorermedal"
 	appitem "mcgame-server/internal/application/item"
 	apppet "mcgame-server/internal/application/pet"
+	appspecialtraining "mcgame-server/internal/application/specialtraining"
 	domainchar "mcgame-server/internal/domain/character"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
@@ -49,28 +50,29 @@ var onlineRewardSteps = []OnlineRewardConfig{
 }
 
 type Handler struct {
-	sthBattleStarter func(*rtmp.RPCContext, int) (string, error)
-	findbackPool     *pgxpool.Pool
-	itemService      *appitem.Service
-	characterRepo    domainchar.Repository
-	statFeatureRepo  domainfeature.Repository
-	offlineService   *appactivity.OfflineDelegationService
-	premiumService   *appactivity.PremiumService
-	bossDailyService *appactivity.BossDailyService
-	dailyActService  *appactivity.DailyActService
-	combatService    *appcombat.Service
-	battleService    *appbattle.Service
-	buffService      *appbuff.Service
-	gameData         *gamedata.Manager
-	explorerMedalSvc *appexplorermedal.Service
-	ppveService      *apppet.PPVEService
-	logger           *zap.Logger
-	rewardStates     sync.Map
-	sendCombineMu    sync.Mutex
-	sendCombineBuy   map[int64]map[string]int
-	rtmpServer       *rtmp.Server
-	startedActSvc    *appactivity.StartedActivityService
-	eventBus         *appevents.Bus
+	sthBattleStarter   func(*rtmp.RPCContext, int) (string, error)
+	findbackPool       *pgxpool.Pool
+	itemService        *appitem.Service
+	characterRepo      domainchar.Repository
+	statFeatureRepo    domainfeature.Repository
+	offlineService     *appactivity.OfflineDelegationService
+	premiumService     *appactivity.PremiumService
+	bossDailyService   *appactivity.BossDailyService
+	dailyActService    *appactivity.DailyActService
+	combatService      *appcombat.Service
+	battleService      *appbattle.Service
+	buffService        *appbuff.Service
+	gameData           *gamedata.Manager
+	explorerMedalSvc   *appexplorermedal.Service
+	specialTrainingSvc *appspecialtraining.Service
+	ppveService        *apppet.PPVEService
+	logger             *zap.Logger
+	rewardStates       sync.Map
+	sendCombineMu      sync.Mutex
+	sendCombineBuy     map[int64]map[string]int
+	rtmpServer         *rtmp.Server
+	startedActSvc      *appactivity.StartedActivityService
+	eventBus           *appevents.Bus
 }
 
 func NewHandler(itemService *appitem.Service, logger *zap.Logger) *Handler {
@@ -128,6 +130,10 @@ func (h *Handler) SetGameDataManager(gameData *gamedata.Manager) {
 
 func (h *Handler) SetExplorerMedalService(svc *appexplorermedal.Service) {
 	h.explorerMedalSvc = svc
+}
+
+func (h *Handler) SetSpecialTrainingService(svc *appspecialtraining.Service) {
+	h.specialTrainingSvc = svc
 }
 
 func (h *Handler) SetStartedActivityService(service *appactivity.StartedActivityService) {
@@ -195,6 +201,7 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("getShowTimeInfo", h.GetShowTimeInfo)
 	dispatcher.Register("initEMPanel", h.InitEMPanel)
 	dispatcher.Register("levelUpEMedal", h.LevelUpEMedal)
+	dispatcher.Register("levelUpEMedalByGold", h.LevelUpEMedalByGold)
 	dispatcher.Register("getMCZDData", h.GetMCZDData)
 	dispatcher.Register("getMYTCDataView", h.GetMYTCDataView)
 	dispatcher.Register("getHMTXLSData", h.GetHMTXLSData)
@@ -203,6 +210,13 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("endHMTXLRoom", h.EndHMTXLRoom)
 	dispatcher.Register("getHMTAward", h.GetHMTAward)
 	dispatcher.Register("getTXKCData", h.GetTXKCData)
+	dispatcher.Register("openTXKCAdvanceCourse", h.OpenTXKCAdvanceCourse)
+	dispatcher.Register("buyTXKCEXP", h.BuyTXKCEXP)
+	dispatcher.Register("takeTXKCDailyQuest", h.TakeTXKCDailyQuest)
+	dispatcher.Register("TXKCGetProgressEXP", h.TXKCGetProgressEXP)
+	dispatcher.Register("takeTXKCFreeAward", h.TakeTXKCFreeAward)
+	dispatcher.Register("takeTXKCAdvanAward", h.TakeTXKCAdvanAward)
+	dispatcher.Register("openTXKCShop", h.OpenTXKCShop)
 	h.registerLegacyActivityBacklogHandlers(dispatcher)
 	dispatcher.Register("getSecretTreasureHuntData", h.STHGetData)
 	dispatcher.Register("SecretTreasureHuntGo", h.STHGo)

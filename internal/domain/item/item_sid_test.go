@@ -168,6 +168,42 @@ func TestToDTO_DerivesEquipmentPrefixTypeFromColor(t *testing.T) {
 	}
 }
 
+func TestToDTO_MaterialUsesClientDisplayColor(t *testing.T) {
+	it := &Item{
+		ID:         781,
+		TemplateID: 16,
+		ItemType:   ItemTypeMaterial,
+		SlotType:   SlotTypeBag,
+		SlotIndex:  9,
+		StackCount: 3,
+		ColorCode:  5,
+		Properties: map[string]interface{}{
+			"color":     5,
+			"colorCode": 4,
+			"level":     6,
+		},
+	}
+
+	dto := it.ToDTO()
+	if color := dto["color"]; color != 4 {
+		t.Fatalf("expected client display color 4, got %#v", color)
+	}
+	if colorCode := dto["colorCode"]; colorCode != 5 {
+		t.Fatalf("expected canonical colorCode 5, got %#v", colorCode)
+	}
+	if level := dto["level"]; level != 6 {
+		t.Fatalf("expected material level 6, got %#v", level)
+	}
+}
+
+func TestToDTO_MaterialPreservesLowerTierClientColor(t *testing.T) {
+	it := &Item{ID: 782, TemplateID: 16, ItemType: ItemTypeMaterial, ColorCode: 4}
+	dto := it.ToDTO()
+	if color := dto["color"]; color != 4 {
+		t.Fatalf("expected lower-tier client color 4, got %#v", color)
+	}
+}
+
 func TestFormatEquipmentDisplayName_PrependsPrefixOnce(t *testing.T) {
 	formatted := FormatEquipmentDisplayName("Kiếm Sắt", 2)
 	if formatted != "Cường Hóa Kiếm Sắt" {

@@ -2,7 +2,7 @@
 
 // Equipment soul activation change handlers implement the changeSoul preview-confirm flow.
 // Mode 1 (full change): re-rolls both attribute type and value, requires confirmation.
-// Mode 2 (partial change): keeps attribute type, re-rolls value only, auto-applied.
+// Mode 2 (partial change): keeps attribute type and only applies a non-decreasing value.
 package item
 
 import (
@@ -73,6 +73,10 @@ func changeSoulRollPropNum(templateMax int) int {
 		return 1
 	}
 	return rand.Intn(templateMax) + 1
+}
+
+func changeSoulShouldApplyPartial(currentPropNum int, newPropNum int) bool {
+	return newPropNum >= currentPropNum
 }
 
 func (h *Handler) getPendingChangeSoul(characterID int64) (*pendingChangeSoul, bool) {
@@ -240,16 +244,19 @@ func (h *Handler) changeSoulPartial(
 ) (interface{}, error) {
 	newPropNum := changeSoulRollPropNum(templateMaxPropNum)
 
-	updatedEquipment, updateErr := h.itemService.UpdateEquipmentActiveProp(ctx.Context, equipmentID, currentPropType, newPropNum)
-	if updateErr != nil {
-		return rtmp.ErrorToResponse(updateErr), nil
-	}
+	applied := changeSoulShouldApplyPartial(currentPropNum, newPropNum)
+	if applied {
+		updatedEquipment, updateErr := h.itemService.UpdateEquipmentActiveProp(ctx.Context, equipmentID, currentPropType, newPropNum)
+		if updateErr != nil {
+			return rtmp.ErrorToResponse(updateErr), nil
+		}
 
-	ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(updatedEquipment))
-	if updatedEquipment.IsEquipped() {
-		ctx.Connection.SendCallback("onEquipActiveList", h.itemService.BuildEquipActiveList(ctx.Context, characterID))
-		if ch, chErr := h.charService.GetByID(ctx.Context, characterID); chErr == nil && ch != nil {
-			ctx.Connection.SendCallback("onInitViewProp", h.getCharacterViewProps(ctx.Context, ch))
+		ctx.Connection.SendCallback("onAddCharactorSlot", h.itemDTO(updatedEquipment))
+		if updatedEquipment.IsEquipped() {
+			ctx.Connection.SendCallback("onEquipActiveList", h.itemService.BuildEquipActiveList(ctx.Context, characterID))
+			if ch, chErr := h.charService.GetByID(ctx.Context, characterID); chErr == nil && ch != nil {
+				ctx.Connection.SendCallback("onInitViewProp", h.getCharacterViewProps(ctx.Context, ch))
+			}
 		}
 	}
 
@@ -259,7 +266,8 @@ func (h *Handler) changeSoulPartial(
 		zap.Int64("equipment_id", equipmentID),
 		zap.Int("prop_type", currentPropType),
 		zap.Int("old_prop_num", currentPropNum),
-		zap.Int("new_prop_num", newPropNum))
+		zap.Int("new_prop_num", newPropNum),
+		zap.Bool("applied", applied))
 
 	return map[string]interface{}{
 		"f":        true,

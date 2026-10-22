@@ -129,6 +129,7 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("getRecentBattles", h.GetRecentBattles)
 	dispatcher.Register("battleUpdateCmd", h.BattleUpdateCmd)
 	dispatcher.Register("skillLearnByClient", h.LearnSkill)
+	dispatcher.Register("addTrainingSkill", h.AddTrainingSkill)
 	dispatcher.Register("reliveSwitch", h.ReliveSwitch)
 	dispatcher.Register("mazeRecover", h.MazeRecover)
 	dispatcher.Register("useBloodBag", h.UseBloodBag)

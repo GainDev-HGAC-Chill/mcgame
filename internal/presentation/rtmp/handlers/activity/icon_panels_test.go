@@ -8,6 +8,7 @@ import (
 	"time"
 
 	apppet "mcgame-server/internal/application/pet"
+	appspecialtraining "mcgame-server/internal/application/specialtraining"
 	domainchar "mcgame-server/internal/domain/character"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/infrastructure/rtmp"
@@ -18,6 +19,22 @@ import (
 
 type activityTestCharacterRepo struct {
 	char *domainchar.Character
+}
+
+type txkcTestStateRepo struct {
+	state *domainfeature.CharacterFeatureState
+}
+
+func (r *txkcTestStateRepo) ListCharacterFeatureStates(context.Context, int64) ([]*domainfeature.CharacterFeatureState, error) {
+	if r.state == nil {
+		return nil, nil
+	}
+	return []*domainfeature.CharacterFeatureState{r.state}, nil
+}
+
+func (r *txkcTestStateRepo) UpsertCharacterFeatureState(_ context.Context, state *domainfeature.CharacterFeatureState) error {
+	r.state = state
+	return nil
 }
 
 func (r *activityTestCharacterRepo) FindByID(ctx context.Context, id int64) (*domainchar.Character, error) {
@@ -190,7 +207,14 @@ func TestEnterPubRoomFailsClosedAndRefreshesReadModel(t *testing.T) {
 
 func TestGetTXKCData_ReturnsStarterFlagShape(t *testing.T) {
 	handler := NewHandler(nil, zap.NewNop())
-	handler.SetCharacterRepository(&activityTestCharacterRepo{})
+	charRepo := &activityTestCharacterRepo{char: &domainchar.Character{ID: 12}}
+	handler.SetCharacterRepository(charRepo)
+	location := time.FixedZone("Asia/Ho_Chi_Minh", 7*60*60)
+	service := appspecialtraining.NewService(&txkcTestStateRepo{}, charRepo, appspecialtraining.Config{
+		Key: "test", Start: time.Date(2026, 10, 22, 0, 0, 0, 0, location), End: time.Date(2026, 12, 31, 0, 0, 0, 0, location), Location: location,
+	})
+	service.SetClock(func() time.Time { return time.Date(2026, 10, 22, 12, 0, 0, 0, location) })
+	handler.SetSpecialTrainingService(service)
 
 	result, err := handler.GetTXKCData(&rtmp.RPCContext{ConnID: 19, CharacterID: "12"}, nil)
 	if err != nil {
