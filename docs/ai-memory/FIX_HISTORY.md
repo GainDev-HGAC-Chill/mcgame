@@ -1,5 +1,13 @@
 # MCGame Fix History
 
+## FIX-2026-10-23-09 — Chặn pg_net làm crash database khi Restore
+
+- Máy clone báo PostgreSQL crash trong lúc Restore do background worker `pg_net` truy cập target đúng lúc database bị drop/recreate. Báo cáo ngoài máy xác nhận khi tạm dừng worker, chờ readiness và kiểm tra data trước start thì Restore thực tế thành công. Commit `6b6565f` chỉ đổi snapshot, không chứa launcher correction nên source vẫn cần tích hợp.
+- Launcher nay park `pg_net.database_name` sang `template1` bằng `ALTER SYSTEM`, gọi `net.worker_restart()`, terminate connection target và chờ zero connection trước drop. Mọi lỗi trong pause cố rollback worker config; sau restore, config được reload và worker restart về database gốc trước khi game được bật.
+- Post-restore gate đối chiếu exact số migration file với `supabase_migrations.schema_migrations`, yêu cầu item catalog không rỗng và owner `vault.secrets=supabase_admin`, `player.characters=postgres`, `auth.users=supabase_auth_admin`. Game chỉ start sau khi audit và pg_net resume đều PASS.
+- Refactor `restoreDatabase` khỏi `database_backup.go` sang file riêng để giữ file dưới giới hạn package. Regression phủ SQL literal escaping, audit success/failure, critical table/owner coverage và existing archive role/metadata contract. `cmd/game` tests/vet/build và diff-check PASS.
+- Trạng thái: CODE_FIXED/UNIT_VERIFIED + external real-restore evidence. Docker Desktop local đang tắt nên chưa rerun disposable integration cho chính implementation pg_net mới; operator đã duyệt commit/push follow-up.
+
 ## FIX-2026-10-23-08 — Full-live restore trên máy clone
 
 - Tái hiện flow máy mới chọn menu 6 Local rồi 5 Restore. Snapshot có đủ 103 row migration history, nhưng launcher cũ dump với `--no-owner --no-privileges` và restore bằng role non-superuser `postgres`; restore thực tế fail tại `COPY vault.secrets`, có thể để database partial rồi bước start báo `supabase db push` SQLSTATE 42601.

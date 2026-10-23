@@ -18,6 +18,8 @@ Profile có thêm `online`: public IPv4/DNS được advertise cho client, edge 
 
 Restore portability correction: full Supabase dump không được strip owner/ACL. `pg_dump` và `pg_restore` chạy bằng `supabase_admin`; recreate database vẫn đặt owner `postgres`. Bản cũ chạy restore bằng non-superuser `postgres` fail tại `COPY vault.secrets`, có thể để DB partial rồi làm `supabase db push` báo SQLSTATE 42601. Snapshot corrected giữ owner `vault.secrets=supabase_admin`, `player.characters=postgres` và quyền SELECT của `postgres`.
 
+Restore crash correction: trước drop/recreate, launcher park `pg_net.database_name` sang `template1`, gọi `net.worker_restart()`, terminate mọi connection còn lại và chờ target DB về zero connection. Sau restore, launcher kiểm tra số migration khớp source, catalog item không rỗng và owner critical của Vault/Player/Auth; chỉ khi PASS mới đưa pg_net về database gốc và start game. Nếu pause/resume/audit lỗi, services giữ tắt và safety backup vẫn được báo.
+
 Blocker ban đầu WSL2/restart Windows đã vượt qua; Local có phiên chơi thực tế và autosave thành công sau sửa cache. Persistence qua logout/relogin/restart và LAN chưa kiểm chứng đầy đủ; firewall chưa mở, LAN chưa READY. Các assertion failures ngoài scope vẫn được ghi riêng trong test-results.
 
 ## Bản thử 30 FPS riêng
