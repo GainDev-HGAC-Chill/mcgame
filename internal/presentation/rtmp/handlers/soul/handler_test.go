@@ -59,6 +59,16 @@ type fakeSoulPetRepo struct {
 	pets map[int64]*domainpet.Pet
 }
 
+type fakePetStatRefresher struct {
+	pet   *domainpet.Pet
+	calls int
+}
+
+func (r *fakePetStatRefresher) GetPetDetail(ctx context.Context, charID int64, petID int64) (*domainpet.Pet, error) {
+	r.calls++
+	return r.pet, nil
+}
+
 func (r *fakeSoulPetRepo) FindByID(ctx context.Context, id int64) (*domainpet.Pet, error) {
 	return r.pets[id], nil
 }
@@ -217,6 +227,53 @@ func TestHandler_MoveSoul_PushesUpdateSlot(t *testing.T) {
 	payload := call.args[0].(map[string]any)
 	if payload["type"].(int) != 1 {
 		t.Fatalf("char-char move type = %v, want 1", payload["type"])
+	}
+}
+
+func TestHandler_MoveSoulRefreshesPetStatsImmediately(t *testing.T) {
+	char := &domainchar.Character{ID: 1, Gold: 100}
+	h, svc, calls := newTestHandler(t, char)
+	if _, err := svc.OpenBag(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.AddSoulToSlot(context.Background(), 1, 1, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	pet := &domainpet.Pet{ID: 99, CharacterID: 1, Level: 80}
+	pet.RecalculateStats()
+	refresher := &fakePetStatRefresher{pet: pet}
+	h.SetPetService(refresher)
+
+	if _, err := h.MoveSoul(ctxFor("1"), []interface{}{float64(101), float64(1), float64(99)}); err != nil {
+		t.Fatal(err)
+	}
+	if refresher.calls != 1 {
+		t.Fatalf("pet refresh calls=%d want 1", refresher.calls)
+	}
+	call, ok := findCall(*calls, "onRefreshPetProp")
+	if !ok {
+		t.Fatalf("callbacks=%+v", *calls)
+	}
+	payload := call.args[0].(map[string]interface{})
+	if payload["id"] != int64(99) || payload["s"] == nil {
+		t.Fatalf("payload=%+v", payload)
+	}
+}
+
+func TestHandler_MoveSoulDoesNotRefreshPetForCharacterSlots(t *testing.T) {
+	char := &domainchar.Character{ID: 1, Gold: 100}
+	h, svc, _ := newTestHandler(t, char)
+	if _, err := svc.OpenBag(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	refresher := &fakePetStatRefresher{pet: &domainpet.Pet{ID: 99, CharacterID: 1}}
+	h.SetPetService(refresher)
+
+	if _, err := h.MoveSoul(ctxFor("1"), []interface{}{float64(1), float64(2), float64(99)}); err != nil {
+		t.Fatal(err)
+	}
+	if refresher.calls != 0 {
+		t.Fatalf("pet refresh calls=%d want 0", refresher.calls)
 	}
 }
 

@@ -21,7 +21,7 @@ It runs as a monolith by default. It can also run as a `main` server (auth + reg
 
 #### Windows: no `make` needed
 
-For safe Local/LAN operation and actual validation status, see [Windows deployment](docs/local-lan-deployment/setup.md). The Go manager also supports `start`, `stop`, `restart`, `status`, `logs`, `check`, `client`, `local` and `lan`. Setup refuses existing secrets/database; never use reset to troubleshoot deployment.
+For safe Local/LAN operation and actual validation status, see [Windows deployment](docs/local-lan-deployment/setup.md). Double-click `MCGAME.bat` for the six-action launcher. Windows `reset` now means backup + stop + build + start; it does not wipe database volumes.
 
 For remote players on the same Radmin VPN network, use `bin\game.exe radmin start`; see [Radmin setup and restricted firewall rules](docs/local-lan-deployment/radmin.md). Database and admin ports remain host-only.
 
@@ -61,7 +61,10 @@ make game setup   # one-time: writes docker/.env with fresh secrets
 make game up      # database, migrations (+ seeds on a fresh database), then every service
 ```
 
-On Windows, run `bin\game setup` and `bin\game up` instead (see above).
+On Windows, double-click `MCGAME.bat`; it rebuilds `bin/game.exe` automatically. A clone that should reproduce the operator database can choose **Restore database** and select `mcgame-live.dump`. Restore generates fresh local secrets when needed, creates a safety backup, restores the archive and runs the normal build/start flow.
+
+> [!WARNING]
+> `supabase/backups/mcgame-live.dump` is an operator-approved full live snapshot. It can contain Auth accounts, sessions and player data. Treat every pushed version as public. Online VPS mode exposes game HTTP/RTMPE but does not configure TLS, firewall or a security review.
 
 The first `up` builds the images, so it takes a few minutes. The stack is defined in [`docker/docker-compose.yml`](./docker/docker-compose.yml); see the [docker README](./docker/README.md) for every service, port and setting.
 
@@ -101,7 +104,7 @@ make game up
 
 ```bash
 make game down    # stop every service, data stays
-make game reset   # wipe the database and storage back to the migrations and seeds, then start
+make game reset   # Makefile workflow still rebuilds from migrations/seeds; Windows MCGAME.bat reset is backup + restart
 ```
 
 To remove the stack and all of its data:

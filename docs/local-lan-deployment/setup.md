@@ -24,7 +24,7 @@ Client URL: `http://127.0.0.1:8888/s/sv/GameLoaders.swf?isExpand=true`. Nếu pr
 
 ## Vận hành
 
-Có thể double-click `MCGAME.bat` tại thư mục gốc để dùng menu Start/Stop/Restart, mở Flash Client, xem Status/Logs/Check và chọn profile Local/LAN. Chọn **Start server** rồi **Open Flash Client**. File không chứa chức năng reset hoặc xóa volume; không tự reboot hay mở firewall. Đổi profile xong chọn Start để áp dụng.
+Có thể double-click `MCGAME.bat` tại thư mục gốc để dùng menu sáu mục: Start(build), Stop(auto backup DB), Reset=Stop+Start, mở Flash 30 FPS, Restore DB và chọn Local/LAN/Radmin/Online VPS. Backup timestamp nằm ở `.local/backups/database`; snapshot full-live để Git theo dõi là `supabase/backups/mcgame-live.dump`. Restore luôn tạo safety backup trước, nhưng chưa được live-test vì thao tác này thay toàn bộ database. Online VPS chỉ mở HTTP/RTMPE game và không tự cấu hình TLS/firewall/security hardening.
 
 | Lệnh | Chức năng |
 |---|---|

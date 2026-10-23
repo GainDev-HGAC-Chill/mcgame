@@ -1,5 +1,24 @@
 # MCGame Fix History
 
+## FIX-2026-10-23-07 — Launcher 6 mục, backup/restore DB và profile Online VPS
+
+- `MCGAME.bat` nay tự build `bin/game.exe` rồi chỉ hiển thị sáu tác vụ: Start(build Compose), Stop(auto backup), Reset=Stop+Start, Flash 30 FPS, Restore DB và chọn Local/LAN/Radmin/Online VPS. `game restart` dùng cùng safe reset; Windows reset không còn wipe volume/database.
+- Backup tạo custom-format full `pg_dump`, verify bằng `pg_restore --list`, lưu timestamp + SHA-256 ở `.local/backups/database`, rồi atomically cập nhật `supabase/backups/mcgame-live.dump`. Stop fail-closed và giữ server chạy nếu backup/publish lỗi.
+- Theo lựa chọn rõ ràng của operator, snapshot canonical là full live DB gồm cả Auth/session/player data. File không bị `.gitignore`; local timestamp, `.env`, machine profile và partial file vẫn bị ignore. Snapshot hiện tại 3.519.158 byte, checksum PASS và archive list có 1.814 TOC entry. GitHub từ chối LFS object mới trên public fork, nên commit chưa push được amend để lưu snapshot bằng Git thường.
+- Restore chỉ nhận `.dump` từ local backup hoặc tracked snapshot, nhận biết Git LFS pointer chưa pull, kiểm tra SHA-256 nếu có, yêu cầu xác nhận, tạo safety backup không ghi đè snapshot nguồn, dừng services, recreate DB, restore rồi chạy build/start. Restore thật chưa chạy để tránh mutate DB hiện tại.
+- Profile Online nhận public IPv4/DNS, advertise host riêng và bind game edge `0.0.0.0`; dashboard giữ loopback. Dashboard LAN/Radmin bind/origin theo profile, bỏ hardcode `26.31.111.123`. Online chỉ là connectivity profile, chưa có TLS/firewall/security hardening.
+- Test: `cmd/game` tests/vet/build PASS; affected gameplay tests/vet và Windows/Linux gameserver builds PASS; Compose config PASS với current `.env` và `.env.example`; Git attribute/ignore/checksum/archive checks và diff-check PASS. Không stop/reset/restore/restart, commit hoặc push.
+- Trạng thái: IMPLEMENTED/FOCUSED_VERIFIED — cần push lại commit đã amend, rồi live-test restore trên database disposable hoặc khi đã chấp nhận downtime.
+
+## FIX-2026-10-23-06 — Refresh chỉ số Tu Luyện/Mệnh Hồn và audit fresh install
+
+- Root cause runtime: học/nâng Tu Luyện chỉ refresh danh sách skill; `moveSoul` chỉ refresh slot Mệnh Hồn. Cả hai không recompute và push final property sheet nên client chỉ thấy chỉ số mới sau khi đăng nhập lại.
+- Sửa Tu Luyện: sau mutation thành công, phát `onUPP` từ character sheet có aggregate bonus và `onRefreshPetProp` cho toàn bộ Pet đã enrich. Sửa Mệnh Hồn: move type 2–4 reload đúng Pet qua Pet service sau persist rồi phát `onRefreshPetProp`; move type 1 character-only không reload Pet. Gameserver wiring truyền Pet service vào Soul handler.
+- Test runtime: regression refresh mọi Pet sau Tu Luyện, refresh Pet sau Soul move và không refresh cho character-only move PASS. Focused combat/Soul/skill/Pet tests, targeted vet, Windows `bin/gameserver.exe`, Linux `bin/gameserver-linux` và diff-check PASS.
+- Audit fresh install: 103 migration không trùng version; một version legacy `20261016` phải giữ để tương thích history. Shadow replay toàn chuỗi PASS; 101 seed không rỗng, khoảng 15.8 MB. Static audit 220 production Postgres function call phát hiện 6 function không có migration: năm Achievement và `player.consume_catch_ball_round`.
+- Schema chưa portable: Achievement draft chưa apply/capture; hai box-admin function chỉ ở draft/live DB; live DB còn character-deletion objects và drift NPC/Quest/Find Back chưa được capture. Seed fresh có Soul `Vĩnh Sinh`/`Tăng Miễn Tử`, nhưng DB hiện hữu vẫn giữ text cũ. Dashboard compose còn bind cứng `26.31.111.123:3000`.
+- Trạng thái: CODE_FIXED/FOCUSED_VERIFIED, FRESH_INSTALL_BLOCKED. Local/LAN có thể chạy trên máy hiện tại nhưng clone mới chưa được bảo đảm đầy đủ; public internet chưa sẵn sàng. Chưa apply/capture SQL, restart/deploy, Flash smoke-test, mutate dữ liệu, commit hoặc push.
+
 ## FIX-2026-10-23-05 — Tu Luyện, Shop quality, Mệnh Hồn và Văn Chỉ
 
 - Unit A Tu Luyện: thêm provider stat chỉ hoạt động khi toàn bộ catalog khớp exact fingerprint 120 row/12 family. Mỗi family lấy level học cao nhất, các tier độc lập cộng dồn; curve thay thế và hệ số nghề/Pet nằm table-driven, chỉ cộng HP/Vật Phòng/Ma Phòng/Tốc Độ. Catalog, persisted level, class hoặc Pet family drift đều trả zero và log thay vì fallback.

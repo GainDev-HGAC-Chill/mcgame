@@ -12,6 +12,10 @@ Safety: setup từ chối existing `.env`/database; migrate đọc boolean `::te
 
 2026-10-16: `game start` gọi `supabase db push --include-all` để áp cả migration local chưa có trong history nhưng mang timestamp cũ hơn migration cuối đã áp. Điều này sửa lỗi CLI “Found local migration files to be inserted before the last migration” mà không reset/reseed database hiện hữu; `--include-seed` vẫn chỉ dùng khi database hoàn toàn mới. Menu `MCGAME.bat` có thêm phím `F` gọi command `client30`, giữ option 2 là client gốc.
 
+2026-10-23: `MCGAME.bat` được rút còn sáu tác vụ. Start rebuild launcher và Compose; Stop chỉ dừng sau khi full `pg_dump` custom-format được `pg_restore --list` verify, lưu timestamp + SHA-256 ở `.local/backups/database` và cập nhật snapshot Git thường `supabase/backups/mcgame-live.dump`; Reset dùng chính Stop rồi Start, không wipe volume. Restore chỉ nhận archive trong hai thư mục đã duyệt, tạo safety backup local, dừng services, recreate database, restore rồi build/start; live restore chưa chạy. Operator chọn rõ full-live snapshot dù có Auth/session/player data, nên mọi version push phải coi là public. Public fork không cho upload LFS object mới nên snapshot 3,5 MB không dùng LFS.
+
+Profile có thêm `online`: public IPv4/DNS được advertise cho client, edge bind `0.0.0.0`, dashboard vẫn loopback; đây không phải chứng nhận public-production vì chưa có TLS/firewall/security review. Dashboard remote bind/origin không còn hardcode `26.31.111.123`, mà được cập nhật theo Local/LAN/Radmin profile.
+
 Blocker ban đầu WSL2/restart Windows đã vượt qua; Local có phiên chơi thực tế và autosave thành công sau sửa cache. Persistence qua logout/relogin/restart và LAN chưa kiểm chứng đầy đủ; firewall chưa mở, LAN chưa READY. Các assertion failures ngoài scope vẫn được ghi riêng trong test-results.
 
 ## Bản thử 30 FPS riêng

@@ -65,12 +65,17 @@ func (s *stack) run(command string) error {
 		return s.down()
 	case "reset":
 		return s.reset()
+	case "backup":
+		_, err := s.backupDatabase()
+		return err
+	case "restore":
+		return s.restoreDatabase()
 	case "start":
 		return s.start()
 	case "stop":
-		return s.compose("--profile", "*", "stop", "--timeout", "60")
+		return s.stop()
 	case "restart":
-		return s.compose("restart", "--timeout", "60")
+		return s.reset()
 	case "status":
 		s.printURLs()
 		if err := dockerReady(); err != nil {
@@ -81,7 +86,7 @@ func (s *stack) run(command string) error {
 		return s.compose("logs", "--tail", "100", "mcgame-server", "rtmp-edge", "db", "redis", "dashboard")
 	case "check":
 		return s.check()
-	case "local", "lan", "radmin":
+	case "local", "lan", "radmin", "online":
 		return s.configureClient(command)
 	case "client":
 		return s.openClient()
@@ -138,31 +143,15 @@ func (s *stack) hasDatabase() bool {
 	return err == nil && len(entries) > 0
 }
 
-func (s *stack) wipe() error {
-	fmt.Println("===> Removing the containers, their volumes, the database and storage...")
-	if err := s.compose("--profile", "*", "down", "-v", "--remove-orphans"); err != nil {
-		return err
-	}
-	for _, sub := range []string{filepath.Join("volumes", "db", "data"), filepath.Join("volumes", "storage")} {
-		if err := os.RemoveAll(filepath.Join(s.dir, sub)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (s *stack) down() error {
 	return s.compose("--profile", "*", "down", "--remove-orphans")
 }
 
 func (s *stack) reset() error {
-	if err := s.confirm("Wipe the database and storage back to the migrations and seeds?"); err != nil {
+	if err := s.stop(); err != nil {
 		return err
 	}
-	if err := s.wipe(); err != nil {
-		return err
-	}
-	return s.up()
+	return s.start()
 }
 
 func (s *stack) up() error {

@@ -23,6 +23,69 @@ func TestRejectUnsafeLANAddresses(t *testing.T) {
 	}
 }
 
+func TestValidateOnlineHost(t *testing.T) {
+	for _, value := range []string{"203.0.113.10", "game.example.com", "vps-1.example.net"} {
+		if !validOnlineHost(value) {
+			t.Fatalf("rejected online host %q", value)
+		}
+	}
+	for _, value := range []string{"", "localhost", "127.0.0.1", "192.168.1.2", "26.31.111.123", "http://game.example.com", "game.example.com:8888", "bad_host.example"} {
+		if validOnlineHost(value) {
+			t.Fatalf("accepted unsafe online host %q", value)
+		}
+	}
+}
+
+func TestDashboardAllowedOriginsUsesSelectedProfileHost(t *testing.T) {
+	got := dashboardAllowedOrigins("26.31.111.123")
+	for _, origin := range []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://26.31.111.123:3000"} {
+		if !strings.Contains(got, origin) {
+			t.Fatalf("missing %q in %q", origin, got)
+		}
+	}
+}
+
+func TestConfigureOnlineProfileSeparatesPublicHostFromBindAddress(t *testing.T) {
+	root := t.TempDir()
+	dockerDir := filepath.Join(root, "docker")
+	templateDir := filepath.Join(root, "frontend", "s", "sv", "profile")
+	if err := os.MkdirAll(dockerDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(templateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	envPath := filepath.Join(dockerDir, ".env")
+	if err := os.WriteFile(envPath, []byte("POSTGRES_DB=postgres\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "config.xml"), []byte("http://localhost:8888 127.0.0.1:1935"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MCGAME_ONLINE_HOST", "game.example.com")
+	s := &stack{root: root, dir: dockerDir, envPath: envPath}
+	if err := s.configureClient("online"); err != nil {
+		t.Fatal(err)
+	}
+	env, err := loadEnv(envPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.get("GAME_BIND_ADDRESS") != "0.0.0.0" || env.get("GAME_PUBLIC_HOST") != "game.example.com" {
+		t.Fatalf("bind=%q public=%q", env.get("GAME_BIND_ADDRESS"), env.get("GAME_PUBLIC_HOST"))
+	}
+	if env.get("DASHBOARD_REMOTE_BIND_ADDRESS") != "127.0.0.2" {
+		t.Fatalf("dashboard bind=%q", env.get("DASHBOARD_REMOTE_BIND_ADDRESS"))
+	}
+	profile, err := os.ReadFile(filepath.Join(dockerDir, "client", "online.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(profile), "localhost") || !strings.Contains(string(profile), "game.example.com") {
+		t.Fatalf("profile=%q", profile)
+	}
+}
+
 func TestSetupPreservesExistingDataAndSecrets(t *testing.T) {
 	for _, database := range []bool{false, true} {
 		t.Run(map[bool]string{false: "secrets", true: "database"}[database], func(t *testing.T) {

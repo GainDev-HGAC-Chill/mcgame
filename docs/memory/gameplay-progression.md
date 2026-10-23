@@ -11,6 +11,7 @@
 - Flash học level đầu qua `addTrainingSkill(skillId)`, nâng qua `skillLearnByClient(nextSkillId)`.
 - Authority là `useEnv=3,kind=5`, exact-next cùng `codeName`; catalog có 12 family × 10 level = 120 row và dùng chung sáu class.
 - Buff Tu Luyện không có `prop*` authority. Người dùng đã duyệt curve balance thay thế, ghi rõ không phải công thức gốc: giữ base Sơ cấp khôi phục được, multiplier Sơ/Trung/Cao `1/1.5/2.25`, hệ số nghề từ aptitude `TBL_CLASS`, hệ Pet từ bảng median cố định, clamp `0.75..1.25`. Runtime chỉ nhận exact fingerprint 120 row, lấy level cao nhất trong từng family, cộng dồn 12 family độc lập vào HP/Vật Phòng/Ma Phòng/Tốc Độ; catalog/class/family/level drift trả zero.
+- Sau khi học hoặc nâng thành công, handler phải phát lại final sheet ngay: `onUPP` cho nhân vật và `onRefreshPetProp` cho mọi Pet đã enrich. Chỉ refresh skill list không đủ vì client giữ property sheet cũ đến lần đăng nhập sau.
 
 ## Mệnh Hồn Pet
 
@@ -19,6 +20,7 @@
 - Mutation EXP/dissolve/movement dùng chung lock theo character owner. `putInToExp` nhận fraction Flash của `min(upExp-slot.exp,soulExp)`; level-up chỉ tiêu phần còn thiếu, yêu cầu exact same-family `sid+1`, rồi reset invested EXP. Level 10/catalog drift bị từ chối trước debit.
 - Dissolve bag trả `template.exp + slot.exp` và `template.chip`; quick mode chỉ lấy unlocked row có `color < threshold` với threshold `1..3`. Temp panel có single/threshold bulk qua `transformExpInPanel`.
 - Equipped Soul dùng exact `TBL_PET_SOUL.propType/propVal`; integer base stat và decimal feature property được cộng trước `RecalculateStats`, giữ decimal trong `soulProp<id>`/canonical property và đưa vào `EffectiveStats` khi có mapping. Row `751..760` canonical là `Vĩnh Sinh`, mô tả `Tăng Miễn Tử <propVal>`.
+- `moveSoul` type 2–4 thành công phải reload Pet qua service sau persist để Soul provider được enrich lại, rồi phát `onRefreshPetProp`; move type 1 chỉ giữa các slot nhân vật không refresh Pet.
 
 ## Văn Chỉ Pet PVE
 

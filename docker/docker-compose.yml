@@ -620,7 +620,7 @@ services:
         condition: service_started
     ports:
       - 127.0.0.1:${ADMIN_DASHBOARD_PORT:-3000}:3000
-      - 26.31.111.123:${ADMIN_DASHBOARD_PORT:-3000}:3000
+      - ${DASHBOARD_REMOTE_BIND_ADDRESS:-127.0.0.2}:${ADMIN_DASHBOARD_PORT:-3000}:3000
     volumes:
       - ../frontend/s/res:/app/frontend/s/res:ro
     environment:
@@ -633,7 +633,7 @@ services:
       - SUPABASE_INTERNAL_URL=http://api-gw:8000
       - SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
       - ADMIN_SECRET=${ADMIN_DASHBOARD_SECRET:-admin}
-      - DASHBOARD_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://26.31.111.123:3000
+      - DASHBOARD_ALLOWED_ORIGINS=${DASHBOARD_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://127.0.0.2:3000}
 
   redis:
     container_name: mcgame-redis
@@ -674,7 +674,7 @@ services:
       - TZ=${GAME_TZ:-Asia/Ho_Chi_Minh}
       - MCGAME_SERVER_ENVIRONMENT=${GAME_SERVER_ENVIRONMENT:-development}
       - MCGAME_GATEWAY_MODE=monolith
-      - MCGAME_GATEWAY_PUBLIC_HOST=${GAME_BIND_ADDRESS:-127.0.0.1}
+      - MCGAME_GATEWAY_PUBLIC_HOST=${GAME_PUBLIC_HOST:-${GAME_BIND_ADDRESS:-127.0.0.1}}
       - MCGAME_AUTH_DATABASE_HOST=db
       - MCGAME_AUTH_DATABASE_PORT=5432
       - MCGAME_AUTH_DATABASE_USER=postgres

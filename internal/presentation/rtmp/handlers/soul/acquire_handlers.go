@@ -19,6 +19,8 @@ package soul
 
 import (
 	"mcgame-server/internal/infrastructure/rtmp"
+
+	"go.uber.org/zap"
 )
 
 const soulPntFieldKey = "soulPnt"
@@ -143,5 +145,33 @@ func (h *Handler) MoveSoul(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		return rtmp.ErrorToResponse(opErr), nil
 	}
 	_ = h.sendCallback(ctx.Connection, "onUpdateSoulSlot", payload)
+	h.sendPetStatRefresh(ctx, charID, petID, payload)
 	return nil, nil
+}
+
+func (h *Handler) sendPetStatRefresh(ctx *rtmp.RPCContext, charID, petID int64, payload map[string]any) {
+	if h == nil || h.petService == nil || ctx == nil || petID <= 0 || payload["f"] != 1 {
+		return
+	}
+	moveType, ok := payload["type"].(int)
+	if !ok || moveType < 2 || moveType > 4 {
+		return
+	}
+	pet, err := h.petService.GetPetDetail(ctx.Context, charID, petID)
+	if err != nil || pet == nil {
+		if err != nil {
+			h.logger.Warn("Failed to refresh Pet after Soul movement", zap.Int64("character_id", charID), zap.Int64("pet_id", petID), zap.Error(err))
+		}
+		return
+	}
+	petDTO := pet.ToDTO()
+	data, ok := petDTO["data"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	property, ok := data["property"]
+	if !ok {
+		return
+	}
+	_ = h.sendCallback(ctx.Connection, "onRefreshPetProp", map[string]interface{}{"id": pet.ID, "s": property})
 }

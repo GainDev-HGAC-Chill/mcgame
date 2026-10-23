@@ -765,6 +765,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	petService.SetSoulProvider(soulService)
 	petService.AddFeatureBonusProvider(soulService)
 	soulHandler := soulhandler.NewHandler(soulService, log)
+	soulHandler.SetPetService(petService)
 	soulHandler.RegisterHandlers(dispatcher)
 
 	tradeHandler := tradehandler.NewHandler(tradeService, charService, rtmpServer, log)

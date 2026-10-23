@@ -10,10 +10,12 @@
 package soul
 
 import (
+	"context"
 	"errors"
 	"strconv"
 
 	appsoul "mcgame-server/internal/application/soul"
+	domainpet "mcgame-server/internal/domain/pet"
 	"mcgame-server/internal/infrastructure/rtmp"
 
 	"go.uber.org/zap"
@@ -21,8 +23,13 @@ import (
 
 type Handler struct {
 	service        *appsoul.Service
+	petService     petStatRefresher
 	logger         *zap.Logger
 	sendCallbackFn func(conn *rtmp.Connection, method string, args ...interface{}) error
+}
+
+type petStatRefresher interface {
+	GetPetDetail(ctx context.Context, charID int64, petID int64) (*domainpet.Pet, error)
 }
 
 const (
@@ -35,6 +42,10 @@ func NewHandler(service *appsoul.Service, logger *zap.Logger) *Handler {
 		logger = zap.NewNop()
 	}
 	return &Handler{service: service, logger: logger}
+}
+
+func (h *Handler) SetPetService(service petStatRefresher) {
+	h.petService = service
 }
 
 func (h *Handler) sendCallback(conn *rtmp.Connection, method string, args ...interface{}) error {

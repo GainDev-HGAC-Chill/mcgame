@@ -48,6 +48,9 @@ func (s *stack) start() error {
 
 func (s *stack) clientHost() string {
 	if env, err := loadEnv(s.envPath); err == nil {
+		if host := env.get("GAME_PUBLIC_HOST"); host != "" {
+			return host
+		}
 		if host := env.get("GAME_BIND_ADDRESS"); host != "" {
 			return host
 		}
@@ -111,22 +114,41 @@ func renderClientConfig(template []byte, host string) []byte {
 }
 
 func (s *stack) configureClient(mode string) error {
-	host := "127.0.0.1"
+	bindHost := "127.0.0.1"
+	publicHost := bindHost
+	dashboardHost := "127.0.0.2"
 	switch mode {
 	case "local":
 	case "lan":
-		host = os.Getenv("MCGAME_LAN_IP")
-		if !assignedPrivateIPv4(host) {
+		bindHost = os.Getenv("MCGAME_LAN_IP")
+		if !assignedPrivateIPv4(bindHost) {
 			return fmt.Errorf("set MCGAME_LAN_IP to an assigned private IPv4 address; game status lists candidates")
 		}
+		publicHost = bindHost
+		dashboardHost = bindHost
 	case "radmin":
 		var err error
-		host, err = assignedRadminIPv4(os.Getenv("MCGAME_RADMIN_IP"))
+		bindHost, err = assignedRadminIPv4(os.Getenv("MCGAME_RADMIN_IP"))
 		if err != nil {
 			return err
 		}
+		publicHost = bindHost
+		dashboardHost = bindHost
+	case "online":
+		publicHost = strings.TrimSpace(os.Getenv("MCGAME_ONLINE_HOST"))
+		if !validOnlineHost(publicHost) {
+			return fmt.Errorf("set MCGAME_ONLINE_HOST to a public IPv4 address or DNS hostname without scheme, port, or path")
+		}
+		bindHost = "0.0.0.0"
 	default:
 		return fmt.Errorf("unknown client profile %q", mode)
+	}
+	if _, err := os.Stat(s.envPath); os.IsNotExist(err) {
+		if err := s.setup(); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
 	}
 	env, err := loadEnv(s.envPath)
 	if err != nil {
@@ -141,17 +163,51 @@ func (s *stack) configureClient(mode string) error {
 		return err
 	}
 	path := filepath.Join(dir, mode+".xml")
-	if err := os.WriteFile(path, renderClientConfig(template, host), 0o644); err != nil {
+	if err := os.WriteFile(path, renderClientConfig(template, publicHost), 0o644); err != nil {
 		return err
 	}
-	env.set("GAME_BIND_ADDRESS", host)
+	env.set("GAME_BIND_ADDRESS", bindHost)
+	env.set("GAME_PUBLIC_HOST", publicHost)
 	env.set("GAME_CLIENT_CONFIG_PATH", "./client/"+mode+".xml")
+	env.set("DASHBOARD_REMOTE_BIND_ADDRESS", dashboardHost)
+	env.set("DASHBOARD_ALLOWED_ORIGINS", dashboardAllowedOrigins(dashboardHost))
 	if err := env.save(); err != nil {
 		return err
 	}
 	fmt.Println("Client profile:", mode, "(apply with game start)")
+	if mode == "online" {
+		fmt.Println("WARNING: Online VPS exposes game HTTP/RTMPE publicly. TLS, firewall and security hardening are not configured by this profile.")
+	}
 	s.printURLs()
 	return nil
+}
+
+func dashboardAllowedOrigins(remoteHost string) string {
+	return "http://localhost:3000,http://127.0.0.1:3000,http://" + remoteHost + ":3000"
+}
+
+func validOnlineHost(value string) bool {
+	if value == "" || strings.ContainsAny(value, "/:\\ ") {
+		return false
+	}
+	if ip := net.ParseIP(value); ip != nil {
+		ip = ip.To4()
+		return ip != nil && ip[0] != 26 && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsUnspecified() && !ip.IsMulticast() && !ip.IsLinkLocalUnicast()
+	}
+	if len(value) > 253 || !strings.Contains(value, ".") {
+		return false
+	}
+	for _, label := range strings.Split(value, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, char := range label {
+			if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '-' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (s *stack) check() error {

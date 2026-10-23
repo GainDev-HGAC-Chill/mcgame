@@ -656,6 +656,9 @@ func (h *Handler) LearnSkill(ctx *rtmp.RPCContext, args []interface{}) (interfac
 	}
 
 	h.sendSkillStateUpdate(ctx, characterID)
+	if h.isTrainingSkill(charSkill.SkillID) {
+		h.sendTrainingStatRefresh(ctx, characterID, upgrade.Character)
+	}
 	if upgrade.Changed && upgrade.Character != nil {
 		payload := map[string]interface{}{
 			"expSkill": upgrade.Character.Experience,
@@ -699,6 +702,7 @@ func (h *Handler) AddTrainingSkill(ctx *rtmp.RPCContext, args []interface{}) (in
 		return false, nil
 	}
 	h.sendSkillStateUpdate(ctx, characterID)
+	h.sendTrainingStatRefresh(ctx, characterID, nil)
 	h.logger.Info("Training skill learned",
 		zap.Int64("character_id", characterID),
 		zap.Int("skill_id", skillID))

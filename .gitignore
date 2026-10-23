@@ -34,6 +34,9 @@ docker/client/*.xml
 
 # Machine-local tools, caches and relocated Docker disk (never commit data).
 .local/
+.local/backups/database/*.dump
+.local/backups/database/*.sha256
+supabase/backups/*.partial
 
 # Standalone registration generated assets.
 frontend/registration/dist/
