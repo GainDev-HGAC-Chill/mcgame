@@ -1,10 +1,18 @@
 # MCGame Fix History
 
+## FIX-2026-10-23-08 — Full-live restore trên máy clone
+
+- Tái hiện flow máy mới chọn menu 6 Local rồi 5 Restore. Snapshot có đủ 103 row migration history, nhưng launcher cũ dump với `--no-owner --no-privileges` và restore bằng role non-superuser `postgres`; restore thực tế fail tại `COPY vault.secrets`, có thể để database partial rồi bước start báo `supabase db push` SQLSTATE 42601.
+- Sửa archive contract: `pg_dump` chạy bằng `supabase_admin` và giữ owner/ACL; drop/create/`pg_restore --exit-on-error` cũng chạy bằng `supabase_admin`, database owner vẫn là `postgres`. Regression khóa không được thêm lại hai flag strip metadata và bắt buộc Supabase superuser.
+- Đã được operator cho phép bật riêng DB thật: gameserver/dashboard giữ tắt, tạo snapshot corrected 3.745.028 byte, SHA-256 PASS, 2.357 TOC line rồi tắt DB lại. Không có service nào còn chạy sau thao tác.
+- Independent disposable restore dùng đúng Supabase init scripts PASS: 103 migration; owner `vault.secrets=supabase_admin`, `player.characters=postgres`; `postgres` có SELECT; `supabase db push --include-all --dry-run` trả up-to-date, zero migration/seed pending.
+- Test `cmd/game`/vet/build và diff-check PASS. Trạng thái CODE_FIXED/DISPOSABLE_RESTORE_VERIFIED; chưa chạy destructive restore trên DB thật. Operator đã duyệt commit/push correction và snapshot mới để máy clone restore lại.
+
 ## FIX-2026-10-23-07 — Launcher 6 mục, backup/restore DB và profile Online VPS
 
 - `MCGAME.bat` nay tự build `bin/game.exe` rồi chỉ hiển thị sáu tác vụ: Start(build Compose), Stop(auto backup), Reset=Stop+Start, Flash 30 FPS, Restore DB và chọn Local/LAN/Radmin/Online VPS. `game restart` dùng cùng safe reset; Windows reset không còn wipe volume/database.
 - Backup tạo custom-format full `pg_dump`, verify bằng `pg_restore --list`, lưu timestamp + SHA-256 ở `.local/backups/database`, rồi atomically cập nhật `supabase/backups/mcgame-live.dump`. Stop fail-closed và giữ server chạy nếu backup/publish lỗi.
-- Theo lựa chọn rõ ràng của operator, snapshot canonical là full live DB gồm cả Auth/session/player data. File không bị `.gitignore`; local timestamp, `.env`, machine profile và partial file vẫn bị ignore. Snapshot hiện tại 3.519.158 byte, checksum PASS và archive list có 1.814 TOC entry. GitHub từ chối LFS object mới trên public fork, nên commit chưa push được amend để lưu snapshot bằng Git thường.
+- Theo lựa chọn rõ ràng của operator, snapshot canonical là full live DB gồm cả Auth/session/player data. File không bị `.gitignore`; local timestamp, `.env`, machine profile và partial file vẫn bị ignore. GitHub từ chối LFS object mới trên public fork, nên commit chưa push được amend để lưu snapshot bằng Git thường. Snapshot ban đầu đã được `FIX-2026-10-23-08` thay thế vì chưa bảo toàn owner/ACL Supabase.
 - Restore chỉ nhận `.dump` từ local backup hoặc tracked snapshot, nhận biết Git LFS pointer chưa pull, kiểm tra SHA-256 nếu có, yêu cầu xác nhận, tạo safety backup không ghi đè snapshot nguồn, dừng services, recreate DB, restore rồi chạy build/start. Restore thật chưa chạy để tránh mutate DB hiện tại.
 - Profile Online nhận public IPv4/DNS, advertise host riêng và bind game edge `0.0.0.0`; dashboard giữ loopback. Dashboard LAN/Radmin bind/origin theo profile, bỏ hardcode `26.31.111.123`. Online chỉ là connectivity profile, chưa có TLS/firewall/security hardening.
 - Test: `cmd/game` tests/vet/build PASS; affected gameplay tests/vet và Windows/Linux gameserver builds PASS; Compose config PASS với current `.env` và `.env.example`; Git attribute/ignore/checksum/archive checks và diff-check PASS. Không stop/reset/restore/restart, commit hoặc push.

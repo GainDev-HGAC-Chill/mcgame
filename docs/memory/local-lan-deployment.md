@@ -16,6 +16,8 @@ Safety: setup từ chối existing `.env`/database; migrate đọc boolean `::te
 
 Profile có thêm `online`: public IPv4/DNS được advertise cho client, edge bind `0.0.0.0`, dashboard vẫn loopback; đây không phải chứng nhận public-production vì chưa có TLS/firewall/security review. Dashboard remote bind/origin không còn hardcode `26.31.111.123`, mà được cập nhật theo Local/LAN/Radmin profile.
 
+Restore portability correction: full Supabase dump không được strip owner/ACL. `pg_dump` và `pg_restore` chạy bằng `supabase_admin`; recreate database vẫn đặt owner `postgres`. Bản cũ chạy restore bằng non-superuser `postgres` fail tại `COPY vault.secrets`, có thể để DB partial rồi làm `supabase db push` báo SQLSTATE 42601. Snapshot corrected giữ owner `vault.secrets=supabase_admin`, `player.characters=postgres` và quyền SELECT của `postgres`.
+
 Blocker ban đầu WSL2/restart Windows đã vượt qua; Local có phiên chơi thực tế và autosave thành công sau sửa cache. Persistence qua logout/relogin/restart và LAN chưa kiểm chứng đầy đủ; firewall chưa mở, LAN chưa READY. Các assertion failures ngoài scope vẫn được ghi riêng trong test-results.
 
 ## Bản thử 30 FPS riêng

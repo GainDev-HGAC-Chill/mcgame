@@ -86,6 +86,14 @@ func (s *stack) backupDatabase() (string, error) {
 	return s.createDatabaseBackup(true)
 }
 
+func databaseDumpArgs(database, containerPath string) []string {
+	return []string{"exec", "-T", "db", "pg_dump", "-U", "supabase_admin", "-d", database, "--format=custom", "--file", containerPath}
+}
+
+func databaseRestoreArgs(database, containerPath string) []string {
+	return []string{"exec", "-T", "db", "pg_restore", "--exit-on-error", "-U", "supabase_admin", "-d", database, containerPath}
+}
+
 func (s *stack) createDatabaseBackup(publish bool) (string, error) {
 	if err := dockerReady(); err != nil {
 		return "", fmt.Errorf("Docker engine unavailable: %w", err)
@@ -110,7 +118,7 @@ func (s *stack) createDatabaseBackup(publish bool) (string, error) {
 	}()
 
 	fmt.Println("===> Backing up database to", target)
-	if err := s.compose("exec", "-T", "db", "pg_dump", "-U", "postgres", "-d", database, "--format=custom", "--no-owner", "--no-privileges", "--file", containerPath); err != nil {
+	if err := s.compose(databaseDumpArgs(database, containerPath)...); err != nil {
 		return "", fmt.Errorf("pg_dump failed: %w", err)
 	}
 	if _, err := s.composeOutput("exec", "-T", "db", "pg_restore", "--list", containerPath); err != nil {
@@ -388,13 +396,13 @@ func (s *stack) restoreDatabase() error {
 	if _, err := s.composeOutput("exec", "-T", "db", "pg_restore", "--list", containerPath); err != nil {
 		return fmt.Errorf("restore archive verification failed: %w", err)
 	}
-	if err := s.compose("exec", "-T", "db", "dropdb", "--force", "--if-exists", "--maintenance-db=template1", "-U", "postgres", database); err != nil {
+	if err := s.compose("exec", "-T", "db", "dropdb", "--force", "--if-exists", "--maintenance-db=template1", "-U", "supabase_admin", database); err != nil {
 		return fmt.Errorf("drop current database: %w", err)
 	}
-	if err := s.compose("exec", "-T", "db", "createdb", "--maintenance-db=template1", "-U", "postgres", "-O", "postgres", database); err != nil {
+	if err := s.compose("exec", "-T", "db", "createdb", "--maintenance-db=template1", "-U", "supabase_admin", "-O", "postgres", database); err != nil {
 		return fmt.Errorf("recreate database: %w; safety backup: %s", err, safetyBackup)
 	}
-	if err := s.compose("exec", "-T", "db", "pg_restore", "--exit-on-error", "--no-owner", "--no-privileges", "-U", "postgres", "-d", database, containerPath); err != nil {
+	if err := s.compose(databaseRestoreArgs(database, containerPath)...); err != nil {
 		return fmt.Errorf("restore failed; services remain stopped and safety backup is %s: %w", safetyBackup, err)
 	}
 	fmt.Println("Database restored from", archive)

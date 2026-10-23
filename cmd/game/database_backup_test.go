@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -104,5 +105,18 @@ func TestVerifyBackupChecksumRejectsMismatchAndLFSPointer(t *testing.T) {
 	}
 	if err := verifyBackupChecksum(archive); err == nil {
 		t.Fatal("Git LFS pointer was accepted")
+	}
+}
+
+func TestDatabaseArchiveCommandsPreserveSupabaseOwnershipAndPrivileges(t *testing.T) {
+	dump := databaseDumpArgs("postgres", "/tmp/backup.dump")
+	restore := databaseRestoreArgs("postgres", "/tmp/backup.dump")
+	for _, args := range [][]string{dump, restore} {
+		if !slices.Contains(args, "supabase_admin") {
+			t.Fatalf("missing Supabase superuser: %v", args)
+		}
+		if slices.Contains(args, "--no-owner") || slices.Contains(args, "--no-privileges") {
+			t.Fatalf("archive command strips ownership or privileges: %v", args)
+		}
 	}
 }
