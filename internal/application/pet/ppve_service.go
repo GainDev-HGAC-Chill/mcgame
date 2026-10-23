@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	domainchar "mcgame-server/internal/domain/character"
@@ -69,6 +70,17 @@ type PPVEService struct {
 	gameData PPVEGameData
 	rank     PPVERankProvider
 	logger   *zap.Logger
+	mutationLocks [64]sync.Mutex
+}
+
+func (s *PPVEService) lockMutation(charID int64) func() {
+	index := charID % int64(len(s.mutationLocks))
+	if index < 0 {
+		index = -index
+	}
+	lock := &s.mutationLocks[index]
+	lock.Lock()
+	return lock.Unlock
 }
 
 func NewPPVEService(repo domainfeature.Repository, chars domainchar.Repository, logger *zap.Logger) *PPVEService {
@@ -124,6 +136,8 @@ func (s *PPVEService) LoadState(ctx context.Context, charID int64) (*PPVEState, 
 }
 
 func (s *PPVEService) ChallengeNextFloor(ctx context.Context, charID int64) (*PPVEChallengeResult, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	if s == nil || s.repo == nil {
 		return nil, fmt.Errorf("ppve: repository not configured")
 	}

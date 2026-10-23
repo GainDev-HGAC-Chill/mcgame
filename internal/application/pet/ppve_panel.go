@@ -23,6 +23,7 @@ package pet
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 
 	domainfeature "mcgame-server/internal/domain/statfeature"
@@ -145,6 +146,8 @@ func (s *PPVEService) PPVEData(state *PPVEState) map[string]interface{} {
 }
 
 func (s *PPVEService) InitPanel(ctx context.Context, charID int64) (*PPVEState, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.LoadState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -158,6 +161,8 @@ func (s *PPVEService) InitPanel(ctx context.Context, charID int64) (*PPVEState, 
 }
 
 func (s *PPVEService) SaveConfig(ctx context.Context, charID int64, config map[string]interface{}) (*PPVEState, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.LoadState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -174,6 +179,8 @@ func (s *PPVEService) SaveConfig(ctx context.Context, charID int64, config map[s
 }
 
 func (s *PPVEService) IncreaseChallengeTime(ctx context.Context, charID int64) (*PPVEState, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.LoadState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -214,6 +221,8 @@ func (s *PPVEService) IncreaseChallengeTime(ctx context.Context, charID int64) (
 }
 
 func (s *PPVEService) ExchangeKPFree(ctx context.Context, charID int64) (*PPVEState, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.LoadState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -231,6 +240,8 @@ func (s *PPVEService) ExchangeKPFree(ctx context.Context, charID int64) (*PPVESt
 }
 
 func (s *PPVEService) ExchangeKPByGold(ctx context.Context, charID int64) (*PPVEState, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.LoadState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -259,4 +270,25 @@ func (s *PPVEService) ExchangeKPByGold(ctx context.Context, charID int64) (*PPVE
 		return nil, err
 	}
 	return state, nil
+}
+
+func (s *PPVEService) GrantKPReward(ctx context.Context, charID int64, amount int) (map[string]interface{}, map[string]interface{}, error) {
+	if amount <= 0 {
+		return nil, nil, ErrPPVEServiceConfig
+	}
+	unlock := s.lockMutation(charID)
+	defer unlock()
+	state, err := s.LoadState(ctx, charID)
+	if err != nil {
+		return nil, nil, err
+	}
+	applyPPVEDailyReset(state, ppveToday())
+	if state.KP < 0 || amount > math.MaxInt-state.KP {
+		return nil, nil, ErrPPVEServiceConfig
+	}
+	state.KP += amount
+	if err := s.saveState(ctx, charID, state); err != nil {
+		return nil, nil, err
+	}
+	return s.KPData(state), s.PPVEData(state), nil
 }

@@ -118,8 +118,11 @@ func newTestService(t *testing.T, char *domainchar.Character) (*Service, *fakeCh
 	t.Helper()
 	mgr := gamedata.NewManager(nil, zap.NewNop())
 	rows := []string{
-		`{"id":94,"type":1,"level":1,"up_exp":500,"chip":3}`,
-		`{"id":95,"type":1,"level":2,"up_exp":1200,"chip":7}`,
+		`{"id":94,"name":"Sát Lực","type":1,"color":2,"prop_type":4,"prop_val":500,"level":1,"exp":100,"up_exp":500,"chip":3}`,
+		`{"id":95,"name":"Sát Lực","type":1,"color":2,"prop_type":4,"prop_val":650,"level":2,"exp":120,"up_exp":1200,"chip":7}`,
+		`{"id":104,"name":"Cực Hạn","type":1,"color":4,"prop_type":34,"prop_val":8.6,"level":10,"exp":320,"up_exp":819200,"chip":5}`,
+		`{"id":11,"name":"Trắng","type":-1,"color":0,"prop_type":1,"prop_val":100,"level":1,"exp":10,"up_exp":100,"chip":1}`,
+		`{"id":21,"name":"Lam","type":-1,"color":2,"prop_type":32,"prop_val":1.5,"level":1,"exp":20,"up_exp":100,"chip":2}`,
 	}
 	raw := make([]json.RawMessage, 0, len(rows))
 	for _, r := range rows {
@@ -267,12 +270,12 @@ func TestService_SoulLevelUp_MovesExpFromPoolToGem(t *testing.T) {
 	if charRepo.chars[1].SoulExp != 100 {
 		t.Fatalf("persisted soulExp = %d, want 100", charRepo.chars[1].SoulExp)
 	}
-	if soulData["exp"].(int64) != 500 {
-		t.Fatalf("gem exp = %v, want 500", soulData["exp"])
+	if soulData["sid"].(int) != 95 || soulData["exp"].(int64) != 0 {
+		t.Fatalf("leveled gem = %+v, want sid 95 and reset exp", soulData)
 	}
 
-	if _, _, err := svc.SoulLevelUp(ctx, 1, 1); err != ErrInsufficientExp {
-		t.Fatalf("expected ErrInsufficientExp after pool drained, got %v", err)
+	if _, _, err := svc.SoulLevelUp(ctx, 1, 1); err != ErrSoulCatalogDrift {
+		t.Fatalf("expected catalog drift without exact next row, got %v", err)
 	}
 }
 
@@ -286,8 +289,8 @@ func TestService_TransformExp_DissolveYield(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TransformExp: %v", err)
 	}
-	if charRepo.chars[1].SoulExp != 250 {
-		t.Fatalf("soulExp after dissolve = %d, want 250 (recovered gem exp)", charRepo.chars[1].SoulExp)
+	if charRepo.chars[1].SoulExp != 350 {
+		t.Fatalf("soulExp after dissolve = %d, want 350 (base + invested exp)", charRepo.chars[1].SoulExp)
 	}
 	if charRepo.chars[1].SoulPoints != 3 {
 		t.Fatalf("chip after dissolve = %d, want 3 (TBL_PET_SOUL.chip)", charRepo.chars[1].SoulPoints)

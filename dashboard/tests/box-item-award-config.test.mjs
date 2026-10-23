@@ -7,6 +7,7 @@ import {
     resolveBoxItemAwardMode,
 } from "../src/lib/box-item-awards.ts"
 import { boxItemAwardSaveSchema } from "../src/lib/box-item-award-config.ts"
+import { BOX_ITEM_GAME_CURRENCY_OPTIONS } from "../src/lib/box-item-awards.ts"
 
 const award = {
     awardId: 1676,
@@ -17,6 +18,39 @@ const award = {
     preNameType: 3,
     payload: {},
 }
+
+test("box game currency includes PPVE KP and rejects unknown ids", () => {
+    assert.equal(
+        BOX_ITEM_GAME_CURRENCY_OPTIONS.some(
+            option => option.value === "242" && option.label.includes("Văn Chỉ")
+        ),
+        true
+    )
+    const award = {
+        awardId: 242,
+        type: 35,
+        count: 10,
+        rate: 100,
+        quality: 0,
+        preNameType: 0,
+        payload: {},
+    }
+    const envelope = {
+        itemId: 1,
+        awards: [award],
+        mode: "award",
+        selectionCount: 1,
+        revision: "a".repeat(32),
+    }
+    assert.equal(boxItemAwardSaveSchema.safeParse(envelope).success, true)
+    assert.equal(
+        boxItemAwardSaveSchema.safeParse({
+            ...envelope,
+            awards: [{ ...award, awardId: 999999 }],
+        }).success,
+        false
+    )
+})
 
 test("selectable payload conversion writes and removes reserved metadata", () => {
     const selectable = normalizeBoxItemAwardModePayload(

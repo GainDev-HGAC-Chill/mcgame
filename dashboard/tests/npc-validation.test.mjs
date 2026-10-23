@@ -90,6 +90,27 @@ test("NPC save rejects ownership and unsafe slot fields", () => {
         assert.equal(npcSaveSchema.safeParse({ ...base, patch }).success, false)
 })
 
+test("NPC shop quality accepts only 0 through 25", () => {
+    for (const quality of [0, 1, 25]) {
+        assert.equal(
+            npcSaveSchema.safeParse({
+                ...base,
+                patch: { slots: { insert: [{ ...slot, quality }] } },
+            }).success,
+            true
+        )
+    }
+    for (const quality of [-1, 26, 1.5]) {
+        assert.equal(
+            npcSaveSchema.safeParse({
+                ...base,
+                patch: { slots: { insert: [{ ...slot, quality }] } },
+            }).success,
+            false
+        )
+    }
+})
+
 test("NPC list query is bounded and strict", () => {
     assert.equal(npcListQuerySchema.parse({ hasShop: "true" }).hasShop, true)
     for (const query of [

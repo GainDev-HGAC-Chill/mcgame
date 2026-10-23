@@ -28,8 +28,9 @@ func newTestHandler(t *testing.T, char *domainchar.Character) (*Handler, *appsou
 	t.Helper()
 	mgr := gamedata.NewManager(nil, zap.NewNop())
 	rows := []string{
-		`{"id":1,"type":-1,"color":0,"req_chip":0,"chip":1,"up_exp":100}`,
-		`{"id":21,"type":-1,"color":2,"req_chip":0,"chip":3,"up_exp":300}`,
+		`{"id":1,"name":"Sinh Mệnh","type":-1,"color":0,"prop_type":1,"prop_val":100,"level":1,"req_chip":0,"chip":1,"exp":10,"up_exp":100}`,
+		`{"id":2,"name":"Sinh Mệnh","type":-1,"color":0,"prop_type":1,"prop_val":200,"level":2,"req_chip":0,"chip":1,"exp":10,"up_exp":200}`,
+		`{"id":21,"type":-1,"color":2,"prop_type":32,"prop_val":1.5,"level":1,"req_chip":0,"chip":3,"exp":30,"up_exp":300}`,
 		`{"id":41,"type":1,"color":4,"req_chip":25,"chip":5,"up_exp":500}`,
 	}
 	raw := make([]json.RawMessage, 0, len(rows))
@@ -216,6 +217,58 @@ func TestHandler_MoveSoul_PushesUpdateSlot(t *testing.T) {
 	payload := call.args[0].(map[string]any)
 	if payload["type"].(int) != 1 {
 		t.Fatalf("char-char move type = %v, want 1", payload["type"])
+	}
+}
+
+func TestHandler_PutInToExpParsesFlashFraction(t *testing.T) {
+	char := &domainchar.Character{ID: 1, SoulExp: 80}
+	h, svc, calls := newTestHandler(t, char)
+	if err := svc.AddSoulToSlot(context.Background(), 1, 1, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.PutInToExp(ctxFor("1"), []interface{}{float64(1), 0.5}); err != nil {
+		t.Fatal(err)
+	}
+	call, ok := findCall(*calls, "onPutInToExp")
+	if !ok {
+		t.Fatalf("calls=%+v", *calls)
+	}
+	payload := call.args[0].(map[string]interface{})
+	if payload["soulExp"] != int64(40) || payload["soulData"].(map[string]any)["exp"] != int64(40) {
+		t.Fatalf("payload=%+v", payload)
+	}
+}
+
+func TestHandler_TransformExpInPanelCallbacks(t *testing.T) {
+	char := &domainchar.Character{ID: 1}
+	h, svc, calls := newTestHandler(t, char)
+	ctx := context.Background()
+	if _, err := svc.PreySoul(ctx, 1, 1, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.TransformExpInPanel(ctxFor("1"), []interface{}{float64(1)}); err != nil {
+		t.Fatal(err)
+	}
+	call, ok := findCall(*calls, "onTransformExpInPanel")
+	if !ok || call.args[0].(map[string]any)["index"] != 1 {
+		t.Fatalf("single callback=%+v calls=%+v", call, *calls)
+	}
+	if _, err := svc.PreySoul(ctx, 1, 1, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PreySoul(ctx, 1, 3, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.TransformExpInPanel(ctxFor("1"), []interface{}{float64(2), true}); err != nil {
+		t.Fatal(err)
+	}
+	bulk, ok := findCall(*calls, "onTransAllExpInPanel")
+	if !ok {
+		t.Fatalf("calls=%+v", *calls)
+	}
+	data := bulk.args[0].(map[string]any)["data"].(map[string]any)
+	if len(data) != 1 {
+		t.Fatalf("bulk remaining=%+v", data)
 	}
 }
 

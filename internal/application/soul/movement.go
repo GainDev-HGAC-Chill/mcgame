@@ -18,6 +18,8 @@ import (
 )
 
 func (s *Service) PutSoulToBag(ctx context.Context, charID int64, tempIndex int) (map[string]any, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.loadCharState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -33,6 +35,8 @@ func (s *Service) PutSoulToBag(ctx context.Context, charID int64, tempIndex int)
 }
 
 func (s *Service) PutAllSoulToBag(ctx context.Context, charID int64) (map[string]any, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.loadCharState(ctx, charID)
 	if err != nil {
 		return nil, err
@@ -80,6 +84,15 @@ func putBagFail(failType int) map[string]any {
 }
 
 func (s *Service) SeedPetOpenNum(ctx context.Context, petID int64, openNum int) error {
+	if s.petRepo == nil {
+		return ErrPetNotOwned
+	}
+	pet, err := s.petRepo.FindByID(ctx, petID)
+	if err != nil || pet == nil {
+		return ErrPetNotOwned
+	}
+	unlock := s.lockMutation(pet.CharacterID)
+	defer unlock()
 	state, err := s.loadPetState(ctx, petID)
 	if err != nil {
 		return err
@@ -92,11 +105,10 @@ func (s *Service) SeedPetOpenNum(ctx context.Context, petID int64, openNum int) 
 }
 
 func (s *Service) OpenPetSoulBag(ctx context.Context, charID, petID int64) (map[string]any, error) {
-	if s.petRepo == nil {
-		return nil, ErrPetBagLocked
-	}
-	pet, err := s.petRepo.FindByID(ctx, petID)
-	if err != nil || pet == nil || pet.CharacterID != charID || pet.Level < 80 {
+	unlock := s.lockMutation(charID)
+	defer unlock()
+	pet, err := s.ownedPet(ctx, charID, petID)
+	if err != nil || pet.Level < 80 {
 		return nil, ErrPetBagLocked
 	}
 	state, err := s.loadPetState(ctx, petID)

@@ -145,7 +145,12 @@ export const BOX_ITEM_GAME_CURRENCY_OPTIONS = [
     { value: "239", label: "Điểm Ấn Thạch (stoneSealPoint)" },
     { value: "240", label: "Điểm Tinh Cung (starPnt)" },
     { value: "241", label: "Điểm Thần Tu / Linh Lực (spirituality)" },
+    { value: "242", label: "Văn Chỉ (KP Pet PVE)" },
 ] as const
+
+export const BOX_ITEM_GAME_CURRENCY_IDS = new Set(
+    BOX_ITEM_GAME_CURRENCY_OPTIONS.map(option => Number(option.value))
+)
 
 const BOX_ITEM_AWARD_QUALITY_COLOR_LABELS = [
     "Trắng",

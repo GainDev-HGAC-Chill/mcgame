@@ -43,6 +43,13 @@ func swapResult(sid, newSid, swapType int) map[string]any {
 }
 
 func (s *Service) MoveSoul(ctx context.Context, charID, petID int64, sid, newSid int) (map[string]any, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
+	if isPetWire(sid) || isPetWire(newSid) {
+		if _, err := s.ownedPet(ctx, charID, petID); err != nil {
+			return swapFail(), nil
+		}
+	}
 	switch {
 	case !isPetWire(sid) && !isPetWire(newSid):
 		return s.swapCharChar(ctx, charID, sid, newSid)

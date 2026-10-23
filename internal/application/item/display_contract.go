@@ -12,6 +12,8 @@ import (
 	"mcgame-server/internal/gamedata/models"
 )
 
+const explicitColorCodeProperty = "explicitColorCode"
+
 func (s *Service) BuildClientItemDTO(it *domainitem.Item) map[string]interface{} {
 	if it == nil {
 		return map[string]interface{}{}
@@ -69,8 +71,9 @@ func ApplyEquipmentDisplayContract(recordData map[string]interface{}, templateDa
 		return
 	}
 
+	explicitColor := hasExplicitEquipmentColor(recordData)
 	colorCode := equipmentContractColorCode(recordData, templateData)
-	if colorCode > 0 {
+	if colorCode > 0 || explicitColor {
 		recordData["colorCode"] = colorCode
 		recordData["color"] = domainitem.EquipmentDisplayColorFromColorCode(colorCode)
 	}
@@ -78,8 +81,11 @@ func ApplyEquipmentDisplayContract(recordData map[string]interface{}, templateDa
 	if isMWTemplateData(templateData) {
 		recordData["q"] = mwVongFromUpgradeNum(displayContractInt(recordData["upgradeNum"]))
 	} else {
-		prefixType := equipmentContractPrefixType(recordData, colorCode)
-		if prefixType > 0 {
+		prefixType := 0
+		if !explicitColor || colorCode > 0 {
+			prefixType = equipmentContractPrefixType(recordData, colorCode)
+		}
+		if prefixType > 0 || explicitColor {
 			recordData["preNameType"] = prefixType
 		}
 	}
@@ -96,11 +102,12 @@ func applyEquipmentDTOContract(dto map[string]interface{}, it *domainitem.Item, 
 		return
 	}
 
+	explicitColor := hasExplicitEquipmentColor(it.Properties)
 	colorCode := domainitem.NormalizeEquipmentColorCode(it.ColorCode)
-	if colorCode <= 0 {
+	if colorCode <= 0 && !explicitColor {
 		colorCode = equipmentContractColorCode(dto, equipmentTemplateContractData(equipTpl))
 	}
-	if colorCode > 0 {
+	if colorCode > 0 || explicitColor {
 		dto["colorCode"] = colorCode
 		dto["color"] = domainitem.EquipmentDisplayColorFromColorCode(colorCode)
 	}
@@ -108,14 +115,25 @@ func applyEquipmentDTOContract(dto map[string]interface{}, it *domainitem.Item, 
 	if domainmw.IsMWTemplate(equipTpl) {
 		dto["q"] = mwVongFromUpgradeNum(it.StarLevel)
 	} else {
-		prefixType := equipmentContractPrefixType(dto, colorCode)
-		if prefixType > 0 {
+		prefixType := 0
+		if !explicitColor || colorCode > 0 {
+			prefixType = equipmentContractPrefixType(dto, colorCode)
+		}
+		if prefixType > 0 || explicitColor {
 			dto["preNameType"] = prefixType
 		}
 	}
 
 	dto["binded"] = equipmentContractBindFlag(it.IsBound)
 	applyEquipmentDTODefaults(dto, it, equipTpl)
+}
+
+func hasExplicitEquipmentColor(values map[string]interface{}) bool {
+	if values == nil {
+		return false
+	}
+	explicit, ok := values[explicitColorCodeProperty].(bool)
+	return ok && explicit
 }
 
 func mwVongFromUpgradeNum(upgradeNum int) int {

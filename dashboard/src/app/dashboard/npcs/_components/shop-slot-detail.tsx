@@ -1,6 +1,7 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
+import { EQUIPMENT_QUALITY_OPTIONS } from "@/lib/equipment-quality"
 import type { DraftShopSlot } from "@/lib/npcs/editor"
 import type { NpcLookupItem, ShopSlotInsert } from "@/types/npcs"
 import { CatalogLookup } from "./catalog-lookup"
@@ -112,14 +113,34 @@ export function ShopSlotDetail({
                                 editSlot(row._key, "amount", value)
                             }
                         />
-                        <NumberField
-                            label="Phẩm chất"
-                            value={row.quality}
-                            disabled={disabled}
-                            onChange={value =>
-                                editSlot(row._key, "quality", value)
-                            }
-                        />
+                        <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+                            Phẩm chất trang bị
+                            <select
+                                className="h-10 rounded-md border bg-background px-3 text-sm text-foreground"
+                                value={row.quality}
+                                disabled={disabled}
+                                onChange={event =>
+                                    editSlot(
+                                        row._key,
+                                        "quality",
+                                        Number(event.target.value)
+                                    )
+                                }
+                            >
+                                {EQUIPMENT_QUALITY_OPTIONS.map(option => (
+                                    <option
+                                        key={option.quality}
+                                        value={option.quality}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                            <span className="font-normal">
+                                0 phát trang bị Trắng và không dùng màu mặc định
+                                của template.
+                            </span>
+                        </label>
                     </div>
                 </div>
                 <div className="space-y-3">

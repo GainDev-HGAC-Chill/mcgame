@@ -25,6 +25,11 @@ type Handler struct {
 	sendCallbackFn func(conn *rtmp.Connection, method string, args ...interface{}) error
 }
 
+const (
+	callbackTransformTempSingle = "onTransformExpInPanel"
+	callbackTransformTempAll    = "onTransAllExpInPanel"
+)
+
 func NewHandler(service *appsoul.Service, logger *zap.Logger) *Handler {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -45,6 +50,7 @@ func (h *Handler) RegisterHandlers(d *rtmp.RPCDispatcher) {
 	d.Register("soulLevelUp", h.SoulLevelUp)
 	d.Register("putInToExp", h.PutInToExp)
 	d.Register("transformExp", h.TransformExp)
+	d.Register("transformExpInPanel", h.TransformExpInPanel)
 	d.Register("preySoul", h.PreySoul)
 	d.Register("exchangeSoul", h.ExchangeSoul)
 	d.Register("putSoulToBag", h.PutSoulToBag)
@@ -102,7 +108,7 @@ func (h *Handler) SoulLevelUp(ctx *rtmp.RPCContext, args []interface{}) (interfa
 		if levErr != nil {
 			return rtmp.ErrorToResponse(levErr), nil
 		}
-		_ = ctx.Connection.SendCallback("onSoulLevelUp", map[string]interface{}{
+		_ = h.sendCallback(ctx.Connection, "onSoulLevelUp", map[string]interface{}{
 			"soulData": soulData,
 			"soulExp":  soulExp,
 			"pid":      petID,
@@ -113,7 +119,7 @@ func (h *Handler) SoulLevelUp(ctx *rtmp.RPCContext, args []interface{}) (interfa
 	if levErr != nil {
 		return rtmp.ErrorToResponse(levErr), nil
 	}
-	_ = ctx.Connection.SendCallback("onSoulLevelUp", map[string]interface{}{
+	_ = h.sendCallback(ctx.Connection, "onSoulLevelUp", map[string]interface{}{
 		"soulData": soulData,
 		"soulExp":  soulExp,
 	})
@@ -132,15 +138,15 @@ func (h *Handler) PutInToExp(ctx *rtmp.RPCContext, args []interface{}) (interfac
 	if err != nil {
 		return nil, nil
 	}
-	amount, err := parseInt64Arg(args[1])
+	fraction, err := parseFloatArg(args[1])
 	if err != nil {
 		return nil, nil
 	}
-	soulData, soulExp, opErr := h.service.PutInToExp(ctx.Context, charID, slot, amount)
+	soulData, soulExp, opErr := h.service.PutInToExp(ctx.Context, charID, slot, fraction)
 	if opErr != nil {
 		return rtmp.ErrorToResponse(opErr), nil
 	}
-	_ = ctx.Connection.SendCallback("onPutInToExp", map[string]interface{}{
+	_ = h.sendCallback(ctx.Connection, "onPutInToExp", map[string]interface{}{
 		"soulData": soulData,
 		"soulExp":  soulExp,
 	})
@@ -156,11 +162,15 @@ func (h *Handler) TransformExp(ctx *rtmp.RPCContext, args []interface{}) (interf
 		return nil, nil
 	}
 	if boolArg(args, 1) {
-		payload, err := h.service.TransformAllExp(ctx.Context, charID)
+		threshold, parseErr := parseIntArg(args[0])
+		if parseErr != nil {
+			return nil, nil
+		}
+		payload, err := h.service.TransformAllExp(ctx.Context, charID, threshold)
 		if err != nil {
 			return rtmp.ErrorToResponse(err), nil
 		}
-		_ = ctx.Connection.SendCallback("onTransAllExp", payload)
+		_ = h.sendCallback(ctx.Connection, "onTransAllExp", payload)
 		return nil, nil
 	}
 	slot, err := parseIntArg(args[0])
@@ -171,8 +181,40 @@ func (h *Handler) TransformExp(ctx *rtmp.RPCContext, args []interface{}) (interf
 	if err != nil {
 		return rtmp.ErrorToResponse(err), nil
 	}
-	_ = ctx.Connection.SendCallback("onTransformExp", payload)
+	_ = h.sendCallback(ctx.Connection, "onTransformExp", payload)
 	return nil, nil
+}
+
+func (h *Handler) TransformExpInPanel(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
+	charID, ok := charIDFromCtx(ctx)
+	if !ok || len(args) < 1 {
+		return nil, nil
+	}
+	value, err := parseIntArg(args[0])
+	if err != nil {
+		return nil, nil
+	}
+	if boolArg(args, 1) {
+		payload, opErr := h.service.TransformAllTempExp(ctx.Context, charID, value)
+		if opErr != nil {
+			return rtmp.ErrorToResponse(opErr), nil
+		}
+		_ = h.sendTransformTempCallback(ctx.Connection, true, payload)
+		return nil, nil
+	}
+	payload, opErr := h.service.TransformTempExp(ctx.Context, charID, value)
+	if opErr != nil {
+		return rtmp.ErrorToResponse(opErr), nil
+	}
+	_ = h.sendTransformTempCallback(ctx.Connection, false, payload)
+	return nil, nil
+}
+
+func (h *Handler) sendTransformTempCallback(conn *rtmp.Connection, bulk bool, payload map[string]any) error {
+	if bulk {
+		return h.sendCallback(conn, callbackTransformTempAll, payload)
+	}
+	return h.sendCallback(conn, callbackTransformTempSingle, payload)
 }
 
 func petIDArg(args []interface{}) (int64, bool) {
@@ -227,6 +269,22 @@ func parseInt64Arg(value any) (int64, error) {
 		return typed, nil
 	case string:
 		return strconv.ParseInt(typed, 10, 64)
+	}
+	return 0, errors.New("unsupported argument type")
+}
+
+func parseFloatArg(value any) (float64, error) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, nil
+	case float32:
+		return float64(typed), nil
+	case int:
+		return float64(typed), nil
+	case int64:
+		return float64(typed), nil
+	case string:
+		return strconv.ParseFloat(typed, 64)
 	}
 	return 0, errors.New("unsupported argument type")
 }

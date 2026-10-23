@@ -6,7 +6,7 @@ begin
  foreach k in array integer_fields loop
   if not p_row ? k or jsonb_typeof(p_row->k)<>'number' then raise exception using errcode='22023',message='Missing or non-numeric shop slot field: '||k; end if;
   n:=(p_row->>k)::numeric;
-  if n<>trunc(n) or n>2147483647 or n<(case when k in ('amount','quality') then -1 else 0 end) then raise exception using errcode='22023',message='Invalid shop slot integer: '||k; end if;
+  if n<>trunc(n) or n>2147483647 or n<(case when k='amount' then -1 else 0 end) or (k='quality' and n>25) then raise exception using errcode='22023',message='Invalid shop slot integer: '||k; end if;
  end loop;
  if not p_row ? 'price_all' or p_row->'price_all'<>'null'::jsonb and (jsonb_typeof(p_row->'price_all')<>'number' or (p_row->>'price_all')::numeric<>trunc((p_row->>'price_all')::numeric) or (p_row->>'price_all')::numeric not between 0 and 2147483647) then raise exception using errcode='22023',message='Invalid shop slot integer: price_all'; end if;
  if (p_row->>'id')::integer<1 or (p_row->>'sid')::integer<1 or (p_row->>'position')::integer<0 then raise exception using errcode='22023',message='Invalid slot identity'; end if;

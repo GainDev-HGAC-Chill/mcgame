@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	domainchar "mcgame-server/internal/domain/character"
+	domainpet "mcgame-server/internal/domain/pet"
 	domainskill "mcgame-server/internal/domain/skill"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
@@ -36,10 +37,16 @@ type CharacterRepository interface {
 	Update(ctx context.Context, character *domainchar.Character) error
 }
 
+type TrainingPetRepository interface {
+	FindByID(ctx context.Context, id int64) (*domainpet.Pet, error)
+}
+
 type Service struct {
 	skillRepo     domainskill.Repository
 	charRepo      CharacterRepository
+	petRepo       TrainingPetRepository
 	gameData      *gamedata.Manager
+	trainingReady bool
 	logger        *zap.Logger
 	mutationLocks [64]sync.Mutex
 }
@@ -55,8 +62,16 @@ func (s *Service) SetCharacterRepository(repo CharacterRepository) {
 	s.charRepo = repo
 }
 
+func (s *Service) SetPetRepository(repo TrainingPetRepository) {
+	s.petRepo = repo
+}
+
 func (s *Service) SetGameDataManager(manager *gamedata.Manager) {
 	s.gameData = manager
+	s.trainingReady = validateTrainingCatalog(manager)
+	if !s.trainingReady && s.logger != nil {
+		s.logger.Warn("Training bonus catalog fingerprint is invalid")
+	}
 }
 
 func (s *Service) GetSkillsForCallback(ctx context.Context, charID int64) ([]map[string]interface{}, error) {

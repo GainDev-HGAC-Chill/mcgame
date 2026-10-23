@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { BOX_ITEM_GAME_CURRENCY_IDS } from "./box-item-awards.ts"
+
 const supportedAwardTypes = new Set([
     12, 19, 29, 30, 31, 32, 33, 34, 35, 37, 38,
 ])
@@ -56,4 +58,16 @@ export const boxItemAwardSaveSchema = z
                 }
             })
         }
+        value.awards.forEach((award, index) => {
+            if (
+                award.type === 35 &&
+                !BOX_ITEM_GAME_CURRENCY_IDS.has(award.awardId)
+            ) {
+                context.addIssue({
+                    code: "custom",
+                    path: ["awards", index, "awardId"],
+                    message: "Loại tiền tệ game không được hỗ trợ.",
+                })
+            }
+        })
     })

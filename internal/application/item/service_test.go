@@ -242,6 +242,33 @@ func TestAddItemWithBindAndColor_EquipmentUsesTemplateColorForPrefix(t *testing.
 	}
 }
 
+func TestAddItemWithBindAndExplicitColorPreservesWhiteEquipment(t *testing.T) {
+	logger := zap.NewNop()
+	repo := newItemServiceTestRepo()
+	svc := NewService(repo, logger)
+	manager := gamedata.NewManager(nil, logger)
+	raw, err := json.Marshal(models.EquiptTemplateTemplate{ID: 3003, EndureMax: 55, ColorCode: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableEquiptTemplate, []json.RawMessage{raw}); err != nil {
+		t.Fatal(err)
+	}
+	svc.SetGameDataManager(manager)
+
+	added, err := svc.AddItemWithBindAndExplicitColor(context.Background(), 1, 3003, domainitem.ItemTypeEquipment, 1, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added.ColorCode != 0 || added.Properties[explicitColorCodeProperty] != true {
+		t.Fatalf("explicit white item = %+v", added)
+	}
+	dto := svc.BuildClientItemDTO(added)
+	if dto["colorCode"] != 0 || dto["color"] != 0 || dto["preNameType"] != 0 {
+		t.Fatalf("explicit white DTO = %#v", dto)
+	}
+}
+
 func TestApplyDressStateToAppearance_UsesFakeDressTemplateAndHideToggle(t *testing.T) {
 	logger := zap.NewNop()
 	repo := newItemServiceTestRepo()

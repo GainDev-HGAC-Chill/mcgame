@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	domainchar "mcgame-server/internal/domain/character"
 	domainpet "mcgame-server/internal/domain/pet"
@@ -51,14 +52,20 @@ var (
 	ErrTempSlotEmpty     = errors.New("ô tạm trống")
 	ErrPetBagMaxed       = errors.New("túi mệnh hồn thú đã mở tối đa")
 	ErrPetBagLocked      = errors.New("chưa đủ điều kiện mở túi mệnh hồn thú")
+	ErrPetNotOwned       = errors.New("mệnh hồn thú không thuộc nhân vật")
+	ErrInvalidFraction   = errors.New("tỷ lệ kinh nghiệm mệnh hồn không hợp lệ")
+	ErrSoulMaxLevel      = errors.New("mệnh hồn đã đạt cấp tối đa")
+	ErrSoulCatalogDrift  = errors.New("dữ liệu mệnh hồn không hợp lệ")
+	ErrInvalidThreshold  = errors.New("ngưỡng màu mệnh hồn không hợp lệ")
 )
 
 type Service struct {
-	featureRepo domainfeature.Repository
-	charRepo    domainchar.Repository
-	petRepo     PetRepository
-	gameData    *gamedata.Manager
-	logger      *zap.Logger
+	featureRepo   domainfeature.Repository
+	charRepo      domainchar.Repository
+	petRepo       PetRepository
+	gameData      *gamedata.Manager
+	logger        *zap.Logger
+	mutationLocks [64]sync.Mutex
 }
 
 type PetRepository interface {
@@ -74,6 +81,30 @@ func NewService(featureRepo domainfeature.Repository, charRepo domainchar.Reposi
 
 func (s *Service) SetPetRepository(repo PetRepository) {
 	s.petRepo = repo
+}
+
+func (s *Service) lockMutation(charID int64) func() {
+	index := charID % int64(len(s.mutationLocks))
+	if index < 0 {
+		index = -index
+	}
+	lock := &s.mutationLocks[index]
+	lock.Lock()
+	return lock.Unlock
+}
+
+func (s *Service) ownedPet(ctx context.Context, charID, petID int64) (*domainpet.Pet, error) {
+	if s.petRepo == nil || petID <= 0 {
+		return nil, ErrPetNotOwned
+	}
+	pet, err := s.petRepo.FindByID(ctx, petID)
+	if err != nil {
+		return nil, err
+	}
+	if pet == nil || pet.CharacterID != charID {
+		return nil, ErrPetNotOwned
+	}
+	return pet, nil
 }
 
 func (s *Service) loadCharState(ctx context.Context, charID int64) (*CharSoulState, error) {
@@ -146,6 +177,8 @@ func (s *Service) TempSoulDataForLogin(ctx context.Context, charID int64) map[st
 }
 
 func (s *Service) SetCrystalSid(ctx context.Context, charID int64, crystalSid int) error {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	if crystalSid < 0 {
 		crystalSid = 0
 	}
@@ -158,6 +191,13 @@ func (s *Service) SetCrystalSid(ctx context.Context, charID int64, crystalSid in
 }
 
 func (s *Service) PetSoulInfo(ctx context.Context, petID int64) map[string]any {
+	var unlock func()
+	if s.petRepo != nil {
+		if pet, err := s.petRepo.FindByID(ctx, petID); err == nil && pet != nil {
+			unlock = s.lockMutation(pet.CharacterID)
+			defer unlock()
+		}
+	}
 	state, err := s.loadPetState(ctx, petID)
 	if err != nil {
 		s.logger.Warn("soul: login pet info load failed", zap.Int64("pet_id", petID), zap.Error(err))
@@ -178,6 +218,8 @@ func (s *Service) PetSoulInfo(ctx context.Context, petID int64) map[string]any {
 }
 
 func (s *Service) OpenBag(ctx context.Context, charID int64) (int, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.loadCharState(ctx, charID)
 	if err != nil {
 		return 0, err
@@ -207,6 +249,8 @@ func (s *Service) OpenBag(ctx context.Context, charID int64) (int, error) {
 }
 
 func (s *Service) LockSoul(ctx context.Context, charID int64, slot int) (bool, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.loadCharState(ctx, charID)
 	if err != nil {
 		return false, err
@@ -224,6 +268,8 @@ func (s *Service) LockSoul(ctx context.Context, charID int64, slot int) (bool, e
 }
 
 func (s *Service) AddSoulToSlot(ctx context.Context, charID int64, slot, sid int, exp int64) error {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	state, err := s.loadCharState(ctx, charID)
 	if err != nil {
 		return err

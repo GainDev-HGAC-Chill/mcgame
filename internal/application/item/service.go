@@ -70,6 +70,10 @@ type MonsterHeartGranter interface {
 	AddHeart(ctx context.Context, charID int64, heartID, count int) (map[string]interface{}, error)
 }
 
+type PPVERewardGranter interface {
+	GrantKPReward(ctx context.Context, charID int64, amount int) (map[string]interface{}, map[string]interface{}, error)
+}
+
 type Service struct {
 	itemRepo            item.Repository
 	charRepo            character.Repository
@@ -88,6 +92,7 @@ type Service struct {
 	mountRewardGranter  MountRewardGranter
 	fairyRewardGranter  FairyRewardGranter
 	monsterHeartGranter MonsterHeartGranter
+	ppveRewardGranter   PPVERewardGranter
 	awardHandler        *awardEffectHandler
 	fallbackHandlers    []ItemEffectHandler
 	bloodBag            *appbloodbag.Service
@@ -135,6 +140,10 @@ func (s *Service) SetGameDataManager(mgr *gamedata.Manager) {
 
 func (s *Service) SetMonsterHeartGranter(granter MonsterHeartGranter) {
 	s.monsterHeartGranter = granter
+}
+
+func (s *Service) SetPPVERewardGranter(granter PPVERewardGranter) {
+	s.ppveRewardGranter = granter
 }
 
 func (s *Service) SetCharacterBonusProvider(provider CharacterBonusProvider) {
@@ -1348,6 +1357,9 @@ func (s *Service) effectResultToMap(r *ItemEffectResult) map[string]interface{} 
 	if r.MonsterHeartPanel != nil {
 		result["monster_heart_panel"] = r.MonsterHeartPanel
 	}
+	if r.PPVEPanel != nil {
+		result["ppve_panel"] = r.PPVEPanel
+	}
 	if r.GiftBox != nil {
 		result["gift_box"] = r.GiftBox
 	}
@@ -1501,6 +1513,7 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	grantedBuffIndexes := make(map[int]int)
 	refreshCharacterView := false
 	var monsterHeartPanel map[string]interface{}
+	var ppvePanel *PPVEPanelRewardResult
 	monsterHeartID := 0
 	monsterHeartCount := 0
 
@@ -1515,6 +1528,9 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 			refreshCharacterView = refreshCharacterView || effectResult.RefreshCharacterView
 			if effectResult.MonsterHeartPanel != nil {
 				monsterHeartPanel = effectResult.MonsterHeartPanel
+			}
+			if effectResult.PPVEPanel != nil {
+				ppvePanel = effectResult.PPVEPanel
 			}
 			if effectResult.MonsterHeartCount > 0 {
 				if monsterHeartID != 0 && monsterHeartID != effectResult.MonsterHeartID {
@@ -1598,6 +1614,9 @@ func (s *Service) UseMultiItem(ctx context.Context, char *character.Character, s
 	}
 	if monsterHeartPanel != nil {
 		result["monster_heart_panel"] = monsterHeartPanel
+	}
+	if ppvePanel != nil {
+		result["ppve_panel"] = ppvePanel
 	}
 
 	return result, nil
@@ -2116,7 +2135,19 @@ func (s *Service) AddItemWithBind(ctx context.Context, charID int64, templateID 
 }
 
 func (s *Service) AddItemWithBindAndColor(ctx context.Context, charID int64, templateID int, itemType item.ItemType, stackCount int, isBound bool, colorCode int) (*item.Item, error) {
-	colorCode = s.resolveItemColorCode(templateID, itemType, colorCode)
+	return s.addItemWithBindAndColor(ctx, charID, templateID, itemType, stackCount, isBound, colorCode, false)
+}
+
+func (s *Service) AddItemWithBindAndExplicitColor(ctx context.Context, charID int64, templateID int, itemType item.ItemType, stackCount int, isBound bool, colorCode int) (*item.Item, error) {
+	return s.addItemWithBindAndColor(ctx, charID, templateID, itemType, stackCount, isBound, colorCode, true)
+}
+
+func (s *Service) addItemWithBindAndColor(ctx context.Context, charID int64, templateID int, itemType item.ItemType, stackCount int, isBound bool, colorCode int, explicitColor bool) (*item.Item, error) {
+	if explicitColor {
+		colorCode = item.NormalizeEquipmentColorCode(colorCode)
+	} else {
+		colorCode = s.resolveItemColorCode(templateID, itemType, colorCode)
+	}
 
 	// 1. Determine Max Stack Size
 	maxStack := 1
@@ -2214,6 +2245,11 @@ func (s *Service) AddItemWithBindAndColor(ctx context.Context, charID int64, tem
 					zap.String("item_type", fmt.Sprintf("%d", itemType)))
 				if equipTpl := s.gameDataRec.GetEquipment(templateID); equipTpl != nil {
 					s.populateEquipmentProperties(it, equipTpl)
+					if explicitColor {
+						it.Properties[explicitColorCodeProperty] = true
+						it.Properties["color"] = item.EquipmentDisplayColorFromColorCode(colorCode)
+						it.Properties["preNameType"] = item.EquipmentPrefixTypeFromColorCode(colorCode)
+					}
 				} else {
 					s.logger.Warn("AddItemWithBindAndColor: equipment template not found",
 						zap.Int("template_id", templateID))

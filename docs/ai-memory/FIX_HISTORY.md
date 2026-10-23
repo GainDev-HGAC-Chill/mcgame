@@ -1,5 +1,17 @@
 # MCGame Fix History
 
+## FIX-2026-10-23-05 — Tu Luyện, Shop quality, Mệnh Hồn và Văn Chỉ
+
+- Unit A Tu Luyện: thêm provider stat chỉ hoạt động khi toàn bộ catalog khớp exact fingerprint 120 row/12 family. Mỗi family lấy level học cao nhất, các tier độc lập cộng dồn; curve thay thế và hệ số nghề/Pet nằm table-driven, chỉ cộng HP/Vật Phòng/Ma Phòng/Tốc Độ. Catalog, persisted level, class hoặc Pet family drift đều trả zero và log thay vì fallback.
+- Tích hợp: character dùng additional bonus provider hiện có; Pet service đổi từ một provider sang danh sách additive nhưng giữ `SetFeatureBonusProvider` tương thích, sau đó đăng ký Training bằng `AddFeatureBonusProvider`. Bonus được nhập trước `RecalculateStats`, nên DTO và battle snapshot dùng cùng final sheet.
+- Test Unit A: regression phủ highest-level thay thế row cũ, stacking giữa tier, hệ số character/Pet, catalog và persisted-level drift, hai Pet provider cộng dồn. Focused skill/Pet/item/domain-Pet tests, targeted vet, Windows/Linux gameserver builds và diff-check PASS.
+- Unit B Shop quality: thêm item grant API phân biệt explicit color 0 với color bị bỏ trống. Marker persisted ngăn DTO/login fallback sang màu template; Trắng phát `colorCode=0,color=0,preNameType=0`. Toàn bộ NPC/System/VIP/Credit purchase dùng quality integer `0..25` và canonical mapping thay `math.Ceil`; invalid quality bị chặn trước debit. Regression exact slot 3439/template 1123 khóa hành vi Găng Thu Thập Trắng và giữ tên không prefix.
+- Dashboard Unit B: NPC/System Shop thay ô số thô bằng lựa chọn 0..25 có nhãn màu, giải thích rõ 0 là Trắng/no-template-fallback; Zod và SQL draft NPC cùng giới hạn. Focused Go tests/vet/build, dashboard typecheck + 6 test PASS; Next compile/typecheck/static generation 28 trang PASS rồi fail standalone symlink `EPERM` Windows baseline.
+- Unit C Mệnh Hồn: serialize toàn bộ EXP/dissolve/movement theo character owner và kiểm tra ownership trước mutation Pet. Fraction EXP, exact-next level-up/reset EXP, base+invested dissolve, quick color threshold/lock và temp-panel single/bulk đều khớp Flash/catalog; currency debit/credit có compensation khi feature-state save lỗi.
+- Pet stat Unit C: Soul service là additive Pet provider; integral base props và decimal feature props giữ namespace riêng, phát canonical `soulProp<id>` và chỉ nhập `EffectiveStats` khi có mapping domain. Source JSON + seed row `751..760` đã normalize `Vĩnh Sinh`/`Tăng Miễn Tử`; SQL idempotent + inverse chỉ là draft, chưa apply/sinh migration.
+- Test Unit C: regression phủ fraction, remaining-cost/next sid, level 10, base EXP dissolve, locked/color threshold, temp callbacks, concurrent EXP serialization, foreign Pet rejection, decimal sheet/EffectiveStats và 10 localization row. Focused Soul/handler/Pet/domain-Pet/item tests, targeted vet, Windows/Linux builds và diff-check PASS.
+- Trạng thái: Units A–C IMPLEMENTED/FOCUSED_VERIFIED; Unit D đang chờ triển khai. Không restart/deploy, sửa ActionScript, apply migration/data mutation, commit hoặc push.
+
 ## FIX-2026-10-23-04 — Khôi phục Docker build sau commit character damage
 
 - Root cause: commit HEAD `bfdcc50 update fix dmg` đổi generic skill adapter từ heuristic `expSkill/dexSkill` sang `resolveCharacterSkillMultiplier(description)` nhưng không thêm hàm được gọi, đồng thời thêm `strings` hai lần và để `regexp`/`strconv` chưa dùng. Vì vậy `Start server` build dashboard/edge xong nhưng dừng ở compile `mcgame-server`.

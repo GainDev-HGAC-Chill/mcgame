@@ -17,6 +17,7 @@ type EquipmentStatBonuses struct {
 	Flat    map[int]int
 	Percent map[int]int
 	Float   map[int]float64
+	Feature map[int]float64
 }
 
 func NewEquipmentStatBonuses() EquipmentStatBonuses {
@@ -24,6 +25,7 @@ func NewEquipmentStatBonuses() EquipmentStatBonuses {
 		Flat:    make(map[int]int),
 		Percent: make(map[int]int),
 		Float:   make(map[int]float64),
+		Feature: make(map[int]float64),
 	}
 }
 
@@ -57,8 +59,18 @@ func (b *EquipmentStatBonuses) AddFloat(propType int, value float64) {
 	b.Float[propType] += value
 }
 
+func (b *EquipmentStatBonuses) AddFeature(propType int, value float64) {
+	if b == nil || propType <= 0 || value == 0 {
+		return
+	}
+	if b.Feature == nil {
+		b.Feature = make(map[int]float64)
+	}
+	b.Feature[propType] += value
+}
+
 func (b EquipmentStatBonuses) IsZero() bool {
-	return len(b.Flat) == 0 && len(b.Percent) == 0 && len(b.Float) == 0
+	return len(b.Flat) == 0 && len(b.Percent) == 0 && len(b.Float) == 0 && len(b.Feature) == 0
 }
 
 func (p *Pet) SetEquipmentBonuses(bonuses EquipmentStatBonuses) {
@@ -83,6 +95,17 @@ func (p *Pet) applyEquipmentBonuses() {
 	p.applyEquipmentFlatBonuses(p.equipmentBonuses.Flat)
 	p.applyEquipmentFloatBonuses(p.equipmentBonuses.Float)
 	p.applyEquipmentPercentBonuses(p.equipmentBonuses.Percent)
+	p.applyFeatureBonuses(p.equipmentBonuses.Feature)
+}
+
+func (p *Pet) applyFeatureBonuses(feature map[int]float64) {
+	for propType, value := range feature {
+		p.Property[fmt.Sprintf("soulProp%d", propType)] = value
+		key := petFeaturePropertyKey(propType)
+		if key != "" {
+			p.Property[key] = petStatNumberValue(p.Property[key]) + value
+		}
+	}
 }
 
 func (p *Pet) applyEquipmentFlatBonuses(flat map[int]int) {
@@ -185,6 +208,49 @@ func petFloatPropertyKey(propID int) string {
 		return "finalEnhMagicHurt"
 	case 32:
 		return "finalBreakReborn"
+	default:
+		return ""
+	}
+}
+
+func petFeaturePropertyKey(propID int) string {
+	switch propID {
+	case 31, 51:
+		return "finalResiCritical"
+	case 32:
+		return "finalDebuffSuccRate"
+	case 34:
+		return "finalRebornRate"
+	case 43:
+		return "finalResiDizzy"
+	case 44:
+		return "finalResiConfusion"
+	case 45:
+		return "finalResiSleep"
+	case 46:
+		return "finalResiPoison"
+	case 49:
+		return "finalResiLight"
+	case 50:
+		return "finalResiRage"
+	case 52:
+		return "finalConfusion"
+	case 53:
+		return "finalDizzy"
+	case 54:
+		return "finalPoison"
+	case 55:
+		return "finalRage"
+	case 59:
+		return "finalReduceHurt1"
+	case 60:
+		return "finalReduceHurt2"
+	case 61:
+		return "finalResiDefy"
+	case 62:
+		return "finalEnhPhyHurt"
+	case 63:
+		return "finalEnhMagicHurt"
 	default:
 		return ""
 	}

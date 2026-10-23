@@ -382,8 +382,27 @@ func (p *Pet) Effective() stats.EffectiveStats {
 
 	es.Set(stats.PropPhysDmgCut, rate(cs["reduceHurt1"]))
 	es.Set(stats.PropMagDmgCut, rate(cs["reduceHurt2"]))
+	p.applyFeatureEffectiveStats(&es)
 
 	return es
+}
+
+func (p *Pet) applyFeatureEffectiveStats(effective *stats.EffectiveStats) {
+	if p == nil || effective == nil {
+		return
+	}
+	for propType, value := range p.equipmentBonuses.Feature {
+		propID, ok := stats.FeaturePropMap[propType]
+		if !ok {
+			continue
+		}
+		amount := int64(math.Round(value * 10))
+		switch propType {
+		case 31, 51, 61, 62, 63:
+			amount -= int64(math.Round(value)) * 10
+		}
+		effective.Add(propID, amount)
+	}
 }
 
 func (p *Pet) GainExperience(amount int64) (leveledUp bool) {

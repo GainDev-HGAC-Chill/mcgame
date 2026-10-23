@@ -142,6 +142,10 @@ func (s *shopService) BuyItem(ctx context.Context, characterID int64, shopSlotID
 			itType = pkgitem.ItemTypeEquipment
 		}
 	}
+	colorCode, err := shopColorCodeFromQuality(shopSlot.Quality)
+	if err != nil {
+		return nil, err
+	}
 
 	// 3. Calculate Cost and Currency Type
 	var cost int64
@@ -240,16 +244,13 @@ func (s *shopService) BuyItem(ctx context.Context, characterID int64, shopSlotID
 		}
 	}
 
-	// Calculate ColorCode from Quality: color = quality / 5 (round up)
-	colorCode := int(math.Ceil(shopSlot.Quality / 5))
-
 	// Bind item if purchased with GoldBind (currencyType = 3 || currencyType == 1)
 	binded := (currencyType == 3 || currencyType == 1)
 	beforeStacks, err := s.snapshotPurchaseBagStacks(ctx, characterID, int(shopSlot.ItemID), itType, binded)
 	if err != nil {
 		return nil, err
 	}
-	addedItem, err := s.itemService.AddItemWithBindAndColor(ctx, characterID, int(shopSlot.ItemID), itType, amount, binded, colorCode)
+	addedItem, err := s.itemService.AddItemWithBindAndExplicitColor(ctx, characterID, int(shopSlot.ItemID), itType, amount, binded, colorCode)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +280,7 @@ func (s *shopService) BuyItem(ctx context.Context, characterID int64, shopSlotID
 			"n":  itemName,      // Name
 			"tt": itemKind,      //Kind
 		},
-		AddedItemDTO:  addedItem.ToDTO(),
+		AddedItemDTO:  s.itemService.BuildClientItemDTO(addedItem),
 		AddedItemDTOs: addedItemDTOs,
 	}, nil
 }
@@ -347,6 +348,10 @@ func (s *shopService) BuySystemItem(ctx context.Context, characterID int64, shop
 		itemKind = int(equipTpl.Kind)
 		itType = pkgitem.ItemTypeEquipment
 	}
+	colorCode, err := shopColorCodeFromQuality(shopSlot.Quality)
+	if err != nil {
+		return nil, err
+	}
 
 	// 3. Calculate Cost and Currency Type
 	// System Shop ONLY supports: Gold (3,4) and Points special currencies
@@ -404,16 +409,13 @@ func (s *shopService) BuySystemItem(ctx context.Context, characterID int64, shop
 	// 4. Add Item to Inventory
 	// itType is already determined above based on shopSlot.Type
 
-	// Calculate ColorCode from Quality: color = quality / 5 (round up)
-	colorCode := int(math.Ceil(shopSlot.Quality / 5))
-
 	// Bind item if purchased with GoldBind (currencyType = 3)
 	binded := (currencyType == 3)
 	beforeStacks, err := s.snapshotPurchaseBagStacks(ctx, characterID, int(shopSlot.ItemID), itType, binded)
 	if err != nil {
 		return nil, err
 	}
-	addedItem, err := s.itemService.AddItemWithBindAndColor(ctx, characterID, int(shopSlot.ItemID), itType, amount, binded, colorCode)
+	addedItem, err := s.itemService.AddItemWithBindAndExplicitColor(ctx, characterID, int(shopSlot.ItemID), itType, amount, binded, colorCode)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +451,7 @@ func (s *shopService) BuySystemItem(ctx context.Context, characterID int64, shop
 			"n":  itemName,      // Name
 			"tt": itemKind,      //Kind
 		},
-		AddedItemDTO:  addedItem.ToDTO(),
+		AddedItemDTO:  s.itemService.BuildClientItemDTO(addedItem),
 		AddedItemDTOs: addedItemDTOs,
 	}, nil
 }
@@ -485,6 +487,10 @@ func (s *shopService) ExchangeItem(ctx context.Context, characterID int64, credi
 	if equipment == nil {
 		return nil, errors.New("credit equipment template not found")
 	}
+	colorCode, err := shopColorCodeFromQuality(credit.Quality)
+	if err != nil {
+		return nil, err
+	}
 	isBound := int(credit.Bind) > 0
 	before, err := s.snapshotPurchaseBagStacks(ctx, characterID, int(credit.ItemID), pkgitem.ItemTypeEquipment, isBound)
 	if err != nil {
@@ -502,8 +508,7 @@ func (s *shopService) ExchangeItem(ctx context.Context, characterID int64, credi
 		return nil, err
 	}
 
-	colorCode := int(math.Ceil(credit.Quality / 5))
-	added, err := s.itemService.AddItemWithBindAndColor(ctx, characterID, int(credit.ItemID), pkgitem.ItemTypeEquipment, amount, isBound, colorCode)
+	added, err := s.itemService.AddItemWithBindAndExplicitColor(ctx, characterID, int(credit.ItemID), pkgitem.ItemTypeEquipment, amount, isBound, colorCode)
 	if err != nil {
 		return nil, s.compensateCreditExchange(ctx, char, cost, err)
 	}
@@ -632,14 +637,15 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 
 	// 2. Prepare Transaction Data
 	var itemsToAdd []struct {
-		Slot     *models.ShopSlotTemplate
-		ItemTpl  *models.ItemTemplateTemplate
-		EquipTpl *models.EquiptTemplateTemplate
-		ItemName string
-		ItemKind int
-		Amount   int
-		Cost     int64
-		PType    int // 0=Point, 3/4=Gold/GoldBind
+		Slot      *models.ShopSlotTemplate
+		ItemTpl   *models.ItemTemplateTemplate
+		EquipTpl  *models.EquiptTemplateTemplate
+		ItemName  string
+		ItemKind  int
+		Amount    int
+		Cost      int64
+		PType     int // 0=Point, 3/4=Gold/GoldBind
+		ColorCode int
 	}
 
 	totalGold := int64(0)
@@ -673,6 +679,10 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 		var equipTpl *models.EquiptTemplateTemplate
 		var itemName string
 		var itemKind int
+		colorCode, err := shopColorCodeFromQuality(shopSlot.Quality)
+		if err != nil {
+			return nil, err
+		}
 
 		if int(shopSlot.Type) == 29 {
 			// --- STANDARD ITEM ---
@@ -727,15 +737,16 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 		}
 
 		itemsToAdd = append(itemsToAdd, struct {
-			Slot     *models.ShopSlotTemplate
-			ItemTpl  *models.ItemTemplateTemplate
-			EquipTpl *models.EquiptTemplateTemplate
-			ItemName string
-			ItemKind int
-			Amount   int
-			Cost     int64
-			PType    int
-		}{shopSlot, itemTpl, equipTpl, itemName, itemKind, req.Amount, cost, pType})
+			Slot      *models.ShopSlotTemplate
+			ItemTpl   *models.ItemTemplateTemplate
+			EquipTpl  *models.EquiptTemplateTemplate
+			ItemName  string
+			ItemKind  int
+			Amount    int
+			Cost      int64
+			PType     int
+			ColorCode int
+		}{shopSlot, itemTpl, equipTpl, itemName, itemKind, req.Amount, cost, pType, colorCode})
 	}
 
 	// 4. Check Balances
@@ -773,16 +784,13 @@ func (s *shopService) BuySystemItemMulti(ctx context.Context, characterID int64,
 			itType = pkgitem.ItemTypeEquipment
 		}
 
-		// Calculate ColorCode from Quality: color = quality / 5 (round up)
-		colorCode := int(math.Ceil(item.Slot.Quality / 5))
-
 		// Bind item if purchased with GoldBind (currencyType = 3)
 		binded := (item.PType == 3 || item.PType == 1)
 		beforeStacks, err := s.snapshotPurchaseBagStacks(ctx, char.ID, int(item.Slot.ItemID), itType, binded)
 		if err != nil {
 			return nil, err
 		}
-		addedItem, err := s.itemService.AddItemWithBindAndColor(ctx, char.ID, int(item.Slot.ItemID), itType, item.Amount, binded, colorCode)
+		addedItem, err := s.itemService.AddItemWithBindAndExplicitColor(ctx, char.ID, int(item.Slot.ItemID), itType, item.Amount, binded, item.ColorCode)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add item %d: %v", int(item.Slot.ItemID), err)
 		}

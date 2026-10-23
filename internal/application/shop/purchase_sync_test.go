@@ -5,6 +5,7 @@ package shop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 
@@ -276,6 +277,65 @@ func TestBuyItemKeepsBoundStacksSeparateInPurchaseUpdates(t *testing.T) {
 	}
 	if storedExisting.IsBound {
 		t.Fatalf("existing stack unexpectedly became bound")
+	}
+}
+
+func TestBuyItemQualityZeroKeepsGatheringGloveWhite(t *testing.T) {
+	ctx := context.Background()
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadPurchaseSyncRecord(t, manager, models.TableEquiptTemplate, models.EquiptTemplateTemplate{
+		ID: 1123, Name: "Găng Thu Thập", Kind: 1, StackMax: 1, SingleFlag: 1, ColorCode: 5,
+	})
+	loadPurchaseSyncRecord(t, manager, models.TableShopSlot, models.ShopSlotTemplate{
+		ID: 3439, Sid: 32, ItemID: 1123, Type: 19, Money: 1, Quality: 0, Amount: -1,
+	})
+	itemRepo := newPurchaseSyncItemRepo()
+	itemService := appitem.NewService(itemRepo, zap.NewNop())
+	itemService.SetGameDataManager(manager)
+	charRepo := newVIPShopCharacterRepo(&character.Character{ID: 1, Name: "buyer", MoneyBind: 10, BagSlotNum: 30})
+	service := NewService()
+	service.SetGameDataManager(manager)
+	service.SetItemService(itemService)
+	service.SetCharacterRepository(charRepo)
+
+	result, err := service.BuyItem(ctx, 1, 3439, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := itemService.GetAllItems(ctx, 1)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	if items[0].ColorCode != 0 || items[0].Properties["preNameType"] != 0 {
+		t.Fatalf("purchased glove = %+v", items[0])
+	}
+	if got := result.ItemData["n"]; got != "Găng Thu Thập" {
+		t.Fatalf("popup name = %v", got)
+	}
+	if len(result.AddedItemDTOs) != 1 || dtoInt(t, result.AddedItemDTOs[0], "colorCode") != 0 || dtoInt(t, result.AddedItemDTOs[0], "preNameType") != 0 {
+		t.Fatalf("added DTOs = %#v", result.AddedItemDTOs)
+	}
+}
+
+func TestShopQualityValidationRejectsOutOfRangeBeforeDebit(t *testing.T) {
+	ctx := context.Background()
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadPurchaseSyncRecord(t, manager, models.TableEquiptTemplate, models.EquiptTemplateTemplate{ID: 1123, Name: "Găng", Kind: 1})
+	loadPurchaseSyncRecord(t, manager, models.TableShopSlot, models.ShopSlotTemplate{ID: 3439, ItemID: 1123, Type: 19, Money: 1, Quality: 26})
+	itemService := appitem.NewService(newPurchaseSyncItemRepo(), zap.NewNop())
+	itemService.SetGameDataManager(manager)
+	charRepo := newVIPShopCharacterRepo(&character.Character{ID: 1, MoneyBind: 10, BagSlotNum: 30})
+	service := NewService()
+	service.SetGameDataManager(manager)
+	service.SetItemService(itemService)
+	service.SetCharacterRepository(charRepo)
+
+	if _, err := service.BuyItem(ctx, 1, 3439, 1); !errors.Is(err, errInvalidShopQuality) {
+		t.Fatalf("error = %v, want invalid quality", err)
+	}
+	char, _ := charRepo.FindByID(ctx, 1)
+	if char.MoneyBind != 10 {
+		t.Fatalf("money after rejected quality = %d, want 10", char.MoneyBind)
 	}
 }
 

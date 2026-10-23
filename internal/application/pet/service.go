@@ -19,20 +19,20 @@ import (
 )
 
 type Service struct {
-	petRepo              domainpet.Repository
-	itemRepo             domainitem.Repository
-	charRepo             character.Repository
-	featureBonusProvider FeatureBonusProvider
-	soulProvider         PetSoulProvider
-	gameDataManager      *gamedata.Manager
-	logger               *zap.Logger
-	fusionRoll           func(int) bool
-	fusionGrowth         func(int, int) int
-	illusionRoll         func(int) bool
-	illusionPercent      func(int, int) int
-	starRoll             func(int) bool
-	washRoll             func(int, int) int
-	resurrectionRoll     func(int, int) int
+	petRepo               domainpet.Repository
+	itemRepo              domainitem.Repository
+	charRepo              character.Repository
+	featureBonusProviders []FeatureBonusProvider
+	soulProvider          PetSoulProvider
+	gameDataManager       *gamedata.Manager
+	logger                *zap.Logger
+	fusionRoll            func(int) bool
+	fusionGrowth          func(int, int) int
+	illusionRoll          func(int) bool
+	illusionPercent       func(int, int) int
+	starRoll              func(int) bool
+	washRoll              func(int, int) int
+	resurrectionRoll      func(int, int) int
 }
 
 const (
@@ -75,7 +75,17 @@ func (s *Service) SetGameDataManager(mgr *gamedata.Manager) {
 }
 
 func (s *Service) SetFeatureBonusProvider(provider FeatureBonusProvider) {
-	s.featureBonusProvider = provider
+	s.featureBonusProviders = nil
+	if provider != nil {
+		s.featureBonusProviders = append(s.featureBonusProviders, provider)
+	}
+}
+
+func (s *Service) AddFeatureBonusProvider(provider FeatureBonusProvider) {
+	if provider == nil {
+		return
+	}
+	s.featureBonusProviders = append(s.featureBonusProviders, provider)
 }
 
 func (s *Service) SetSoulProvider(provider PetSoulProvider) {
@@ -846,8 +856,11 @@ func (s *Service) enrichPet(ctx context.Context, p *domainpet.Pet) {
 	ensurePetSkillSlots(p)
 	s.syncPetEquipmentBonuses(ctx, p)
 	s.syncPetSkillBonuses(p)
-	if s.featureBonusProvider != nil {
-		equipmentBonuses, skillBonuses := s.featureBonusProvider.AggregatePetBonuses(ctx, p.ID)
+	for _, provider := range s.featureBonusProviders {
+		if provider == nil {
+			continue
+		}
+		equipmentBonuses, skillBonuses := provider.AggregatePetBonuses(ctx, p.ID)
 		p.SetEquipmentBonuses(mergePetEquipmentBonuses(pEquipmentBonuses(p), equipmentBonuses))
 		p.SetSkillBonuses(mergePetSkillBonuses(pSkillBonuses(p), skillBonuses))
 	}
@@ -886,6 +899,12 @@ func mergePetEquipmentBonuses(base, extra domainpet.EquipmentStatBonuses) domain
 	}
 	for propType, value := range extra.Float {
 		merged.AddFloat(propType, value)
+	}
+	for propType, value := range base.Feature {
+		merged.AddFeature(propType, value)
+	}
+	for propType, value := range extra.Feature {
+		merged.AddFeature(propType, value)
 	}
 	return merged
 }

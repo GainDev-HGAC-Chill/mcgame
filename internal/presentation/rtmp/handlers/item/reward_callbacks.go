@@ -53,6 +53,10 @@ func (h *Handler) sendStructuredRewardCallbacks(ctx *rtmp.RPCContext, result map
 		}
 	}
 
+	if panel, ok := result["ppve_panel"].(*appitem.PPVEPanelRewardResult); ok && panel != nil {
+		_ = ctx.Connection.SendCallback("onUpdatePPVEPanel", panel.KPData, panel.PPVEData, nil, false)
+	}
+
 	if skillIDs, ok := result["granted_skill_ids"].([]int); ok && len(skillIDs) > 0 && h.skillService != nil {
 		skills, err := h.skillService.GetSkillsForCallback(ctx.Context, char.ID)
 		if err != nil {

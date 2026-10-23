@@ -46,6 +46,7 @@ type ItemEffectResult struct {
 	MonsterHeartPanel    map[string]interface{}
 	MonsterHeartID       int
 	MonsterHeartCount    int
+	PPVEPanel            *PPVEPanelRewardResult
 	Message              string
 	ConsumeItem          bool
 	RefreshCharacterView bool
@@ -67,6 +68,11 @@ type GrantedCurrencyResult struct {
 	Delta     int64
 	Total     float64
 	Label     string
+}
+
+type PPVEPanelRewardResult struct {
+	KPData   map[string]interface{}
+	PPVEData map[string]interface{}
 }
 
 type GrantedItemResult struct {

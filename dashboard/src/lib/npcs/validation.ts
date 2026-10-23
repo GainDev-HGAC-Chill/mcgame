@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { equipmentQualitySchema } from "../equipment-quality-validation.ts"
 
 const optionalInt = z.preprocess(
     value => (value === "" || value === undefined ? undefined : value),
@@ -52,7 +53,7 @@ const slotShape = {
     point: z.literal(0),
     position: integer.min(1),
     price_all: integer.nullable(),
-    quality: z.number().int().min(-1).max(2147483647),
+    quality: equipmentQualitySchema,
     r: integer,
     sale: integer,
     st: z.union([z.literal(0), z.literal(5)]),

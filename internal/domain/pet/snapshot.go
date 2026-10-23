@@ -17,5 +17,6 @@ func (p *Pet) Clone() *Pet {
 	result.equipmentBonuses.Flat = valuecopy.Copy(p.equipmentBonuses.Flat)
 	result.equipmentBonuses.Percent = valuecopy.Copy(p.equipmentBonuses.Percent)
 	result.equipmentBonuses.Float = valuecopy.Copy(p.equipmentBonuses.Float)
+	result.equipmentBonuses.Feature = valuecopy.Copy(p.equipmentBonuses.Feature)
 	return &result
 }

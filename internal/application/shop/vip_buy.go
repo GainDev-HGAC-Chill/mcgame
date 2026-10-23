@@ -9,7 +9,6 @@ package shop
 import (
 	"context"
 	"errors"
-	"math"
 	"time"
 
 	"mcgame-server/internal/domain/character"
@@ -48,13 +47,16 @@ func (s *shopService) buyVIPSlotItem(
 	char.Gold -= cost
 
 	templateID := int(slot.ItemID)
+	colorCode, err := shopColorCodeFromQuality(slot.Quality)
+	if err != nil {
+		return nil, err
+	}
 
 	beforeStacks, err := s.snapshotPurchaseBagStacks(ctx, char.ID, templateID, itType, false)
 	if err != nil {
 		return nil, err
 	}
-	colorCode := int(math.Ceil(slot.Quality / 5))
-	addedItem, err := s.itemService.AddItemWithBindAndColor(ctx, char.ID, templateID, itType, amount, false, colorCode)
+	addedItem, err := s.itemService.AddItemWithBindAndExplicitColor(ctx, char.ID, templateID, itType, amount, false, colorCode)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func (s *shopService) buyVIPSlotItem(
 			"n":  itemName,
 			"tt": itemKind,
 		},
-		AddedItemDTO:  addedItem.ToDTO(),
+		AddedItemDTO:  s.itemService.BuildClientItemDTO(addedItem),
 		AddedItemDTOs: addedItemDTOs,
 	}, nil
 }

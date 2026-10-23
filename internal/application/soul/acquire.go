@@ -102,6 +102,8 @@ func (s *Service) firstFreeTempSlot(state *CharSoulState) int {
 }
 
 func (s *Service) PreySoul(ctx context.Context, charID int64, index int, moneyFlag bool, rng *rand.Rand) (map[string]any, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	cost, ok := crystalCost(index)
 	if !ok {
 		return nil, ErrInvalidCrystal
@@ -149,6 +151,8 @@ func (s *Service) PreySoul(ctx context.Context, charID int64, index int, moneyFl
 }
 
 func (s *Service) ExchangeSoul(ctx context.Context, charID int64, soulID int) (map[string]any, error) {
+	unlock := s.lockMutation(charID)
+	defer unlock()
 	tpl := s.petSoulTemplate(soulID)
 	if tpl == nil || int(tpl.Type) != 1 {
 		return exchangeFail(3), nil

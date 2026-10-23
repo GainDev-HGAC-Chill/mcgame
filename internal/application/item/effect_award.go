@@ -50,6 +50,7 @@ type MedalGranter interface {
 }
 
 const awardTypeMedal = 36
+const AwardGameCurrencyPPVEKP = 242
 
 type resolvedItemAward struct {
 	AwardID     int
@@ -178,6 +179,20 @@ func (h *awardEffectHandler) Apply(ctx context.Context, uctx *UseContext, char *
 				}
 			}
 		case 35:
+			if award.AwardID == AwardGameCurrencyPPVEKP {
+				if h.itemService == nil || h.itemService.ppveRewardGranter == nil {
+					return nil, fmt.Errorf("PPVE KP reward service is not configured")
+				}
+				kpData, ppveData, err := h.itemService.ppveRewardGranter.GrantKPReward(ctx, char.ID, award.Count)
+				if err != nil {
+					return nil, err
+				}
+				result.PPVEPanel = &PPVEPanelRewardResult{KPData: kpData, PPVEData: ppveData}
+				if result.Message == "" {
+					result.Message = fmt.Sprintf("Nhận được %d Văn Chỉ.", award.Count)
+				}
+				continue
+			}
 			descriptor, ok := character.GameCurrencyDescriptor(award.AwardID)
 			if !ok {
 				return nil, fmt.Errorf("unsupported game currency id: %d", award.AwardID)
