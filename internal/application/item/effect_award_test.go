@@ -5,6 +5,7 @@ package item
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,18 @@ import (
 
 	"go.uber.org/zap"
 )
+
+type fakePPVERewardGranter struct {
+	kpData   map[string]interface{}
+	ppveData map[string]interface{}
+	err      error
+	calls    int
+}
+
+func (g *fakePPVERewardGranter) GrantKPReward(ctx context.Context, charID int64, amount int) (map[string]interface{}, map[string]interface{}, error) {
+	g.calls++
+	return g.kpData, g.ppveData, g.err
+}
 
 type awardEffectTestPetService struct {
 	templateIDs        []int
@@ -383,6 +396,48 @@ func TestAwardEffectHandler_Apply_RejectsUnknownGameCurrency(t *testing.T) {
 	}
 	if result != nil {
 		t.Fatalf("result = %#v, want nil", result)
+	}
+}
+
+func TestAwardEffectHandlerGrantsPPVEKPOutsideCharacterCurrency(t *testing.T) {
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadAwardTemplate(t, manager, models.ItemAwardTemplate{ID: 242, ItemID: 7001, AwardID: AwardGameCurrencyPPVEKP, Type: 35, Count: 25, Rate: 100})
+	service := NewService(newItemServiceTestRepo(), zap.NewNop())
+	granter := &fakePPVERewardGranter{
+		kpData:   map[string]interface{}{"kp": 40},
+		ppveData: map[string]interface{}{"mlv": 0},
+	}
+	service.SetPPVERewardGranter(granter)
+	handler := &awardEffectHandler{gameData: manager, itemService: service}
+	char := &domainchar.Character{ID: 21, PvePoint: 99}
+
+	result, err := handler.Apply(context.Background(), nil, char, nil, &models.ItemTemplateTemplate{ID: 7001})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if granter.calls != 1 || result.PPVEPanel == nil || result.PPVEPanel.KPData["kp"] != 40 {
+		t.Fatalf("calls=%d result=%+v", granter.calls, result)
+	}
+	if len(result.GrantedCurrencies) != 0 || char.PvePoint != 99 {
+		t.Fatalf("character currency changed: grants=%+v pvePoint=%d", result.GrantedCurrencies, char.PvePoint)
+	}
+}
+
+func TestPPVEKPFailureDoesNotConsumeBox(t *testing.T) {
+	repo := newItemServiceTestRepo()
+	repo.items[88] = &domainitem.Item{ID: 88, CharacterID: 99, TemplateID: 7002, ItemType: domainitem.ItemTypeConsumable, SlotType: domainitem.SlotTypeBag, StackCount: 1}
+	service := NewService(repo, zap.NewNop())
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	loadAwardItemTemplate(t, manager, models.ItemTemplateTemplate{ID: 7002, Type: 999, UseType: 1})
+	loadAwardTemplate(t, manager, models.ItemAwardTemplate{ID: 243, ItemID: 7002, AwardID: AwardGameCurrencyPPVEKP, Type: 35, Count: 25, Rate: 100})
+	service.SetGameDataManager(manager)
+	service.SetPPVERewardGranter(&fakePPVERewardGranter{err: errors.New("persist failed")})
+
+	if _, _, err := service.UseItem(context.Background(), &domainchar.Character{ID: 99}, 88, &UseContext{}); err == nil {
+		t.Fatal("expected PPVE persistence failure")
+	}
+	if repo.items[88] == nil || repo.items[88].StackCount != 1 {
+		t.Fatalf("box consumed after failed PPVE grant: %+v", repo.items[88])
 	}
 }
 

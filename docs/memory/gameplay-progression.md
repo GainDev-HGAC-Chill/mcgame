@@ -20,6 +20,12 @@
 - Dissolve bag trả `template.exp + slot.exp` và `template.chip`; quick mode chỉ lấy unlocked row có `color < threshold` với threshold `1..3`. Temp panel có single/threshold bulk qua `transformExpInPanel`.
 - Equipped Soul dùng exact `TBL_PET_SOUL.propType/propVal`; integer base stat và decimal feature property được cộng trước `RecalculateStats`, giữ decimal trong `soulProp<id>`/canonical property và đưa vào `EffectiveStats` khi có mapping. Row `751..760` canonical là `Vĩnh Sinh`, mô tả `Tăng Miễn Tử <propVal>`.
 
+## Văn Chỉ Pet PVE
+
+- Văn Chỉ là `PPVEState.KP`, không phải character currency `CurrencyPvePoint=238`. Box award type 35 dùng reserved ID `242` và phải được intercept trước generic character-currency lookup.
+- Grant tải và persist toàn bộ PPVE state dưới mutation lock theo character. Persistence lỗi phải trả lỗi trước khi box bị consume; amount không dương hoặc overflow fail closed.
+- Callback sau grant thành công là `onUpdatePPVEPanel(kpData, ppveData, nil, false)`. Không phát `onAddMoney` cho Văn Chỉ.
+
 ## Huy Chương Mạo Hiểm
 
 - Feature state `explorer_medal.info` là `level|progress`, không phải điểm tích lũy.

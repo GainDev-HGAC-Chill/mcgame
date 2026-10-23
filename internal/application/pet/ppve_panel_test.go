@@ -4,6 +4,8 @@ package pet
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,7 +24,8 @@ type fakePPVEGameData struct {
 func (g *fakePPVEGameData) GetCarveAward(id int) *models.CarveAwardTemplate { return g.rows[id] }
 
 type ppveFeatureRepo struct {
-	states map[int64][]*domainfeature.CharacterFeatureState
+	states    map[int64][]*domainfeature.CharacterFeatureState
+	upsertErr error
 }
 
 func newPPVEFeatureRepo() *ppveFeatureRepo {
@@ -34,6 +37,9 @@ func (r *ppveFeatureRepo) ListCharacterFeatureStates(ctx context.Context, charID
 }
 
 func (r *ppveFeatureRepo) UpsertCharacterFeatureState(ctx context.Context, state *domainfeature.CharacterFeatureState) error {
+	if r.upsertErr != nil {
+		return r.upsertErr
+	}
 	list := r.states[state.CharacterID]
 	for i, st := range list {
 		if st.FeatureKey == state.FeatureKey {
@@ -44,6 +50,67 @@ func (r *ppveFeatureRepo) UpsertCharacterFeatureState(ctx context.Context, state
 	}
 	r.states[state.CharacterID] = append(list, state)
 	return nil
+}
+
+func TestGrantKPRewardPersistsFullPPVEState(t *testing.T) {
+	service, repo, _ := newPPVEServiceForTest(0)
+	state := defaultPPVEState()
+	state.KP = 15
+	state.PPVEFloor = 12
+	state.PPVEConfig = map[string]interface{}{"slot": 7}
+	state.LastResetDay = ppveToday()
+	state.LastDailyDay = ppveToday()
+	seedPPVEState(repo, 1, state)
+
+	kpData, ppveData, err := service.GrantKPReward(context.Background(), 1, 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := service.LoadState(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.KP != 40 || loaded.PPVEFloor != 12 || loaded.PPVEConfig["slot"] != 7 {
+		t.Fatalf("state=%+v", loaded)
+	}
+	if kpData["kp"] != 40 || ppveData["ppveConfig"].(map[string]interface{})["slot"] != 7 {
+		t.Fatalf("kpData=%v ppveData=%v", kpData, ppveData)
+	}
+}
+
+func TestGrantKPRewardFailureAndConcurrency(t *testing.T) {
+	service, repo, _ := newPPVEServiceForTest(0)
+	state := defaultPPVEState()
+	state.LastResetDay = ppveToday()
+	state.LastDailyDay = ppveToday()
+	seedPPVEState(repo, 1, state)
+	repo.upsertErr = errors.New("save failed")
+	if _, _, err := service.GrantKPReward(context.Background(), 1, 5); err == nil {
+		t.Fatal("expected save failure")
+	}
+	repo.upsertErr = nil
+
+	var wait sync.WaitGroup
+	errs := make(chan error, 2)
+	for range 2 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			_, _, err := service.GrantKPReward(context.Background(), 1, 7)
+			errs <- err
+		}()
+	}
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, err := service.LoadState(context.Background(), 1)
+	if err != nil || loaded.KP != 14 {
+		t.Fatalf("state=%+v error=%v", loaded, err)
+	}
 }
 
 func (r *ppveFeatureRepo) ListPetFeatureStates(ctx context.Context, petID int64) ([]*domainfeature.PetFeatureState, error) {
