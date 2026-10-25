@@ -275,6 +275,15 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	achievementService := appachievement.NewService(achievementRepo, log)
 	achievementService.SetGameDataManager(gameDataManager)
 	achievementService.SetEventBus(eventBus)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewCoupleWingStateReader(marriageRepo, itemRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register couple-wing achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewMarriageHistoryStateReader(marriageRepo)); err != nil {
+		log.Fatal("Failed to register marriage-history achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewPetArenaHistoryStateReader(petArenaRepo)); err != nil {
+		log.Fatal("Failed to register pet-arena-history achievement state reader", zap.Error(err))
+	}
 	if err := achievementService.RegisterStateProofReader(appachievement.NewCharacterStateReader(characterRepo)); err != nil {
 		log.Fatal("Failed to register character achievement state reader", zap.Error(err))
 	}
@@ -283,6 +292,24 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	}
 	if err := achievementService.RegisterStateProofReader(appachievement.NewLifeSkillStateReader(skillRepo, gameDataManager)); err != nil {
 		log.Fatal("Failed to register life-skill achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewMainSkillStateReader(characterRepo, skillRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register main-skill achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewPetRosterStateReader(petRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register pet-roster achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewPetEquipmentStateReader(petRepo, itemRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register pet-equipment achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewDressBookStateReader(characterRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register dress-book achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewCharacterLoadoutStateReader(itemRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register character-loadout achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewMagicEstateStateReader(magicEstateRepo)); err != nil {
+		log.Fatal("Failed to register magic-estate achievement state reader", zap.Error(err))
 	}
 	if err := achievementService.RegisterStateProofReader(appachievement.NewSocialStateReader(relationshipRepo)); err != nil {
 		log.Fatal("Failed to register social achievement state reader", zap.Error(err))
@@ -306,9 +333,24 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	itemService.SetCharacterRepository(characterRepo)
 	itemService.SetGameDataManager(gameDataManager)
 	itemService.SetTitleService(titleService)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewMakerSetStateReader(itemService)); err != nil {
+		log.Fatal("Failed to register maker-set achievement state reader", zap.Error(err))
+	}
 	statFeatureRepo := postgres.NewStatFeatureRepository(gameDb)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewPetContractStateReader(statFeatureRepo)); err != nil {
+		log.Fatal("Failed to register pet-contract achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewPetHandbookStateReader(statFeatureRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register pet-handbook achievement state reader", zap.Error(err))
+	}
 	if err := achievementService.RegisterStateProofReader(appachievement.NewHeiyaoshiStateReader(statFeatureRepo)); err != nil {
 		log.Fatal("Failed to register heiyaoshi achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewDecoShowStateReader(statFeatureRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register deco-show achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewFairyStateReader(statFeatureRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register fairy achievement state reader", zap.Error(err))
 	}
 	medalService := appmedal.NewService(statFeatureRepo, gameDataManager, log)
 	statFeatureService := appstatfeature.NewService(statFeatureRepo, log)
@@ -703,6 +745,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	fairyService.SetSkillData(gameDataManager)
 	itemService.SetFairyRewardGranter(fairyService)
 	itemService.AddCharacterBonusProvider(fairyService)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewFinalStatsStateReader(characterRepo, itemService)); err != nil {
+		log.Fatal("Failed to register final-stats achievement state reader", zap.Error(err))
+	}
 	combatService.SetFairyBattleProvider(fairyService)
 	fairyHandler := fairyhandler.NewHandler(fairyService, log)
 	fairyHandler.SetStatRefreshServices(charService, itemService)
@@ -873,6 +918,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	dailySigninHandler.RegisterHandlers(dispatcher)
 
 	dailyActRepo := postgres.NewDailyActRepository(gameDb)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewDailyActStateReader(dailyActRepo)); err != nil {
+		log.Fatal("Failed to register daily-act achievement state reader", zap.Error(err))
+	}
 	dailyActAwardRepo := postgres.NewDailyActAwardRepository(gameDb)
 	dailyActService := appactivity.NewDailyActService(
 		dailyActRepo,

@@ -144,14 +144,30 @@ func TestStateReaderOwnershipMatchesImplementedCoverage(t *testing.T) {
 		NewMysteryTreasureStateReader(nil, nil),
 		NewQuestStateReader(nil),
 		NewLifeSkillStateReader(nil, nil),
+		NewMagicEstateStateReader(nil),
+		NewMainSkillStateReader(nil, nil, nil),
+		NewPetRosterStateReader(nil, nil),
+		NewPetContractStateReader(nil),
+		NewPetEquipmentStateReader(nil, nil, nil),
+		NewPetHandbookStateReader(nil, nil),
+		NewDressBookStateReader(nil, nil),
+		NewCharacterLoadoutStateReader(nil, nil),
+		NewDecoShowStateReader(nil, nil),
+		NewFairyStateReader(nil, nil),
+		NewFinalStatsStateReader(nil, nil),
+		NewDailyActStateReader(nil),
+		NewMakerSetStateReader(nil),
+		NewCoupleWingStateReader(nil, nil, nil),
+		NewMarriageHistoryStateReader(nil),
+		NewPetArenaHistoryStateReader(nil),
 	}
 	for _, reader := range readers {
 		if err := service.RegisterStateProofReader(reader); err != nil {
 			t.Fatalf("RegisterStateProofReader(%s) error = %v", reader.Name(), err)
 		}
 	}
-	if len(service.stateOwners) != 177 {
-		t.Fatalf("state reader coverage = %d, want 177", len(service.stateOwners))
+	if len(service.stateOwners) != 421 {
+		t.Fatalf("state reader coverage = %d, want 421", len(service.stateOwners))
 	}
 	for requirementID, owner := range service.stateOwners {
 		definition, ok := service.requirements.Get(requirementID)

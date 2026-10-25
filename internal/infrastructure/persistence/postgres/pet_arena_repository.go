@@ -24,6 +24,19 @@ func NewPetArenaRepository(db *Database) *PetArenaRepository {
 	return &PetArenaRepository{db: db}
 }
 
+func (r *PetArenaRepository) GetPetArenaAchievementState(ctx context.Context, characterID int64) (int, int, int, error) {
+	var totalWins, fifteenWinDayStreak, twentyWinDayStreak int
+	err := r.db.pool.QueryRow(ctx, "select * from player.get_achievement_pet_arena_state($1)", characterID).Scan(
+		&totalWins,
+		&fifteenWinDayStreak,
+		&twentyWinDayStreak,
+	)
+	if err != nil {
+		return 0, 0, 0, pkgerrors.Wrap(err, "failed to get achievement pet arena state")
+	}
+	return totalWins, fifteenWinDayStreak, twentyWinDayStreak, nil
+}
+
 func (r *PetArenaRepository) GetRanking(ctx context.Context, characterID int64, season int) (*petarena.ArenaRanking, error) {
 	ranking, err := scanArenaRanking(r.db.pool.QueryRow(ctx, "select * from player.get_pet_arena_ranking($1, $2)", characterID, season))
 

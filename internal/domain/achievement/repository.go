@@ -18,6 +18,9 @@ type Repository interface {
 	ListClaimedCounts(ctx context.Context, characterID int64) (map[int64]int, error)
 	ListRequirementProgress(ctx context.Context, characterID int64) ([]*RequirementProgress, error)
 	RecordEvent(ctx context.Context, characterID int64, eventKey string, updates []RequirementUpdate, occurredAt time.Time) (ProgressUpdate, error)
+	RecordLoginDay(ctx context.Context, characterID int64, updates []RequirementUpdate, occurredAt time.Time) (ProgressUpdate, error)
+	ListPendingFacts(ctx context.Context, characterID int64, limit int) ([]Fact, error)
+	MarkFactProcessed(ctx context.Context, factID string, processedAt time.Time) (bool, error)
 	ReserveClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reservedAt time.Time) (bool, error)
 	FinalizeClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, claimedAt time.Time) (*Progress, error)
 	ReleaseClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID) error

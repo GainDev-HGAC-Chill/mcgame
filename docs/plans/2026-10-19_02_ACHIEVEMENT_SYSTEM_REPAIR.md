@@ -207,6 +207,8 @@ Trạng thái 2026-10-25: framework reconcile và 11 reader code-complete, phủ
 4. Battle total/Arena dùng exact match ID, result và battle context; loại encounter không đủ authority.
 5. Chạy migration dữ liệu chỉ nếu cần ledger metadata, không sửa progress hiện có theo hướng giảm.
 
+Trạng thái 2026-10-26: code + DB complete, chưa deploy. Level giữ target server-owned; quest yêu cầu persisted progress identity; battle yêu cầu UUID canonical + exact enum. Login-day v2 dùng ngày `Asia/Ho_Chi_Minh`, advisory lock và dedupe event v1/v2 theo `occurred_at`; migration `20261025225516_achievement_wave2_login_game_day.sql`, privilege, v1 cutover, rollback retry và shadow replay đã PASS.
+
 ### Wave 3 — 159 event-only requirements
 
 Triển khai outbox/fact producer theo domain:
@@ -219,6 +221,8 @@ Triển khai outbox/fact producer theo domain:
 6. login day: 6, đã harden ở Wave 2.
 
 Mỗi producer cần: post-success placement, stable business ID, retry test, duplicate test, crash/replay test và actor attribution test. Requirement 294 giữ disabled cho tới khi giải quyết mâu thuẫn actor bằng source contract/runtime evidence.
+
+Trạng thái bước đầu 2026-10-26: quest completion có outbox atomic keyed progress ID + completion count và consumer checkpoint/replay; mới map 4 RID tổng nhiệm vụ `248–251`. Migration `20261025230510_achievement_wave3_quest_facts.sql`, privilege/retry rollback/shadow replay PASS; code chưa deploy. 26 quest event RID còn lại giữ fail-closed tới khi có exact matcher theo quest catalog/business context.
 
 ### Wave 4 — 107 unsupported requirements
 

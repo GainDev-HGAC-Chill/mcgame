@@ -22,6 +22,19 @@ func NewMarriageRepository(db *Database) *MarriageRepository {
 	return &MarriageRepository{db: db}
 }
 
+func (r *MarriageRepository) GetMarriageAchievementState(ctx context.Context, characterID int64) (int, int, int, error) {
+	var normalWeddings, marriageCount, currentMarriedDays int
+	err := r.db.pool.QueryRow(ctx, "select * from player.get_achievement_marriage_state($1)", characterID).Scan(
+		&normalWeddings,
+		&marriageCount,
+		&currentMarriedDays,
+	)
+	if err != nil {
+		return 0, 0, 0, pkgerrors.Wrap(err, "failed to get achievement marriage state")
+	}
+	return normalWeddings, marriageCount, currentMarriedDays, nil
+}
+
 func (r *MarriageRepository) FindByPartner(ctx context.Context, characterID int64) (*domainmarriage.MarriageRecord, error) {
 	record := &domainmarriage.MarriageRecord{}
 	err := r.db.pool.QueryRow(ctx, "select * from player.find_marriage_by_partner($1)", characterID).Scan(

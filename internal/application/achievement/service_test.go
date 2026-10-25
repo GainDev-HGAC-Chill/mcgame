@@ -9,6 +9,7 @@ import (
 	"time"
 
 	domainachievement "mcgame-server/internal/domain/achievement"
+	domaincombat "mcgame-server/internal/domain/combat"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
 
@@ -22,6 +23,8 @@ type achievementTestRepo struct {
 	claimedIDs   []int64
 	reserved     bool
 	events       []achievementTestEvent
+	facts        []domainachievement.Fact
+	processed    []string
 }
 
 type achievementTestEvent struct {
@@ -68,6 +71,23 @@ func (r *achievementTestRepo) RecordEvent(ctx context.Context, characterID int64
 		Requirements: []*domainachievement.RequirementProgress{},
 		Completed:    []domainachievement.CompletionEntry{},
 	}, nil
+}
+
+func (r *achievementTestRepo) RecordLoginDay(ctx context.Context, characterID int64, updates []domainachievement.RequirementUpdate, occurredAt time.Time) (domainachievement.ProgressUpdate, error) {
+	r.events = append(r.events, achievementTestEvent{key: "login-day:v2", updates: updates})
+	return domainachievement.ProgressUpdate{
+		Requirements: []*domainachievement.RequirementProgress{},
+		Completed:    []domainachievement.CompletionEntry{},
+	}, nil
+}
+
+func (r *achievementTestRepo) ListPendingFacts(ctx context.Context, characterID int64, limit int) ([]domainachievement.Fact, error) {
+	return append([]domainachievement.Fact(nil), r.facts...), nil
+}
+
+func (r *achievementTestRepo) MarkFactProcessed(ctx context.Context, factID string, processedAt time.Time) (bool, error) {
+	r.processed = append(r.processed, factID)
+	return true, nil
 }
 
 func (r *achievementTestRepo) ReserveClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reservedAt time.Time) (bool, error) {
@@ -250,7 +270,7 @@ func TestRecordLoginUsesCanonicalLevelAndDailyRequirements(t *testing.T) {
 			t.Fatalf("level update %d target = %d, want %d", index, update.Target, wantTargets[index])
 		}
 	}
-	if repo.events[1].key != "login-day:v1:2026-10-19" {
+	if repo.events[1].key != "login-day:v2" {
 		t.Fatalf("login event key = %q", repo.events[1].key)
 	}
 	if len(repo.events[1].updates) != 6 || repo.events[1].updates[0].RequirementID != 53 || repo.events[1].updates[5].RequirementID != 424 {
@@ -262,21 +282,62 @@ func TestRecordBattleEndedAddsArenaRequirementsOnlyForWins(t *testing.T) {
 	repo := &achievementTestRepo{}
 	service := NewService(repo, zap.NewNop())
 	now := time.Date(2026, 10, 19, 9, 30, 0, 0, time.UTC)
+	battleID := "4aa1a819-0ca6-4f8f-a52c-f762ba96f2ee"
 
-	if _, err := service.RecordBattleEnded(context.Background(), 99, "battle-1", 3, true, now); err != nil {
+	if _, err := service.RecordBattleEnded(context.Background(), 99, battleID, 3, true, now); err != nil {
 		t.Fatalf("RecordBattleEnded() error = %v", err)
 	}
-	if len(repo.events) != 1 || repo.events[0].key != "battle:v1:battle-1" {
+	if len(repo.events) != 1 || repo.events[0].key != "battle:v1:"+battleID {
 		t.Fatalf("events = %#v", repo.events)
 	}
 	if len(repo.events[0].updates) != 9 || repo.events[0].updates[5].RequirementID != 151 {
 		t.Fatalf("arena updates = %#v", repo.events[0].updates)
 	}
-	if _, err := service.RecordBattleEnded(context.Background(), 99, "battle-2", 3, false, now); err != nil {
+	if _, err := service.RecordBattleEnded(context.Background(), 99, "cb22f355-06a1-451c-a22a-cbca876ff0d4", 3, false, now); err != nil {
 		t.Fatalf("lost RecordBattleEnded() error = %v", err)
 	}
 	if len(repo.events) != 1 {
 		t.Fatalf("lost battle recorded an event")
+	}
+}
+
+func TestProgressEvaluatorsRejectMissingBusinessAuthority(t *testing.T) {
+	repo := &achievementTestRepo{}
+	service := NewService(repo, zap.NewNop())
+	now := time.Date(2026, 10, 26, 8, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "login character", run: func() error { _, err := service.RecordLogin(context.Background(), 0, 100, now); return err }},
+		{name: "login time", run: func() error { _, err := service.RecordLogin(context.Background(), 99, 100, time.Time{}); return err }},
+		{name: "level", run: func() error { _, err := service.RecordLevel(context.Background(), 99, 0, now); return err }},
+		{name: "quest progress id", run: func() error {
+			_, err := service.RecordQuestFinished(context.Background(), 99, 10, 0, 1, now)
+			return err
+		}},
+		{name: "quest completion count", run: func() error {
+			_, err := service.RecordQuestFinished(context.Background(), 99, 10, 20, 0, now)
+			return err
+		}},
+		{name: "battle id", run: func() error {
+			_, err := service.RecordBattleEnded(context.Background(), 99, " ", domaincombat.BattleTypePVE, true, now)
+			return err
+		}},
+		{name: "battle type", run: func() error {
+			_, err := service.RecordBattleEnded(context.Background(), 99, "4aa1a819-0ca6-4f8f-a52c-f762ba96f2ee", domaincombat.BattleType(99), true, now)
+			return err
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.run(); err == nil {
+				t.Fatal("event error = nil, want fail-closed rejection")
+			}
+		})
+	}
+	if len(repo.events) != 0 {
+		t.Fatalf("invalid events were persisted: %#v", repo.events)
 	}
 }
 

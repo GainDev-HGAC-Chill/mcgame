@@ -52,22 +52,68 @@ func (r *AchievementRepository) ListRequirementProgress(ctx context.Context, cha
 }
 
 func (r *AchievementRepository) RecordEvent(ctx context.Context, characterID int64, eventKey string, updates []domainachievement.RequirementUpdate, occurredAt time.Time) (domainachievement.ProgressUpdate, error) {
+	encoded, result, err := encodeAchievementUpdates(updates)
+	if err != nil {
+		return result, err
+	}
+	return r.scanEventResult(ctx, "select player.record_character_achievement_event($1, $2, $3::jsonb, $4)", characterID, eventKey, encoded, occurredAt)
+}
+
+func (r *AchievementRepository) RecordLoginDay(ctx context.Context, characterID int64, updates []domainachievement.RequirementUpdate, occurredAt time.Time) (domainachievement.ProgressUpdate, error) {
+	encoded, result, err := encodeAchievementUpdates(updates)
+	if err != nil {
+		return result, err
+	}
+	return r.scanEventResult(ctx, "select player.record_character_achievement_login($1, $2::jsonb, $3)", characterID, encoded, occurredAt)
+}
+
+func (r *AchievementRepository) ListPendingFacts(ctx context.Context, characterID int64, limit int) ([]domainachievement.Fact, error) {
+	rows, err := r.db.pool.Query(ctx, "select * from player.list_pending_character_achievement_facts($1, $2)", characterID, limit)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to list pending achievement facts")
+	}
+	defer rows.Close()
+	facts := make([]domainachievement.Fact, 0)
+	for rows.Next() {
+		var fact domainachievement.Fact
+		if err := rows.Scan(&fact.FactID, &fact.CharacterID, &fact.Kind, &fact.Payload, &fact.OccurredAt); err != nil {
+			return nil, pkgerrors.Wrap(err, "failed to scan achievement fact")
+		}
+		facts = append(facts, fact)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to iterate achievement facts")
+	}
+	return facts, nil
+}
+
+func (r *AchievementRepository) MarkFactProcessed(ctx context.Context, factID string, processedAt time.Time) (bool, error) {
+	var processed bool
+	if err := r.db.pool.QueryRow(ctx, "select player.mark_character_achievement_fact_processed($1, $2)", factID, processedAt).Scan(&processed); err != nil {
+		return false, pkgerrors.Wrap(err, "failed to mark achievement fact processed")
+	}
+	return processed, nil
+}
+
+func encodeAchievementUpdates(updates []domainachievement.RequirementUpdate) ([]byte, domainachievement.ProgressUpdate, error) {
 	result := domainachievement.ProgressUpdate{
 		Requirements: []*domainachievement.RequirementProgress{},
 		Completed:    []domainachievement.CompletionEntry{},
 	}
 	encoded, err := json.Marshal(updates)
 	if err != nil {
-		return result, pkgerrors.Wrap(err, "failed to encode achievement updates")
+		return nil, result, pkgerrors.Wrap(err, "failed to encode achievement updates")
+	}
+	return encoded, result, nil
+}
+
+func (r *AchievementRepository) scanEventResult(ctx context.Context, query string, args ...interface{}) (domainachievement.ProgressUpdate, error) {
+	result := domainachievement.ProgressUpdate{
+		Requirements: []*domainachievement.RequirementProgress{},
+		Completed:    []domainachievement.CompletionEntry{},
 	}
 	var raw []byte
-	if err := r.db.pool.QueryRow(ctx,
-		"select player.record_character_achievement_event($1, $2, $3::jsonb, $4)",
-		characterID,
-		eventKey,
-		encoded,
-		occurredAt,
-	).Scan(&raw); err != nil {
+	if err := r.db.pool.QueryRow(ctx, query, args...).Scan(&raw); err != nil {
 		return result, pkgerrors.Wrap(err, "failed to record achievement event")
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {

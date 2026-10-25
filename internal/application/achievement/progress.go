@@ -6,10 +6,13 @@ package achievement
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	domainachievement "mcgame-server/internal/domain/achievement"
 	domaincombat "mcgame-server/internal/domain/combat"
+
+	"github.com/google/uuid"
 )
 
 type requirementTarget struct {
@@ -57,11 +60,14 @@ var arenaRequirements = []requirementTarget{
 }
 
 func (s *Service) RecordLogin(ctx context.Context, charID int64, level int, now time.Time) (domainachievement.ProgressUpdate, error) {
+	if charID <= 0 || level <= 0 || now.IsZero() {
+		return domainachievement.ProgressUpdate{}, fmt.Errorf("invalid achievement login event")
+	}
 	levelResult, err := s.RecordLevel(ctx, charID, level, now)
 	if err != nil {
 		return domainachievement.ProgressUpdate{}, err
 	}
-	loginResult, err := s.recordIncrement(ctx, charID, "login-day:v1:"+now.UTC().Format("2006-01-02"), loginRequirements, now)
+	loginResult, err := s.recordLoginDay(ctx, charID, loginRequirements, now)
 	if err != nil {
 		return domainachievement.ProgressUpdate{}, err
 	}
@@ -69,6 +75,9 @@ func (s *Service) RecordLogin(ctx context.Context, charID int64, level int, now 
 }
 
 func (s *Service) RecordLevel(ctx context.Context, charID int64, level int, now time.Time) (domainachievement.ProgressUpdate, error) {
+	if charID <= 0 || level <= 0 || now.IsZero() {
+		return domainachievement.ProgressUpdate{}, fmt.Errorf("invalid achievement level event")
+	}
 	updates := make([]domainachievement.RequirementUpdate, 0, len(levelRequirements))
 	for _, requirement := range levelRequirements {
 		absolute := level
@@ -83,11 +92,18 @@ func (s *Service) RecordLevel(ctx context.Context, charID int64, level int, now 
 }
 
 func (s *Service) RecordQuestFinished(ctx context.Context, charID int64, questID int, progressID int64, completionCount int, now time.Time) (domainachievement.ProgressUpdate, error) {
+	if charID <= 0 || questID <= 0 || progressID <= 0 || completionCount <= 0 || now.IsZero() {
+		return domainachievement.ProgressUpdate{}, fmt.Errorf("invalid achievement quest event")
+	}
 	eventKey := fmt.Sprintf("quest:v1:%d:%d:%d", questID, progressID, completionCount)
 	return s.recordIncrement(ctx, charID, eventKey, questRequirements, now)
 }
 
 func (s *Service) RecordBattleEnded(ctx context.Context, charID int64, battleID string, battleType domaincombat.BattleType, won bool, now time.Time) (domainachievement.ProgressUpdate, error) {
+	parsedBattleID, parseErr := uuid.Parse(battleID)
+	if charID <= 0 || battleID == "" || strings.TrimSpace(battleID) != battleID || parseErr != nil || parsedBattleID.String() != battleID || now.IsZero() || !supportedAchievementBattleType(battleType) {
+		return domainachievement.ProgressUpdate{}, fmt.Errorf("invalid achievement battle event")
+	}
 	if !won {
 		return emptyProgressUpdate(), nil
 	}
@@ -98,7 +114,35 @@ func (s *Service) RecordBattleEnded(ctx context.Context, charID int64, battleID 
 	return s.recordIncrement(ctx, charID, "battle:v1:"+battleID, requirements, now)
 }
 
+func supportedAchievementBattleType(battleType domaincombat.BattleType) bool {
+	switch battleType {
+	case domaincombat.BattleTypePVE,
+		domaincombat.BattleTypePVP,
+		domaincombat.BattleTypeArena,
+		domaincombat.BattleTypeBoss,
+		domaincombat.BattleTypeStarInstance:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Service) recordIncrement(ctx context.Context, charID int64, eventKey string, requirements []requirementTarget, now time.Time) (domainachievement.ProgressUpdate, error) {
+	updates := buildIncrementUpdates(requirements)
+	return s.recordEvent(ctx, charID, eventKey, updates, now)
+}
+
+func (s *Service) recordLoginDay(ctx context.Context, charID int64, requirements []requirementTarget, now time.Time) (domainachievement.ProgressUpdate, error) {
+	if s.repo == nil {
+		return domainachievement.ProgressUpdate{}, fmt.Errorf("achievement repository not configured")
+	}
+	if charID <= 0 || len(requirements) == 0 || now.IsZero() {
+		return domainachievement.ProgressUpdate{}, fmt.Errorf("invalid achievement login day")
+	}
+	return s.repo.RecordLoginDay(ctx, charID, buildIncrementUpdates(requirements), now.UTC())
+}
+
+func buildIncrementUpdates(requirements []requirementTarget) []domainachievement.RequirementUpdate {
 	updates := make([]domainachievement.RequirementUpdate, 0, len(requirements))
 	for _, requirement := range requirements {
 		updates = append(updates, domainachievement.RequirementUpdate{
@@ -108,7 +152,7 @@ func (s *Service) recordIncrement(ctx context.Context, charID int64, eventKey st
 			Target:        requirement.Target,
 		})
 	}
-	return s.recordEvent(ctx, charID, eventKey, updates, now)
+	return updates
 }
 
 func (s *Service) recordEvent(ctx context.Context, charID int64, eventKey string, updates []domainachievement.RequirementUpdate, now time.Time) (domainachievement.ProgressUpdate, error) {

@@ -34,6 +34,13 @@ var medicineRecipeRequirements = map[int64]int{
 	286: 5220,
 }
 
+const (
+	trainingFamilyHP              = "SKILL493201"
+	trainingFamilyPhysicalDefense = "SKILL504501"
+	trainingFamilyMagicDefense    = "SKILL504801"
+	trainingFamilySpeed           = "SKILL505101"
+)
+
 func NewLifeSkillStateReader(repo LifeSkillStateRepository, catalog LifeSkillCatalog) *LifeSkillStateReader {
 	return &LifeSkillStateReader{repo: repo, catalog: catalog}
 }
@@ -43,7 +50,7 @@ func (r *LifeSkillStateReader) Name() string {
 }
 
 func (r *LifeSkillStateReader) RequirementIDs() []int64 {
-	return []int64{276, 281, 282, 283, 284, 285, 286, 295, 296, 297, 298, 299, 300, 301}
+	return []int64{9, 10, 11, 12, 13, 14, 276, 281, 282, 283, 284, 285, 286, 295, 296, 297, 298, 299, 300, 301, 303, 304, 305, 306}
 }
 
 func (r *LifeSkillStateReader) ReadStateProofs(ctx context.Context, characterID int64) ([]StateProof, error) {
@@ -56,6 +63,7 @@ func (r *LifeSkillStateReader) ReadStateProofs(ctx context.Context, characterID 
 	}
 	owned := make(map[int]struct{}, len(rows))
 	lifeLevels := make(map[int]int, 5)
+	trainingLevels := make(map[string]int, 4)
 	cookbookCount := 0
 	for _, row := range rows {
 		if row == nil || row.CharacterID != characterID || row.SkillID <= 0 {
@@ -77,9 +85,26 @@ func (r *LifeSkillStateReader) ReadStateProofs(ctx context.Context, characterID 
 		if isAchievementLifeSkillType(skillType) && row.Level > lifeLevels[skillType] {
 			lifeLevels[skillType] = row.Level
 		}
+		if trainingFamily, ok := achievementTrainingFamily(template); ok && row.Level == int(template.Level) && row.Level > trainingLevels[trainingFamily] {
+			trainingLevels[trainingFamily] = row.Level
+		}
 	}
 
-	proofs := []StateProof{stateProof(276, cookbookCount, 35)}
+	maxBasicTrainingLevel := 0
+	for _, family := range achievementBasicTrainingFamilies() {
+		if trainingLevels[family] > maxBasicTrainingLevel {
+			maxBasicTrainingLevel = trainingLevels[family]
+		}
+	}
+	proofs := []StateProof{
+		stateProof(9, maxBasicTrainingLevel, 1),
+		stateProof(10, trainingLevels[trainingFamilyPhysicalDefense], 5),
+		stateProof(11, trainingLevels[trainingFamilyMagicDefense], 5),
+		stateProof(12, trainingLevels[trainingFamilyHP], 5),
+		stateProof(13, trainingLevels[trainingFamilySpeed], 5),
+		stateProof(14, maxBasicTrainingLevel, 8),
+		stateProof(276, cookbookCount, 35),
+	}
 	for _, requirementID := range []int64{281, 282, 283, 284, 285, 286} {
 		_, learned := owned[medicineRecipeRequirements[requirementID]]
 		progress := 0
@@ -107,8 +132,28 @@ func (r *LifeSkillStateReader) ReadStateProofs(ctx context.Context, characterID 
 		stateProof(299, lifeLevels[appskill.MedicineSkillType], 1),
 		stateProof(300, lifeLevels[appskill.CookSkillType], 1),
 		stateProof(301, maxLifeSkillLevel, 6),
+		stateProof(303, trainingLevels[trainingFamilyPhysicalDefense], 10),
+		stateProof(304, trainingLevels[trainingFamilyMagicDefense], 10),
+		stateProof(305, trainingLevels[trainingFamilyHP], 10),
+		stateProof(306, trainingLevels[trainingFamilySpeed], 10),
 	)
 	return proofs, nil
+}
+
+func achievementBasicTrainingFamilies() []string {
+	return []string{trainingFamilyHP, trainingFamilyPhysicalDefense, trainingFamilyMagicDefense, trainingFamilySpeed}
+}
+
+func achievementTrainingFamily(template *models.SkillTemplate) (string, bool) {
+	if template == nil || template.UseEnv != 3 || template.Kind != 5 || float64(int(template.Level)) != template.Level {
+		return "", false
+	}
+	for _, family := range achievementBasicTrainingFamilies() {
+		if template.CodeName == family && template.Level >= 1 && template.Level <= 10 {
+			return family, true
+		}
+	}
+	return "", false
 }
 
 func achievementLifeSkillTypes() []int {

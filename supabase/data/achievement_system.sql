@@ -12,6 +12,10 @@ create table if not exists player.character_achievement_requirements (
 create index if not exists idx_character_achievement_requirements_achievement
     on player.character_achievement_requirements (character_id, achievement_id);
 
+create index if not exists idx_pet_arena_battles_winner_created
+    on player.pet_arena_battles (winner_id, created_at)
+    where winner_id is not null;
+
 alter table player.character_achievement_requirements enable row level security;
 
 create table if not exists player.character_achievement_events (
@@ -21,6 +25,10 @@ create table if not exists player.character_achievement_events (
     created_at timestamptz not null default current_timestamp,
     primary key (character_id, event_key)
 );
+
+create index if not exists idx_character_achievement_login_events
+    on player.character_achievement_events (character_id, occurred_at)
+    where event_key like 'login-day:v1:%' or event_key like 'login-day:v2:%';
 
 alter table player.character_achievement_events enable row level security;
 
@@ -59,6 +67,93 @@ as $function$
     where r.character_id = p_character_id
     order by r.requirement_id;
 $function$;
+
+create or replace function player.get_achievement_marriage_state(p_character_id bigint)
+returns table (
+    normal_weddings integer,
+    marriage_count integer,
+    current_married_days integer
+)
+language sql
+stable
+set search_path to ''
+as $function$
+    with current_marriage as (
+        select m.ring_type, m.married_at
+        from player.marriages m
+        where m.divorced_at is null
+          and (m.partner1_id = p_character_id or m.partner2_id = p_character_id)
+        limit 1
+    ), history as (
+        select
+            count(*)::integer as marriage_count,
+            count(*) filter (where (a.payload->>'ring_type')::integer = 1)::integer as normal_weddings
+        from player.marriage_audit_log a
+        where a.event = 'married'
+          and (a.partner1_id = p_character_id or a.partner2_id = p_character_id)
+    )
+    select
+        greatest(h.normal_weddings, case when c.ring_type = 1 then 1 else 0 end)::integer,
+        greatest(h.marriage_count, case when c.married_at is not null then 1 else 0 end)::integer,
+        coalesce(
+            (current_timestamp at time zone 'Asia/Ho_Chi_Minh')::date
+                - (c.married_at at time zone 'Asia/Ho_Chi_Minh')::date,
+            0
+        )::integer
+    from history h
+    left join current_marriage c on true;
+$function$;
+
+create or replace function player.get_achievement_pet_arena_state(p_character_id bigint)
+returns table (
+    total_wins integer,
+    fifteen_win_day_streak integer,
+    twenty_win_day_streak integer
+)
+language sql
+stable
+set search_path to ''
+as $function$
+    with daily_wins as (
+        select
+            (b.created_at at time zone 'Asia/Ho_Chi_Minh')::date as win_day,
+            count(*)::integer as wins
+        from player.pet_arena_battles b
+        where b.winner_id = p_character_id
+        group by (b.created_at at time zone 'Asia/Ho_Chi_Minh')::date
+    ), fifteen_groups as (
+        select win_day, win_day - row_number() over (order by win_day)::integer as island
+        from daily_wins
+        where wins >= 15
+    ), twenty_groups as (
+        select win_day, win_day - row_number() over (order by win_day)::integer as island
+        from daily_wins
+        where wins >= 20
+    ), fifteen_streak as (
+        select coalesce(max(day_count), 0)::integer as value
+        from (
+            select count(*)::integer as day_count
+            from fifteen_groups
+            group by island
+        ) grouped
+    ), twenty_streak as (
+        select coalesce(max(day_count), 0)::integer as value
+        from (
+            select count(*)::integer as day_count
+            from twenty_groups
+            group by island
+        ) grouped
+    )
+    select
+        coalesce((select sum(wins) from daily_wins), 0)::integer,
+        (select value from fifteen_streak),
+        (select value from twenty_streak);
+$function$;
+
+revoke execute on function player.get_achievement_marriage_state(bigint) from public, anon, authenticated;
+grant execute on function player.get_achievement_marriage_state(bigint) to service_role;
+revoke execute on function player.get_achievement_pet_arena_state(bigint) from public, anon, authenticated;
+grant execute on function player.get_achievement_pet_arena_state(bigint) to service_role;
 
 create or replace function player.record_character_achievement_event(
     p_character_id bigint,
@@ -234,6 +329,55 @@ exception
         raise;
 end;
 $function$;
+
+create or replace function player.record_character_achievement_login(
+    p_character_id bigint,
+    p_updates jsonb,
+    p_occurred_at timestamptz
+)
+returns jsonb
+language plpgsql
+set search_path to ''
+as $function$
+declare
+    v_game_day date;
+    v_day_start timestamptz;
+    v_day_end timestamptz;
+begin
+    if p_character_id <= 0 or p_occurred_at is null or jsonb_typeof(p_updates) <> 'array' then
+        raise exception 'invalid achievement login event';
+    end if;
+
+    v_game_day := (p_occurred_at at time zone 'Asia/Ho_Chi_Minh')::date;
+    v_day_start := v_game_day::timestamp at time zone 'Asia/Ho_Chi_Minh';
+    v_day_end := (v_game_day + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh';
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('achievement-login:' || p_character_id::text, 0)
+    );
+
+    if exists (
+        select 1
+        from player.character_achievement_events e
+        where e.character_id = p_character_id
+          and (e.event_key like 'login-day:v1:%' or e.event_key like 'login-day:v2:%')
+          and e.occurred_at >= v_day_start
+          and e.occurred_at < v_day_end
+    ) then
+        return jsonb_build_object('requirements', '[]'::jsonb, 'completed', '[]'::jsonb);
+    end if;
+
+    return player.record_character_achievement_event(
+        p_character_id,
+        'login-day:v2:' || v_game_day::text,
+        p_updates,
+        p_occurred_at
+    );
+end;
+$function$;
+
+revoke execute on function player.record_character_achievement_login(bigint, jsonb, timestamptz) from public, anon, authenticated;
+grant execute on function player.record_character_achievement_login(bigint, jsonb, timestamptz) to service_role;
 
 create or replace function player.reserve_character_achievement_claim(
     p_character_id bigint,

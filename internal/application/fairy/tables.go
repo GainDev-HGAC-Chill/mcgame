@@ -155,6 +155,19 @@ func gexpToLv(gexp int64) int {
 	return cumulativeLevel(gexp, FairyGrowExp, FairyGrowLevel)
 }
 
+func LevelFromExperience(exp int64) int {
+	return expToLv(exp)
+}
+
+func GrowthLevelFromExperience(exp int64) int {
+	return gexpToLv(exp)
+}
+
+func IsFairySkill(skillID int) bool {
+	_, _, ok := fairySkillFamily(skillID)
+	return ok
+}
+
 func isExpFruit(templateID int) bool {
 	_, ok := FairyExpFruitGain[templateID]
 	return ok

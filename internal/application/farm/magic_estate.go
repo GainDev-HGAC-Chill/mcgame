@@ -674,6 +674,10 @@ func magicEstateLevelIndexByExp(exp int) int {
 	return len(magicEstateLevelConfigs) - 1
 }
 
+func MagicEstateLevelByExp(exp int) int {
+	return magicEstateLevelIndexByExp(exp) + 1
+}
+
 func magicEstateLevelUpCost(currentLevelIndex int) int64 {
 	switch currentLevelIndex {
 	case 0:

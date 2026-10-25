@@ -135,6 +135,15 @@ func (h *Handler) loadAchievementSnapshot(ctx context.Context, charID int64, lev
 	if h.achievementState == nil {
 		return snapshot
 	}
+	if processor, ok := h.achievementState.(interface {
+		ProcessPendingFacts(context.Context, int64, time.Time) (domainachievement.ProgressUpdate, error)
+	}); ok {
+		if _, err := processor.ProcessPendingFacts(ctx, charID, time.Now().UTC()); err != nil {
+			h.logger.Warn("Failed to process pending achievement facts",
+				zap.Int64("character_id", charID),
+				zap.Error(err))
+		}
+	}
 	if reconciler, ok := h.achievementState.(interface {
 		ReconcileState(context.Context, int64, time.Time) (domainachievement.ProgressUpdate, error)
 	}); ok {

@@ -239,7 +239,7 @@ func (h *Handler) FinishQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 
 	h.logger.Info("Quest completed", zap.Int64("character_id", characterID), zap.Int("quest_id", questID), zap.Any("rewards", rewards))
 	if completed != nil && h.achievementService != nil {
-		update, progressErr := h.achievementService.RecordQuestFinished(ctx.Context, characterID, questID, completed.ID, completed.CompletionCount, time.Now().UTC())
+		update, progressErr := h.achievementService.ProcessPendingFacts(ctx.Context, characterID, time.Now().UTC())
 		if progressErr != nil {
 			h.logger.Warn("Failed to record quest achievement progress",
 				zap.Int64("character_id", characterID),
