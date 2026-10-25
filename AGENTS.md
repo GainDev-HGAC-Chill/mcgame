@@ -10,6 +10,6 @@
 - Ghi rõ file đã sửa, nguyên nhân, bước hoàn thành, bước tiếp theo và các kiểm tra chưa chạy.
 - Nếu phiên bị ngắt, phiên sau phải đối chiếu checkpoint với Git diff trước khi làm tiếp.
 - Không ghi toàn bộ source, log hoặc nội dung phân tích dài vào checkpoint.
-- Không commit hoặc push tự động nếu chưa được yêu cầu.
+- Tự commit hoặc push tự động .
 
 Mỗi lần cập nhật checkpoint chỉ chỉnh những mục thay đổi, không viết lại toàn bộ file.
