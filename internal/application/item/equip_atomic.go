@@ -105,6 +105,7 @@ func (s *Service) equipItemAtomic(ctx context.Context, updater EquippedSlotUpdat
 			changes = append(changes, existing)
 		}
 		incoming.SlotType, incoming.SlotIndex = item.SlotTypeEquipped, target
+		incoming.Bind()
 		return append(changes, incoming), nil
 	})
 	if err != nil {

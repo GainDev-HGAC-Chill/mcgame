@@ -10,7 +10,7 @@ Response: `{canMake: true, colorPerList: {makePer1: 85, makePer2: 60, makePer3: 
 
 ## Flash material color contract
 
-Material instances keep canonical server `colorCode` 1..5. Flash `autoInputMake()` rejects raw `color >= 5`, so runtime DTOs expose only level-6 material through the compatibility alias `color=4,colorCode=5`; lower tiers keep their original client color, preserving the `color=4` rare-mix rate for level 5. Recognition must use template `kind=6/14`, not only persisted `item_type`, because legacy material rows can be stored as consumables. Login and subsequent inventory callbacks use the same template-aware DTO builder. The server still resolves the aliased instance as level 6. Level 6 is the maximum configured material level, so `materialMixOne`/`materialMixAll` reject it before consumption instead of producing the same tier.
+Material instances keep canonical server `colorCode` 1..5. Flash `autoInputMake()` rejects raw `color >= 5`, so runtime DTOs expose only level-6 material through the compatibility alias `color=4,colorCode=5`; lower tiers keep their original client color, preserving the `color=4` rare-mix rate for level 5. Recognition must use template `kind=6/14`, not only persisted `item_type`, because legacy material rows can be stored as consumables. Color authority checks the canonical column/DTO first, then legacy `properties.color` when older rows have no `color_code` or `colorCode`. Login and subsequent inventory callbacks use the same template-aware DTO builder. The server still resolves the aliased instance as level 6. Level 6 is the maximum configured material level, so `materialMixOne`/`materialMixAll` reject it before consumption instead of producing the same tier.
 
 ## Crafting side-shop null safety
 

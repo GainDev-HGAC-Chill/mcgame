@@ -253,14 +253,14 @@ func (s *Service) petEquipmentClassID(p *domainpet.Pet) int {
 	}
 
 	if p.CreatureData != nil {
-		if classID, ok := parsePetSkillSlotNumber(p.CreatureData["classIds"]); ok && classID > 0 {
+		if classID, ok := parsePetSkillSlotNumber(p.CreatureData["classId"]); ok && classID > 0 {
 			return classID
 		}
 	}
 
 	if s.gameDataManager != nil {
 		if template := s.gameDataManager.GetCreature(int(p.TemplateID)); template != nil {
-			return int(template.ClassIds)
+			return int(template.ClassID)
 		}
 	}
 

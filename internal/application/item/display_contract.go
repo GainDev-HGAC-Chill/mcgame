@@ -46,6 +46,9 @@ func applyMaterialDTOContract(dto map[string]interface{}, it *domainitem.Item, s
 	if colorCode <= 0 {
 		colorCode = displayContractInt(dto["colorCode"])
 	}
+	if colorCode <= 0 {
+		colorCode = displayContractInt(dto["color"])
+	}
 	if colorCode < 5 {
 		return
 	}
@@ -124,7 +127,7 @@ func applyEquipmentDTOContract(dto map[string]interface{}, it *domainitem.Item, 
 		}
 	}
 
-	dto["binded"] = equipmentContractBindFlag(it.IsBound)
+	dto["binded"] = equipmentContractBindFlag(it.BindingActive())
 	applyEquipmentDTODefaults(dto, it, equipTpl)
 }
 

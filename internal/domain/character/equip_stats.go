@@ -370,7 +370,12 @@ func (c *Character) ApplyEquipmentBonuses(bonuses EquipmentStatBonuses) {
 		bonuses.Flat[PropAgility] != 0 ||
 		bonuses.Flat[PropStamina] != 0 ||
 		bonuses.Flat[PropIntelligence] != 0 ||
-		bonuses.Flat[PropSpirit] != 0
+		bonuses.Flat[PropSpirit] != 0 ||
+		bonuses.Percent[PropStrength] != 0 ||
+		bonuses.Percent[PropAgility] != 0 ||
+		bonuses.Percent[PropStamina] != 0 ||
+		bonuses.Percent[PropIntelligence] != 0 ||
+		bonuses.Percent[PropSpirit] != 0
 
 	if hasAttrBonus {
 		c.Strength += bonuses.Flat[PropStrength]
@@ -378,6 +383,11 @@ func (c *Character) ApplyEquipmentBonuses(bonuses EquipmentStatBonuses) {
 		c.Stamina += bonuses.Flat[PropStamina]
 		c.Intelligence += bonuses.Flat[PropIntelligence]
 		c.Spirit += bonuses.Flat[PropSpirit]
+		c.Strength = applyPct(c.Strength, bonuses.Percent[PropStrength])
+		c.Agility = applyPct(c.Agility, bonuses.Percent[PropAgility])
+		c.Stamina = applyPct(c.Stamina, bonuses.Percent[PropStamina])
+		c.Intelligence = applyPct(c.Intelligence, bonuses.Percent[PropIntelligence])
+		c.Spirit = applyPct(c.Spirit, bonuses.Percent[PropSpirit])
 		c.RecalculateStats()
 	}
 
@@ -393,6 +403,9 @@ func (c *Character) ApplyEquipmentBonuses(bonuses EquipmentStatBonuses) {
 	}
 
 	for propType, pct := range bonuses.Percent {
+		if propType >= PropStrength && propType <= PropSpirit {
+			continue
+		}
 		c.applyPercentBonus(propType, pct)
 	}
 

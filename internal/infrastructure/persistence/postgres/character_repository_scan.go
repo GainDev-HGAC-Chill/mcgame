@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"mcgame-server/internal/domain/character"
+	"mcgame-server/internal/domain/statfeature"
+	pkgerrors "mcgame-server/pkg/errors"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -190,6 +192,30 @@ func (r *CharacterRepository) loadCharacterClassProgress(ctx context.Context, ch
 	}
 	char.ClassRank = int(classRank)
 	char.QuestN = int(questN)
+}
+
+func (r *CharacterRepository) loadCharacterProgression(ctx context.Context, char *character.Character) error {
+	if char == nil {
+		return nil
+	}
+	progression, err := NewStatFeatureRepository(r.db).GetCharacterProgression(ctx, char.ID)
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to hydrate character progression")
+	}
+	applyCharacterProgression(char, progression)
+	return nil
+}
+
+func applyCharacterProgression(char *character.Character, progression *statfeature.CharacterProgression) {
+	if char == nil || progression == nil {
+		return
+	}
+	char.AwakenLevel = progression.AwakenLevel
+	char.AwakenPoints = progression.AwakenPoints
+	char.AwakenPointsUsed = progression.AwakenPointsUsed
+	char.SoulLevel = progression.SoulLevel
+	char.SoulExp = progression.SoulExp
+	char.SoulPoints = progression.SoulPoints
 }
 
 func upsertCharacterClassProgress(ctx context.Context, q pgxQueryer, char *character.Character) {

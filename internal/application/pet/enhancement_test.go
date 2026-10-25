@@ -152,6 +152,65 @@ func TestUpgradeStarWithItemUsesDisplayedTargetRate(t *testing.T) {
 	}
 }
 
+func TestClearStarsWithItemRequiresPhoenixPillAndResetsEnhancement(t *testing.T) {
+	petRepo := &contractTestPetRepo{pets: map[int64]*domainpet.Pet{
+		1: {ID: 1, CharacterID: 7, GrowRate: 1.56, GrowRateAdd: 0.40, UpgradeNum: 9, Property: map[string]interface{}{}},
+	}}
+	itemRepo := &bookSkillItemRepo{items: map[int64]*domainitem.Item{
+		10: {ID: 10, CharacterID: 7, TemplateID: petStarClearItemTemplateID, SlotType: domainitem.SlotTypeBag, StackCount: 2},
+	}}
+	service := NewService(petRepo, zap.NewNop())
+	service.SetItemRepository(itemRepo)
+	service.SetGameDataManager(petEnhancementGameData(t,
+		models.ItemTemplateTemplate{ID: petStarClearItemTemplateID, Type: 507, UseType: 4, PropType: 5},
+	))
+
+	result, err := service.ClearStarsWithItem(context.Background(), 7, 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Pet.UpgradeNum != 0 || result.Pet.GrowRateAdd != 0 {
+		t.Fatalf("enhancement = stars %d/growth %.2f, want 0/0", result.Pet.UpgradeNum, result.Pet.GrowRateAdd)
+	}
+	if result.RemainingStack != 1 || itemRepo.items[10].StackCount != 1 {
+		t.Fatalf("item result = %+v, stored = %+v", result, itemRepo.items[10])
+	}
+	if petRepo.pets[1].UpgradeNum != 0 || petRepo.pets[1].GrowRateAdd != 0 {
+		t.Fatalf("stored pet = %+v", petRepo.pets[1])
+	}
+}
+
+func TestClearStarsWithItemRejectsOtherItemsWithoutMutation(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		templateID int
+		template   models.ItemTemplateTemplate
+	}{
+		{name: "other template", templateID: 274, template: models.ItemTemplateTemplate{ID: 274, Type: 507, UseType: 4, PropType: 3}},
+		{name: "lookalike catalog", templateID: petStarClearItemTemplateID, template: models.ItemTemplateTemplate{ID: petStarClearItemTemplateID, Type: 507, UseType: 4, PropType: 3}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			petRepo := &contractTestPetRepo{pets: map[int64]*domainpet.Pet{
+				1: {ID: 1, CharacterID: 7, GrowRate: 1.56, GrowRateAdd: 0.40, UpgradeNum: 9, Property: map[string]interface{}{}},
+			}}
+			itemRepo := &bookSkillItemRepo{items: map[int64]*domainitem.Item{
+				10: {ID: 10, CharacterID: 7, TemplateID: tc.templateID, SlotType: domainitem.SlotTypeBag, StackCount: 2},
+			}}
+			service := NewService(petRepo, zap.NewNop())
+			service.SetItemRepository(itemRepo)
+			service.SetGameDataManager(petEnhancementGameData(t, tc.template))
+
+			_, err := service.ClearStarsWithItem(context.Background(), 7, 1, 10)
+			if !pkgerrors.Is(err, pkgerrors.ErrInvalidInput) {
+				t.Fatalf("error = %v, want invalid input", err)
+			}
+			if petRepo.pets[1].UpgradeNum != 9 || petRepo.pets[1].GrowRateAdd != 0.40 || itemRepo.items[10].StackCount != 2 {
+				t.Fatalf("state changed: pet=%+v item=%+v", petRepo.pets[1], itemRepo.items[10])
+			}
+		})
+	}
+}
+
 func petEnhancementAttemptService(t *testing.T, stars int, safeStack, mainStack int) (*Service, *contractTestPetRepo, *bookSkillItemRepo) {
 	t.Helper()
 	petRepo := &contractTestPetRepo{pets: map[int64]*domainpet.Pet{

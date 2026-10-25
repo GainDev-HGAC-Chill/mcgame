@@ -251,7 +251,11 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 
 	centerService := appcenter.NewService(playerCache, 60*time.Second, log)
 	centerService.Start(ctx)
-	defer centerService.Stop()
+	defer func() {
+		if err := centerService.Stop(); err != nil {
+			log.Error("Final player cache persistence failed", zap.Error(err))
+		}
+	}()
 
 	authService := appauth.NewService(accountRepo, sessionRepo, log)
 	charService := appchar.NewService(characterRepo, log)
@@ -271,6 +275,27 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	achievementService := appachievement.NewService(achievementRepo, log)
 	achievementService.SetGameDataManager(gameDataManager)
 	achievementService.SetEventBus(eventBus)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewCharacterStateReader(characterRepo)); err != nil {
+		log.Fatal("Failed to register character achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewQuestStateReader(questRepo)); err != nil {
+		log.Fatal("Failed to register quest achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewLifeSkillStateReader(skillRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register life-skill achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewSocialStateReader(relationshipRepo)); err != nil {
+		log.Fatal("Failed to register social achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewTitleStateReader(titleRepo)); err != nil {
+		log.Fatal("Failed to register title achievement state reader", zap.Error(err))
+	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewAchievementPointsStateReader(achievementRepo, gameDataManager)); err != nil {
+		log.Fatal("Failed to register achievement-points state reader", zap.Error(err))
+	}
+	if err := appachievement.ValidateRequirementCatalog(gameDataManager); err != nil {
+		log.Fatal("Invalid achievement requirement catalog", zap.Error(err))
+	}
 	if err := appachievement.ValidateRewardCatalog(gameDataManager); err != nil {
 		log.Fatal("Invalid achievement reward catalog", zap.Error(err))
 	}
@@ -282,6 +307,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	itemService.SetGameDataManager(gameDataManager)
 	itemService.SetTitleService(titleService)
 	statFeatureRepo := postgres.NewStatFeatureRepository(gameDb)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewHeiyaoshiStateReader(statFeatureRepo)); err != nil {
+		log.Fatal("Failed to register heiyaoshi achievement state reader", zap.Error(err))
+	}
 	medalService := appmedal.NewService(statFeatureRepo, gameDataManager, log)
 	statFeatureService := appstatfeature.NewService(statFeatureRepo, log)
 	bloodBagService := appbloodbag.NewService(characterRepo, statFeatureRepo)
@@ -513,6 +541,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	pkHandler.RegisterHandlers(dispatcher)
 
 	petHandler := pethandler.NewHandler(petService, accountRepo, log)
+	petHandler.SetItemDTOBuilder(itemService)
 	petHandler.SetSceneManager(rtmpServer.GetSceneManager())
 	petHandler.SetGameDataManager(gameDataManager)
 	petHandler.RegisterHandlers(dispatcher)
@@ -583,6 +612,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 
 	// Guild service
 	guildRepo := postgres.NewGuildRepository(gameDb)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewGuildStateReader(guildRepo)); err != nil {
+		log.Fatal("Failed to register guild achievement state reader", zap.Error(err))
+	}
 	guildService := appguild.NewService(guildRepo, charService, log)
 	guildService.SetQuestService(questService)
 	questService.SetGuildMembership(guildMembershipAdapter{guildService: guildService})
@@ -636,6 +668,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 
 	prsService := appprs.NewService(statFeatureRepo, characterRepo, gameDataManager, log)
 	prsService.SetItemConsumer(itemService)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewPRSStateReader(prsService)); err != nil {
+		log.Fatal("Failed to register PRS achievement state reader", zap.Error(err))
+	}
 	prsHandler := prshandler.NewHandler(prsService, log)
 	prsHandler.RegisterHandlers(dispatcher)
 
@@ -650,8 +685,10 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	awakenService := appawaken.NewService(statFeatureRepo, gameDataManager, log)
 	awakenService.SetCharacterRepository(characterRepo)
 	awakenService.SetItemPort(itemService)
-	awakenService.SetProgressionWriter(awakenProgressionAdapter{repo: characterRepo})
+	awakenService.SetProgressionWriter(statFeatureRepo)
 	awakenHandler := awakenhandler.NewHandler(awakenService, log)
+	awakenHandler.SetStatRefreshDependencies(characterRepo, itemService)
+	skillService.SetAwakeningVariantAuthorizer(awakenService)
 	awakenHandler.RegisterHandlers(dispatcher)
 
 	petTalentService := apppettalent.NewService(statFeatureRepo, characterRepo, itemService, gameDataManager, log)
@@ -673,6 +710,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	npcHandler.SetFairyService(fairyService)
 
 	mysteryTreasureService := appmystre.NewService(statFeatureRepo, log)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewMysteryTreasureStateReader(mysteryTreasureService, gameDataManager)); err != nil {
+		log.Fatal("Failed to register mystery-treasure achievement state reader", zap.Error(err))
+	}
 	mysteryTreasureService.SetChipBagProvider(runeService)
 	mysteryTreasureService.SetGameData(gameDataManager)
 	mysteryTreasureService.SetItemBag(itemService)
@@ -735,6 +775,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	astrologyHandler.RegisterHandlers(dispatcher)
 
 	starInstanceService := appstarinstance.NewService(characterRepo, statFeatureRepo, starService, log)
+	if err := achievementService.RegisterStateProofReader(appachievement.NewStarInstanceStateReader(starInstanceService)); err != nil {
+		log.Fatal("Failed to register star-instance achievement state reader", zap.Error(err))
+	}
 	authHandler.SetStarInstanceService(starInstanceService)
 	starInstanceHandler := starinstancehandler.NewHandler(starInstanceService, starService, characterRepo, log)
 	starInstanceHandler.SetGroupService(groupService)
@@ -913,6 +956,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 			log.Error("Error stopping registration server", zap.Error(err))
 		}
 	}
+	if err := centerService.Stop(); err != nil {
+		log.Error("Final player cache persistence failed", zap.Error(err))
+	}
 
 	if err := authDb.HealthCheck(ctx); err != nil {
 		log.Warn("Auth database health check failed on shutdown", zap.Error(err))
@@ -922,24 +968,6 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	}
 
 	log.Info("Server stopped")
-}
-
-type awakenProgressionAdapter struct {
-	repo domainchar.Repository
-}
-
-func (a awakenProgressionAdapter) UpsertCharacterAwakenProgression(ctx context.Context, charID int64, awakenLevel, awakenPoints, awakenPointsUsed int) error {
-	c, err := a.repo.FindByID(ctx, charID)
-	if err != nil {
-		return err
-	}
-	if c == nil {
-		return fmt.Errorf("awaken progression: character %d not found", charID)
-	}
-	c.AwakenLevel = awakenLevel
-	c.AwakenPoints = awakenPoints
-	c.AwakenPointsUsed = awakenPointsUsed
-	return a.repo.Update(ctx, c)
 }
 
 type guildMembershipAdapter struct {

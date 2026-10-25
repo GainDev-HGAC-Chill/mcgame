@@ -89,6 +89,9 @@ type Handler struct {
 	pendingChangeElementsMu sync.Mutex
 	pendingChangeBinds      map[int64]*pendingChangeBind
 	pendingChangeBindsMu    sync.Mutex
+	pendingPetEquipBinds    map[int64]*pendingPetEquipmentBind
+	pendingPetEquipBindsMu  sync.Mutex
+	petEquipmentRoll        func(int) int
 	pendingGiftBoxes        map[int64]*pendingGiftBox
 	pendingGiftBoxesMu      sync.Mutex
 	pendingGiftBoxLocks     sync.Map
@@ -116,6 +119,8 @@ func NewHandler(itemService *appitem.Service, sceneService *appscene.Service, ch
 		pendingChangeSouls:    make(map[int64]*pendingChangeSoul),
 		pendingChangeElements: make(map[int64]*pendingChangeElement),
 		pendingChangeBinds:    make(map[int64]*pendingChangeBind),
+		pendingPetEquipBinds:  make(map[int64]*pendingPetEquipmentBind),
+		petEquipmentRoll:      defaultPetEquipmentRoll,
 		pendingGiftBoxes:      make(map[int64]*pendingGiftBox),
 	}
 }
@@ -255,6 +260,10 @@ func (h *Handler) RegisterHandlers(dispatcher *rtmp.RPCDispatcher) {
 	dispatcher.Register("changeBind", h.ChangeBind)
 	dispatcher.Register("sureChangeBind", h.SureChangeBind)
 	dispatcher.Register("changeLevel", h.ChangeLevel)
+	dispatcher.Register("petEquLevelUp", h.PetEquLevelUp)
+	dispatcher.Register("petEquModColor", h.PetEquModColor)
+	dispatcher.Register("petEquModBind", h.PetEquModBind)
+	dispatcher.Register("surepetEquModBind", h.SurePetEquModBind)
 	dispatcher.Register("fullHpRecoverByItem", h.FullHpRecoverByItem)
 	dispatcher.Register("fullMpRecoverByItem", h.FullMpRecoverByItem)
 	dispatcher.Register("getHoleNum", h.GetHoleNum)

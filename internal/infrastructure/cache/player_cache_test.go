@@ -705,6 +705,31 @@ func TestPlayerCache_SaveAllDirty(t *testing.T) {
 	}
 }
 
+func TestPlayerCache_SaveAllDirtyReturnsPersistenceFailures(t *testing.T) {
+	cache, charRepo, _, _, _, _ := newTestPlayerCache(t)
+	ctx := context.Background()
+	persistErr := errors.New("database unavailable")
+	charRepo.characters[1] = &character.Character{ID: 1, Name: "Before"}
+
+	data, err := cache.LoadPlayer(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data.SetCharacter(&character.Character{ID: 1, Name: "After"})
+	charRepo.updateErr = persistErr
+
+	stats, err := cache.SaveAllDirty(ctx)
+	if !errors.Is(err, persistErr) {
+		t.Fatalf("SaveAllDirty error = %v, want persistence error", err)
+	}
+	if stats.DirtyCount != 1 || stats.SavedCount != 0 {
+		t.Fatalf("stats = %+v, want dirty 1/saved 0", stats)
+	}
+	if !data.IsDirty() {
+		t.Fatal("failed player snapshot was acknowledged")
+	}
+}
+
 func TestPlayerCache_SaveAllDirty_WithDeletes(t *testing.T) {
 	cache, charRepo, itemRepo, _, _, _ := newTestPlayerCache(t)
 	ctx := context.Background()

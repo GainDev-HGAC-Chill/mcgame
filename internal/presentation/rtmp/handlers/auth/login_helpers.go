@@ -135,6 +135,15 @@ func (h *Handler) loadAchievementSnapshot(ctx context.Context, charID int64, lev
 	if h.achievementState == nil {
 		return snapshot
 	}
+	if reconciler, ok := h.achievementState.(interface {
+		ReconcileState(context.Context, int64, time.Time) (domainachievement.ProgressUpdate, error)
+	}); ok {
+		if _, err := reconciler.ReconcileState(ctx, charID, time.Now().UTC()); err != nil {
+			h.logger.Warn("Failed to reconcile achievement state",
+				zap.Int64("character_id", charID),
+				zap.Error(err))
+		}
+	}
 	if recorder, ok := h.achievementState.(interface {
 		RecordLogin(context.Context, int64, int, time.Time) (domainachievement.ProgressUpdate, error)
 	}); ok {

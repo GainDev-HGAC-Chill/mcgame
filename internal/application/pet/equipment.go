@@ -5,6 +5,7 @@ package pet
 
 import (
 	"context"
+	"maps"
 
 	domainitem "mcgame-server/internal/domain/item"
 	domainpet "mcgame-server/internal/domain/pet"
@@ -27,6 +28,7 @@ type PetEquipMove struct {
 
 type PetEquipOnResult struct {
 	Pet       *domainpet.Pet
+	Item      *domainitem.Item
 	Slot      int
 	OldItemID int64
 	NewItemID int64
@@ -35,9 +37,38 @@ type PetEquipOnResult struct {
 
 type PetEquipOffResult struct {
 	Pet    *domainpet.Pet
+	Item   *domainitem.Item
 	Slot   int
 	ItemID int64
 	Move   PetEquipMove
+}
+
+func (s *Service) RefreshPetForEquipmentItem(ctx context.Context, charID int64, itemID int64) (*domainpet.Pet, error) {
+	if s.petRepo == nil || itemID <= 0 {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+
+	pets, err := s.petRepo.FindByCharacterID(ctx, charID)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range pets {
+		if p == nil || p.CharacterID != charID {
+			continue
+		}
+		for slot := 1; slot <= domainpet.TotalPetEquipmentSlots; slot++ {
+			if p.EquipmentItemID(slot) != itemID {
+				continue
+			}
+			s.enrichPetPreservingVitals(ctx, p)
+			if err := s.petRepo.Save(ctx, p); err != nil {
+				return nil, err
+			}
+			return p, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func (s *Service) EquipPetItem(ctx context.Context, charID int64, petID int64, itemID int64) (*PetEquipOnResult, error) {
@@ -80,6 +111,7 @@ func (s *Service) EquipPetItem(ctx context.Context, charID int64, petID int64, i
 	targetSID := petEquipmentSID(targetSlotIndex)
 	moveResult := &PetEquipOnResult{
 		Pet:       p,
+		Item:      item,
 		Slot:      slot,
 		NewItemID: item.ID,
 		Moves: []PetEquipMove{
@@ -129,22 +161,30 @@ func (s *Service) EquipPetItem(ctx context.Context, charID int64, petID int64, i
 
 	if err := s.itemRepo.MoveItem(ctx, item.ID, domainitem.SlotTypePetEquipped, targetSlotIndex); err != nil {
 		if displacedSnapshot != nil {
-			_ = s.itemRepo.MoveItem(ctx, displacedSnapshot.ItemID, displacedSnapshot.SlotType, displacedSnapshot.SlotIndex)
-			displaced.MoveTo(displacedSnapshot.SlotType, displacedSnapshot.SlotIndex)
+			restorePetEquipItem(ctx, s.itemRepo, *displacedSnapshot)
+			displaced.MoveTo(displacedSnapshot.Item.SlotType, displacedSnapshot.Item.SlotIndex)
 		}
 		return nil, err
 	}
 	item.MoveTo(domainitem.SlotTypePetEquipped, targetSlotIndex)
+	item.Bind()
+	if err := s.itemRepo.Update(ctx, item); err != nil {
+		restorePetEquipItem(ctx, s.itemRepo, itemSnapshot)
+		if displacedSnapshot != nil {
+			restorePetEquipItem(ctx, s.itemRepo, *displacedSnapshot)
+		}
+		return nil, err
+	}
 
 	if displaced != nil {
-		if err := s.itemRepo.MoveItem(ctx, displaced.ID, domainitem.SlotTypeBag, itemSnapshot.SlotIndex); err != nil {
-			_ = s.itemRepo.MoveItem(ctx, item.ID, itemSnapshot.SlotType, itemSnapshot.SlotIndex)
-			item.MoveTo(itemSnapshot.SlotType, itemSnapshot.SlotIndex)
-			_ = s.itemRepo.MoveItem(ctx, displaced.ID, displacedSnapshot.SlotType, displacedSnapshot.SlotIndex)
-			displaced.MoveTo(displacedSnapshot.SlotType, displacedSnapshot.SlotIndex)
+		if err := s.itemRepo.MoveItem(ctx, displaced.ID, domainitem.SlotTypeBag, itemSnapshot.Item.SlotIndex); err != nil {
+			restorePetEquipItem(ctx, s.itemRepo, itemSnapshot)
+			item.MoveTo(itemSnapshot.Item.SlotType, itemSnapshot.Item.SlotIndex)
+			restorePetEquipItem(ctx, s.itemRepo, *displacedSnapshot)
+			displaced.MoveTo(displacedSnapshot.Item.SlotType, displacedSnapshot.Item.SlotIndex)
 			return nil, err
 		}
-		displaced.MoveTo(domainitem.SlotTypeBag, itemSnapshot.SlotIndex)
+		displaced.MoveTo(domainitem.SlotTypeBag, itemSnapshot.Item.SlotIndex)
 	}
 
 	p.SetEquipmentItemID(slot, item.ID)
@@ -154,9 +194,9 @@ func (s *Service) EquipPetItem(ctx context.Context, charID int64, petID int64, i
 
 	if err := s.petRepo.Save(ctx, p); err != nil {
 		if displacedSnapshot != nil {
-			_ = s.itemRepo.MoveItem(ctx, displacedSnapshot.ItemID, displacedSnapshot.SlotType, displacedSnapshot.SlotIndex)
+			restorePetEquipItem(ctx, s.itemRepo, *displacedSnapshot)
 		}
-		_ = s.itemRepo.MoveItem(ctx, itemSnapshot.ItemID, itemSnapshot.SlotType, itemSnapshot.SlotIndex)
+		restorePetEquipItem(ctx, s.itemRepo, itemSnapshot)
 		*p = *petSnapshot
 		return nil, err
 	}
@@ -213,6 +253,12 @@ func (s *Service) UnequipPetItem(ctx context.Context, charID int64, petID int64,
 
 	itemSnapshot := snapshotPetEquipItem(item)
 	petSnapshot := clonePetSnapshot(p)
+	if !item.IsBound {
+		item.Bind()
+		if err := s.itemRepo.Update(ctx, item); err != nil {
+			return nil, err
+		}
+	}
 	move := PetEquipMove{
 		ItemID:  item.ID,
 		FromSID: item.CalculateSID(),
@@ -230,8 +276,8 @@ func (s *Service) UnequipPetItem(ctx context.Context, charID int64, petID int64,
 	p.RecalculateStats()
 
 	if err := s.petRepo.Save(ctx, p); err != nil {
-		_ = s.itemRepo.MoveItem(ctx, itemSnapshot.ItemID, itemSnapshot.SlotType, itemSnapshot.SlotIndex)
-		item.MoveTo(itemSnapshot.SlotType, itemSnapshot.SlotIndex)
+		restorePetEquipItem(ctx, s.itemRepo, itemSnapshot)
+		item.MoveTo(itemSnapshot.Item.SlotType, itemSnapshot.Item.SlotIndex)
 		*p = *petSnapshot
 		return nil, err
 	}
@@ -244,6 +290,7 @@ func (s *Service) UnequipPetItem(ctx context.Context, charID int64, petID int64,
 
 	return &PetEquipOffResult{
 		Pet:    p,
+		Item:   item,
 		Slot:   slot,
 		ItemID: item.ID,
 		Move:   move,
@@ -295,8 +342,11 @@ func addPetEquipmentItemBonuses(bonuses *domainpet.EquipmentStatBonuses, item *d
 	addPetEquipmentPropBonus(bonuses, mainProp1, mainPropNum1)
 
 	bindNum1 := petEquipmentItemPropValue(item.Properties, "bindMainPropNum1")
-	if bindNum1 > 0 {
-		addPetEquipmentPropBonus(bonuses, mainProp1, bindNum1)
+	if bindNum1 <= 0 {
+		bindNum1 = int(template.BindPropNum)
+	}
+	if item.BindingActive() && bindNum1 > 0 {
+		addPetEquipmentBindPropBonus(bonuses, mainProp1, bindNum1)
 	}
 
 	mainProp2 := petEquipmentItemPropValue(item.Properties, "mainProp2")
@@ -308,8 +358,11 @@ func addPetEquipmentItemBonuses(bonuses *domainpet.EquipmentStatBonuses, item *d
 	addPetEquipmentPropBonus(bonuses, mainProp2, mainPropNum2)
 
 	bindNum2 := petEquipmentItemPropValue(item.Properties, "bindMainPropNum2")
-	if bindNum2 > 0 {
-		addPetEquipmentPropBonus(bonuses, mainProp2, bindNum2)
+	if bindNum2 <= 0 {
+		bindNum2 = int(template.BindPropNum)
+	}
+	if item.BindingActive() && bindNum2 > 0 {
+		addPetEquipmentBindPropBonus(bonuses, mainProp2, bindNum2)
 	}
 
 	prop1 := petEquipmentItemPropValue(item.Properties, "prop1")
@@ -345,6 +398,17 @@ func addPetEquipmentPropBonus(bonuses *domainpet.EquipmentStatBonuses, rawProp, 
 	}
 
 	bonuses.AddFlat(rawProp, value)
+}
+
+func addPetEquipmentBindPropBonus(bonuses *domainpet.EquipmentStatBonuses, rawProp, value int) {
+	if bonuses == nil || rawProp <= 0 || value == 0 {
+		return
+	}
+	statProp := rawProp
+	if mapped, ok := petEquipmentPercentPropToStat(rawProp); ok {
+		statProp = mapped
+	}
+	bonuses.AddPercent(statProp, value)
 }
 
 func petEquipmentPercentPropToStat(rawProp int) (int, bool) {
@@ -604,15 +668,19 @@ func (s *Service) movePetEquipmentToBag(ctx context.Context, p *domainpet.Pet) e
 }
 
 type petEquipItemSnapshot struct {
-	ItemID    int64
-	SlotType  domainitem.SlotType
-	SlotIndex int
+	Item *domainitem.Item
 }
 
 func snapshotPetEquipItem(item *domainitem.Item) petEquipItemSnapshot {
-	return petEquipItemSnapshot{
-		ItemID:    item.ID,
-		SlotType:  item.SlotType,
-		SlotIndex: item.SlotIndex,
+	cloned := *item
+	cloned.Properties = maps.Clone(item.Properties)
+	return petEquipItemSnapshot{Item: &cloned}
+}
+
+func restorePetEquipItem(ctx context.Context, repo domainitem.Repository, snapshot petEquipItemSnapshot) {
+	if repo == nil || snapshot.Item == nil {
+		return
 	}
+	_ = repo.MoveItem(ctx, snapshot.Item.ID, snapshot.Item.SlotType, snapshot.Item.SlotIndex)
+	_ = repo.Update(ctx, snapshot.Item)
 }

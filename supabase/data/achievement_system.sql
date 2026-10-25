@@ -12,6 +12,8 @@ create table if not exists player.character_achievement_requirements (
 create index if not exists idx_character_achievement_requirements_achievement
     on player.character_achievement_requirements (character_id, achievement_id);
 
+alter table player.character_achievement_requirements enable row level security;
+
 create table if not exists player.character_achievement_events (
     character_id bigint not null references player.characters(id) on delete cascade,
     event_key text not null check (event_key <> ''),
@@ -20,6 +22,8 @@ create table if not exists player.character_achievement_events (
     primary key (character_id, event_key)
 );
 
+alter table player.character_achievement_events enable row level security;
+
 create table if not exists player.character_achievement_claim_reservations (
     character_id bigint not null references player.characters(id) on delete cascade,
     achievement_id integer not null,
@@ -27,6 +31,8 @@ create table if not exists player.character_achievement_claim_reservations (
     reserved_at timestamptz not null,
     primary key (character_id, achievement_id)
 );
+
+alter table player.character_achievement_claim_reservations enable row level security;
 
 create or replace function player.list_character_achievement_requirements(p_character_id bigint)
 returns table (
@@ -88,6 +94,7 @@ begin
             u.achievement_id,
             greatest(coalesce(u.delta, 0), 0) as delta,
             u.absolute,
+            greatest(coalesce(u.target, 0), 0) as requested_target,
             u.done
         from jsonb_to_recordset(p_updates) as u(
             requirement_id bigint,
@@ -105,7 +112,7 @@ begin
             greatest(coalesce(q.absolute, 0), 0) as absolute,
             q.absolute is not null as has_absolute,
             coalesce(q.done, false) as force_done,
-            greatest(r.num::integer, 0) as target
+            greatest(r.num::integer, q.requested_target, 0) as target
         from requested q
         join data.data_tbl_achievement_require r
           on r.id = q.requirement_id
@@ -137,14 +144,14 @@ begin
                 when excluded.target > 0 then least(
                     case
                         when (select x.has_absolute from canonical x where x.requirement_id = excluded.requirement_id)
-                            then excluded.progress
+                            then greatest(player.character_achievement_requirements.progress, excluded.progress)
                         else player.character_achievement_requirements.progress + excluded.progress
                     end,
                     excluded.target
                 )
                 else case
                     when (select x.has_absolute from canonical x where x.requirement_id = excluded.requirement_id)
-                        then excluded.progress
+                        then greatest(player.character_achievement_requirements.progress, excluded.progress)
                     else player.character_achievement_requirements.progress + excluded.progress
                 end
             end,
@@ -155,7 +162,7 @@ begin
                     excluded.target > 0
                     and case
                         when (select x.has_absolute from canonical x where x.requirement_id = excluded.requirement_id)
-                            then excluded.progress
+                            then greatest(player.character_achievement_requirements.progress, excluded.progress)
                         else player.character_achievement_requirements.progress + excluded.progress
                     end >= excluded.target
                 ),

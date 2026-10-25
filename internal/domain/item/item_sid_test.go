@@ -76,6 +76,10 @@ func TestToDTO_IdentityFieldsCannotBeOverriddenByProperties(t *testing.T) {
 			"id":     "0",
 			"itemId": "0",
 			"sid":    0,
+			"tid":    "1682",
+			"cid":    "1682",
+			"giid":   "1682",
+			"tplId":  "1682",
 		},
 	}
 
@@ -94,6 +98,12 @@ func TestToDTO_IdentityFieldsCannotBeOverriddenByProperties(t *testing.T) {
 	sid, ok := dto["sid"].(int)
 	if !ok || sid != it.CalculateSID() {
 		t.Fatalf("expected dto sid=%d, got %#v", it.CalculateSID(), dto["sid"])
+	}
+	for _, key := range []string{"tid", "cid", "giid", "tplId"} {
+		templateID, ok := dto[key].(int)
+		if !ok || templateID != it.TemplateID {
+			t.Fatalf("expected dto %s=%d, got %#v", key, it.TemplateID, dto[key])
+		}
 	}
 }
 

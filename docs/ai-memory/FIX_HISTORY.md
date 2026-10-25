@@ -1,5 +1,50 @@
 # MCGame Fix History
 
+## FIX-2026-10-25-05 — Thành Tựu Wave 1 state-reader batch
+
+- Thêm state reconciliation framework positive-only, login reconcile trước snapshot và startup ownership validation cho từng reader; unknown/non-state/duplicate ownership hoặc proof ngoài phạm vi reader đều fail trước ghi DB. Coverage regression khóa 177 requirement S đã có reader.
+- Reader authoritative hiện có: character 28, exact quest 7, life skill/recipe 14, social 5, guild 4, title-count 3, achievement-points 5, Star Instance 73, Hắc Diệu Thạch 11, PRS 15 và Mật Bảo 12. Mật Bảo dùng exact `mysBook` identity + `TBL_MYSTRE` kind topology; quest chỉ mở 7 tên khớp duy nhất; recipe dùng exact persisted skill IDs và life skill dùng canonical type 14–18.
+- SQL canonical draft dùng `greatest(old,new)` cho absolute reconcile để state giảm không xóa progress. Focused achievement/gamedata/Mật Bảo/skill/auth/cmd tests, targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS. Chưa apply/capture SQL mới, restart/deploy hoặc mutate player data.
+
+## FIX-2026-10-25-04 — Thành Tựu full-system Wave 0 registry guardrail
+
+- Operator duyệt toàn bộ plan Wave 0–5. Đã thêm registry/validator keyed theo requirement ID, kiểm chứng fingerprint và toàn bộ census enabled: 566 achievement, 697 requirement, 60 catalog type, phân loại 431 state/159 event/107 unsupported, 30 parent nhiều điều kiện, 2 parent rỗng và 550 target không nằm trong `num`.
+- Startup fail-fast nếu catalog drift; `num=0` dùng target source authority thay vì auto-complete; `6438/6439` được nhận diện là direct-completion parent và không đi qua empty-set completion.
+- Regression dùng hai JSON catalog thật và mutation type có chủ ý PASS. Focused tests, targeted vet, build `bin/gameserver.exe` và scoped diff-check PASS. Chưa deploy/restart, đổi schema hoặc mutate player data.
+
+## FIX-2026-10-25-03 — Apply Achievement schema và target cấp độ
+
+- Operator cho phép apply schema. Đã lưu pre-apply schema dump, apply 3 bảng requirement/event/claim-reservation cùng 5 function, bật RLS server-only và capture migration `20261025033410_achievement_system.sql` bằng Supabase CLI 2.122.0. Migration history đã repair `applied`; shadow replay/diff PASS và không còn Achievement drift.
+- Level requirements 1–4 dùng target server-owned 10/50/100/140 vì catalog `num=0`. Transaction rollback smoke xác nhận level 100 hoàn thành ba mốc đầu, giữ mốc 140 chưa hoàn thành; event duplicate no-op; reservation chống trùng/release/finalize đúng contract.
+- Client online tự login reconcile ngay sau apply, tạo hợp lệ 2 event, 10 requirement row và completion 1001/1002/1003 cho character 3; cả ba vẫn `is_claimed=false`, assistant không nhận thưởng/backfill. Docker Desktop bị tắt trong lần diff đầu, sau khi operator cho phép chỉ bật lại DB để hoàn tất capture; gameserver/dashboard vẫn dừng.
+- Sau khi operator cho phép deploy, compose build/start thành công và toàn stack healthy. Login log không còn SQLSTATE 42883; operator xác nhận ba mốc cấp 10/50/100 hiển thị nhận thưởng. DB hậu kiểm vẫn `is_claimed=false`, không có reservation.
+
+## FIX-2026-10-25-02 — Tẩy sao Pet, Linh Hồn và shutdown persistence
+
+- `petStarClear` chỉ nhận Nội Đơn Phụng Hoàng template 2245 đúng catalog `type=507,useType=4,propType=5`; reset đồng thời `UpgradeNum` và `GrowRateAdd` về 0 rồi recalculation. Item khác bị từ chối trước mọi mutation/consume.
+- Linh Hồn bỏ sai gate `activePropNum>0` khỏi activation. Runtime read-only character 3 xác nhận 10 món có partner đúng/cùng nguyên tố 2 nhưng bonus đang bằng 0; các món này nay sáng theo đúng pair/element contract, trong khi cặp vũ khí nguyên tố 4/2 vẫn inactive. Bonus 0 không cộng stat.
+- Center worker có done barrier; `Stop()` chờ final flush và trả lỗi persistence. `PlayerCache.SaveAllDirty` aggregate lỗi theo character thay vì nuốt lỗi, giữ dirty snapshot để retry; shutdown main flush trước DB health/close.
+- Focused Pet/Center/cache/item/Pet+item+auth-handler/bootstrap tests, targeted vet, build `bin/gameserver.exe` và diff-check PASS. Chưa restart/deploy, dùng item/Pet thật, mutate player data hoặc apply Achievement schema; rollback runtime vẫn chờ smoke-test sau deploy được phép.
+- Compose image mới đã deploy; operator xác nhận các cặp Mạt Nhật/Bàn Long cùng nguyên tố sáng Linh Hồn và cặp vũ khí lệch nguyên tố vẫn tối. Center periodic save trên runtime mới báo `dirty_count=1,saved_count=1`. Không dùng Nội Đơn Phụng Hoàng hoặc mutate Pet để live-test; reset sao và final-stop barrier giữ trạng thái code/regression verified.
+
+## FIX-2026-10-25-01 — Thuộc tính khóa, Hồn Khí và nguyên liệu cấp 6
+
+- Hồn Khí: `getDecoSuitProp` phát `suitProp` và `linkProp` có dữ liệu dưới dạng AMF Array thay vì Object có key số, đúng phép ép kiểu bắt buộc trong `DecoratePanel.onUpdateSuitProp`; sentinel link rỗng `"null"` được giữ nguyên.
+- Trang bị thường/Pet: mang trang bị nay bind và persist instance; Pet equip/off còn phát `onChangeEquiptInst` bằng shared DTO để `binded=1` sáng ngay. Legacy item đã nằm trong slot equipped được xem là bind-active ngay khi login/tính stat và persist bound ở transition kế tiếp. Locked props fallback từ `TBL_EQUIPT_TEMPLATE.bindPropNum`, áp như phần trăm thay vì cộng phẳng; phần trăm thuộc tính gốc chạy trước derived-stat recalculation. Rollback Pet khôi phục cả vị trí và bind state.
+- Chế tạo: shared DTO level-6 material tiếp tục phát `color=4,colorCode=5` và nay nhận thêm legacy row chỉ lưu `properties.color=5` dù `color_code`/`colorCode` rỗng; template `kind=6/14` vẫn là authority để không alias nhầm consumable thường.
+- Focused dress/item/Pet/domain/RTMP/auth/cmd tests, targeted vet, build `bin/gameserver.exe` và `git diff --check` PASS. Chưa restart/deploy, Flash smoke-test, dùng nguyên liệu thật hoặc mutate player/DB data.
+
+## FIX-2026-10-24-01 — Trang bị Pet và Giác Ngộ end-to-end
+
+- Runtime root-cause follow-up: chặn legacy item properties ghi đè template identity trên DTO và đồng bộ các identity key khi nâng cấp; hydrate Awakening/Soul từ `character_progression` vào runtime character khi load/restart. Regression stale `tid` và persisted Awakening `33/2/9`, focused tests, targeted vet và gameserver build PASS; không mutate item/player data. Item 2206 thật đang là template 1690 yêu cầu Pet cấp 140, nên Pet cấp 96 vẫn bị từ chối equip đúng catalog sau khi UI hiện đúng template.
+- Follow-up Flash contract: `petEquModColor.num` là số lượng đã tiêu và callback panel tự trừ; bỏ push inventory trùng của riêng RPC đổi màu để client không trừ hai lần. Regression focused, targeted vet, gameserver build và diff-check PASS.
+- Follow-up: cache character trả clone; thêm explicit `charRepo.Update` sau progression success để lần Giác Ngộ kế tiếp dùng level mới và write-behind không ghi đè level cũ. Regression hai lần tăng cấp liên tiếp bảo toàn tiền đã trừ PASS; targeted vet/rebuild/diff-check PASS.
+- Sửa equip Pet so `reqClass` dùng đúng `classId`/`ClassID` thay vì extended `classIds`; cả kéo-thả và nhấp đôi tiếp tục dùng chung `petEquipOn`. Sau equip/off hoặc modification, owning Pet được enrich/recalculate/save và refresh stat tức thời, giữ current HP/MP.
+- Bổ sung đúng bốn RPC Flash `petEquLevelUp`, `petEquModColor`, `petEquModBind`, `surepetEquModBind` với cost/rate/special multiplier đã đối chiếu, consume callback, pending bind confirm và bảo toàn item instance/SID/properties. RPC mới chưa đưa vào `quietMethods`.
+- Giác Ngộ nay cộng dồn mọi row `1..awakenLevel`; progression success được ghi đồng bộ vào `player.character_progression` trước full equipment-aware `onUPP`, tránh refresh đọc level cũ từ write-behind cache.
+- Combat ownership giữ exact-first rồi authorize `base.exSidN` duy nhất từ learned base + persisted `awakening.pointDict`; wrong-rank/unallocated/foreign/missing-template variants bị chặn, transformed template đi qua generic combat adapter hiện có.
+- Focused Pet/item/statfeature/awaken/skill/combat/application/handler/PostgreSQL tests PASS; `go vet ./...`, gameserver build và `git diff --check` PASS. `go test ./...` còn fail ba baseline ngoài phạm vi: `cmd/questaudit` registry count, activity `BuySendCombine`, chat stat-exp/stat-level expectations. Chưa restart/deploy, mutate gameplay data hoặc Flash smoke-test.
+
 ## FIX-2026-10-23-09 — Chặn pg_net làm crash database khi Restore
 
 - Máy clone báo PostgreSQL crash trong lúc Restore do background worker `pg_net` truy cập target đúng lúc database bị drop/recreate. Báo cáo ngoài máy xác nhận khi tạm dừng worker, chờ readiness và kiểm tra data trước start thì Restore thực tế thành công. Commit `6b6565f` chỉ đổi snapshot, không chứa launcher correction nên source vẫn cần tích hợp.

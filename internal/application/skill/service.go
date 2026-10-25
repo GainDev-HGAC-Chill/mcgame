@@ -41,11 +41,16 @@ type TrainingPetRepository interface {
 	FindByID(ctx context.Context, id int64) (*domainpet.Pet, error)
 }
 
+type AwakeningVariantAuthorizer interface {
+	IsAuthorizedSkillVariant(ctx context.Context, charID int64, requestedSkillID int, learnedSkillIDs []int) (bool, error)
+}
+
 type Service struct {
 	skillRepo     domainskill.Repository
 	charRepo      CharacterRepository
 	petRepo       TrainingPetRepository
 	gameData      *gamedata.Manager
+	variantAuth   AwakeningVariantAuthorizer
 	trainingReady bool
 	logger        *zap.Logger
 	mutationLocks [64]sync.Mutex
@@ -72,6 +77,10 @@ func (s *Service) SetGameDataManager(manager *gamedata.Manager) {
 	if !s.trainingReady && s.logger != nil {
 		s.logger.Warn("Training bonus catalog fingerprint is invalid")
 	}
+}
+
+func (s *Service) SetAwakeningVariantAuthorizer(authorizer AwakeningVariantAuthorizer) {
+	s.variantAuth = authorizer
 }
 
 func (s *Service) GetSkillsForCallback(ctx context.Context, charID int64) ([]map[string]interface{}, error) {
@@ -131,7 +140,22 @@ func (s *Service) GetSkill(ctx context.Context, charID int64, skillID int) (*dom
 }
 
 func (s *Service) HasSkill(ctx context.Context, charID int64, skillID int) (bool, error) {
-	return s.skillRepo.HasSkill(ctx, charID, skillID)
+	hasSkill, err := s.skillRepo.HasSkill(ctx, charID, skillID)
+	if err != nil || hasSkill || s.variantAuth == nil {
+		return hasSkill, err
+	}
+
+	learned, err := s.skillRepo.FindByCharacterID(ctx, charID)
+	if err != nil {
+		return false, err
+	}
+	learnedIDs := make([]int, 0, len(learned))
+	for _, entry := range learned {
+		if entry != nil && entry.SkillID > 0 {
+			learnedIDs = append(learnedIDs, entry.SkillID)
+		}
+	}
+	return s.variantAuth.IsAuthorizedSkillVariant(ctx, charID, skillID, learnedIDs)
 }
 
 func (s *Service) LearnSkill(ctx context.Context, charID int64, skillID int) (*domainskill.CharacterSkill, error) {

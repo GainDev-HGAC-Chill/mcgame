@@ -45,6 +45,23 @@ func (r *StatFeatureRepository) GetCharacterProgression(ctx context.Context, cha
 	return progression, nil
 }
 
+func (r *StatFeatureRepository) UpsertCharacterAwakenProgression(ctx context.Context, charID int64, awakenLevel int, awakenPoints int, awakenPointsUsed int) error {
+	command, err := r.db.pool.Exec(ctx, `
+		update player.character_progression
+		set awaken_level = $2,
+			awaken_points = $3,
+			awaken_points_used = $4
+		where character_id = $1
+	`, charID, awakenLevel, awakenPoints, awakenPointsUsed)
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to upsert character awakening progression")
+	}
+	if command.RowsAffected() == 0 {
+		return pkgerrors.ErrCharacterNotFound
+	}
+	return nil
+}
+
 func (r *StatFeatureRepository) UpsertCharacterSoulProgression(ctx context.Context, charID int64, soulLevel int, soulExp int64) error {
 	var stored bool
 	if err := r.db.pool.QueryRow(

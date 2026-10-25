@@ -47,6 +47,8 @@ Pet slots resolve hover data separately through `gdc(39, petId)`. That path must
 
 The responder returns the updated root `growRateAdd`, while normal inventory callbacks remove or decrement consumed instances. The handler must additionally push `onRefreshPetProp({id,s})` after `petStar` and `petStarClear`, because `PetPanel`/`PetManagerPanel` calculate effective growth from nested `property.growRate + property.growRateAdd`; updating only the root leaves the panel showing stale base growth (for example `1.56` instead of effective `1.56 + 0.40 = 1.96`).
 
+`petStarClear(petId, itemInstanceId)` accepts only Nội Đơn Phụng Hoàng template `2245` whose catalog contract remains `type=507,useType=4,propType=5`. A valid use resets both `upgradeNum` and `GrowRateAdd` to zero and recalculates stats before consuming one pill. Any other item, including a lookalike Pet-function item with a different `propType`, is rejected without Pet or inventory mutation.
+
 ## Pet Client State Contract
 
 Flash pet UI does not treat `state` as the same thing as server-side `is_following`.
@@ -198,6 +200,18 @@ For book learning, `TBL_SKILL.cre_kind` uses the shape `family|minimumQLevel`.
 - in those pet-specific payloads, `oldSid`, `newSid`, and `sid` are item instance ids, not slot ids
 - `player.character_items` has a unique constraint on `(character_id, slot_type, slot_index)`, so replace-equip flows need a temporary slot hop before moving the new item into the pet slot
 - deleting a pet should move equipped pet items back into the bag before deleting the pet row, otherwise those items become unreachable
+
+### Pet equipment repair and modification (2026-10-24)
+
+- `reqClass` is checked against creature `classId`/`ClassID`, not extended `classIds`; `reqClassId` continues to match the Pet template ID. Drag-and-drop and double-click share `petEquipOn`.
+- Exact modification RPCs are `petEquLevelUp`, `petEquModColor`, `petEquModBind`, and intentionally lowercase `surepetEquModBind`. They remain logged until Flash smoke-test confirmation.
+- Level upgrade consumes item `2333` by current required level (`40/60/80/100/120/140/160 → 5/10/15/20/25/50/50`) and silver equal to next template `reqLevel² × 10`.
+- Color reroll uses item `2334` for display colors `0..2` with quantity/rate `1/80`, `2/50`, `4/30`; display color `3` uses item `2335 × 8` at `20%`. Silver is current template `reqLevel² × 10`; failed rolls still consume the cost.
+- `petEquModColor` returns `num` as the quantity consumed, and Flash subtracts it in `onPetEquModColor`; do not also push an inventory stack callback for that RPC or the in-session stack is decremented twice. Level and bind responders instead carry the remaining stack.
+- Bind reroll uses item `2809` by required level (`40/80/100/120/140/160 → 1/2/4/8/16/24`) plus `30,000` silver. The first RPC stores a per-character preview; confirmation alone persists the new bind values.
+- Positions `56..57` use the checked special multipliers: level `×2` for pipe-wrapped `reqClassId`, otherwise rounded `×1.5`; color/bind `×4` or `×2` respectively.
+- Mutations preserve item instance ID, pet-equip SID/slot, bind/star/custom properties. If the item is equipped, the owning Pet is re-enriched, recalculated and saved while preserving current HP/MP, then `onRefreshPetProp({id,s})` is pushed immediately.
+- Template upgrades must also synchronize any persisted legacy identity properties (`tid`, `cid`, `giid`, `tplId`). `Item.ToDTO()` reasserts those four fields from canonical `Item.TemplateID` after merging properties, so old rows such as `template_id=1690` with `properties.tid=1682` cannot make Flash render or validate the obsolete template. This wire repair does not mutate existing player rows.
 
 ## Pet Bind And Skill Delete Contract
 

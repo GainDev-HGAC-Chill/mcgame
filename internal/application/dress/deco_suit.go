@@ -23,7 +23,7 @@ type SuitPropEntry struct {
 type DecoSuitPropResult struct {
 	ActName         string
 	SuitIdObj       map[string]interface{}
-	SuitProp        map[string]interface{}
+	SuitProp        []map[string]interface{}
 	ActArr          map[string]interface{}
 	ActFlag         bool
 	LinkProp        interface{}
@@ -64,7 +64,7 @@ func (s *DecoHoleService) GetDecoSuitProp(ctx context.Context, charID int64, sui
 			result.LinkFlag = result.ActFlag && result.ActLinkSuitFlag
 			linkProps := buildLinkProps(linkShows, linkID)
 			if len(linkProps) > 0 {
-				result.LinkProp = buildIndexedPropMap(linkProps)
+				result.LinkProp = buildPropArray(linkProps)
 			}
 		}
 	} else {
@@ -130,23 +130,23 @@ func accumulateSuitProps(shows []*models.DecoShowTemplate) []SuitPropEntry {
 	return out
 }
 
-func buildSuitProps(shows []*models.DecoShowTemplate) map[string]interface{} {
-	return buildIndexedPropMap(accumulateSuitProps(shows))
+func buildSuitProps(shows []*models.DecoShowTemplate) []map[string]interface{} {
+	return buildPropArray(accumulateSuitProps(shows))
 }
 
 func buildLinkProps(shows []*models.DecoShowTemplate, linkID int) []SuitPropEntry {
 	return accumulateSuitProps(shows)
 }
 
-func buildIndexedPropMap(props []SuitPropEntry) map[string]interface{} {
-	m := make(map[string]interface{}, len(props))
-	for i, p := range props {
-		m[strconv.Itoa(i)] = map[string]interface{}{
+func buildPropArray(props []SuitPropEntry) []map[string]interface{} {
+	result := make([]map[string]interface{}, 0, len(props))
+	for _, p := range props {
+		result = append(result, map[string]interface{}{
 			"t":       p.T,
 			"propVal": p.PropVal,
-		}
+		})
 	}
-	return m
+	return result
 }
 
 func extractSuitName(shows []*models.DecoShowTemplate) string {

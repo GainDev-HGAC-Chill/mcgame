@@ -197,6 +197,7 @@ func (p *Pet) RecalculateStats() {
 	growthScale := p.petGrowthScale()
 	levelBonus := p.petPerLevelBaseStatBonus()
 	attrBonus := p.equipmentBonuses.Flat
+	attrPercent := p.equipmentBonuses.Percent
 
 	attStr := creatureDataFloat(p.CreatureData, "attStrength") + levelBonus
 	attAgi := creatureDataFloat(p.CreatureData, "attAgility") + levelBonus
@@ -216,11 +217,11 @@ func (p *Pet) RecalculateStats() {
 		SeedHit:         100,
 		SeedSpeed:       100,
 		GrowthScale:     growthScale,
-		Strength:        attStr + float64(p.AptStrengthEx+attrBonus[20]),
+		Strength:        applyPetAttributePct(attStr+float64(p.AptStrengthEx+attrBonus[20]), attrPercent[20]),
 		Agility:         attAgi + float64(p.AptAgilityEx),
-		Stamina:         attStam + float64(p.AptStaminaEx+attrBonus[21]),
-		Intelligence:    attInt + float64(p.AptIntelligenceEx+attrBonus[22]),
-		Energy:          attEng + float64(p.AptEnergyEx+attrBonus[23]),
+		Stamina:         applyPetAttributePct(attStam+float64(p.AptStaminaEx+attrBonus[21]), attrPercent[21]),
+		Intelligence:    applyPetAttributePct(attInt+float64(p.AptIntelligenceEx+attrBonus[22]), attrPercent[22]),
+		Energy:          applyPetAttributePct(attEng+float64(p.AptEnergyEx+attrBonus[23]), attrPercent[23]),
 		AptStrength:     aptStr,
 		AptAgility:      aptAgi,
 		AptStamina:      aptStam,

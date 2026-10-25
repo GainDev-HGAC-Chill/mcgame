@@ -58,12 +58,14 @@ func (s *Service) applyAwakeningBonus(bonuses *domainchar.EquipmentStatBonuses, 
 	if bonuses == nil || awakenLevel <= 0 || s.gameDataManager == nil {
 		return
 	}
-	template := s.gameDataManager.GetAwakening(awakenLevel)
-	if template == nil {
-		return
+	for level := 1; level <= awakenLevel; level++ {
+		template := s.gameDataManager.GetAwakening(level)
+		if template == nil {
+			continue
+		}
+		applyCharacterPropBonus(bonuses, int(template.Prop1), template.PropNum1)
+		applyCharacterPropBonus(bonuses, int(template.Prop2), template.PropNum2)
 	}
-	applyCharacterPropBonus(bonuses, int(template.Prop1), template.PropNum1)
-	applyCharacterPropBonus(bonuses, int(template.Prop2), template.PropNum2)
 }
 
 func (s *Service) applySoulBonus(bonuses *domainchar.EquipmentStatBonuses, soulLevel int) {

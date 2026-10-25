@@ -1,7 +1,7 @@
 # Kế hoạch sửa hệ thống Thành Tựu
 
-**Ngày**: 2026-10-19 · **Trạng thái**: Code hoàn tất, SQL chờ compose verification/migration
-**Mục tiêu**: biến phần khung login/claim hiện tại thành một lát cắt Thành Tựu chạy end-to-end, lưu đúng tiến độ từng điều kiện, hoàn thành idempotent, phát đúng callback Flash và cấp an toàn các phần thưởng chính thức có ID đã xác minh.
+**Ngày**: 2026-10-19 · **Cập nhật**: 2026-10-25 · **Trạng thái**: Đã duyệt toàn bộ; Wave 0 code-complete
+**Mục tiêu**: hoàn thiện Thành Tựu trên mọi tab cho toàn bộ catalog, dựa trên state hoặc business event authoritative; mọi điều kiện chưa đủ authority phải fail-closed.
 
 Cơ sở nghiên cứu:
 
@@ -75,7 +75,7 @@ Cơ sở nghiên cứu:
 
 ## 3. Ngoài phạm vi
 
-- Không tự suy đoán toàn bộ 57 requirement type từ mô tả tiếng Việt; các type chưa có event/state authority tiếp tục fail closed.
+- Không tự suy đoán 60 requirement type từ mô tả tiếng Việt; các type chưa có event/state authority tiếp tục fail closed.
 - Không sửa ActionScript.
 - Không backfill tiến độ người chơi hiện có ngoài reconcile cấp độ/đăng nhập/tổng quest/battle có dữ liệu authority.
 - Không cấp title gần giống cho `Giáo Sư Biết Tuốt`.
@@ -90,3 +90,207 @@ Cơ sở nghiên cứu:
 5. SQL rollback verification trên compose DB không chứa player mutation tồn tại; fresh migration replay.
 6. `go test` package achievement/handler và các handler chạm tới; targeted `go vet`; `go build -o bin/gameserver.exe ./cmd/gameserver`.
 7. Smoke test Flash do người dùng thực hiện sau deploy: mở `R`, quan sát tiến độ, hoàn thành fixture không tiêu hao dữ liệu thật, reconnect, claim trên fixture test và xác nhận không nhận lần hai.
+
+## 5. Trạng thái nền tảng sau đợt đầu
+
+Đợt đầu đã hoàn tất và deploy:
+
+- persistence theo requirement ID, event dedupe và phép AND cho nhiều requirement;
+- login snapshot/callback đúng Flash contract;
+- claim reservation/finalize/release;
+- migration `20261025033410_achievement_system.sql`, RLS và shadow replay;
+- 23 evaluator production cho level, login day, quest total, battle wins và Arena wins;
+- runtime xác nhận các mốc cấp 10/50/100 hiện nhận thưởng và vẫn chưa claim.
+
+Phần còn thiếu là phủ toàn catalog. Census authoritative nằm trong addendum của `docs/research/2026-10-19_02_ACHIEVEMENT_SYSTEM_AUDIT_RESEARCH.md`: 431 state-provable, 159 event-only và 107 unsupported trên 697 requirement bật.
+
+## 6. Kiến trúc toàn hệ thống
+
+### 6.1 Requirement registry tĩnh
+
+Thêm registry theo **requirement ID**. Mỗi entry phải khai báo:
+
+- achievement ID và requirement type dự kiến;
+- evaluator kind: `state`, `event`, `direct-completion` hoặc `unsupported`;
+- target/threshold canonical và target source;
+- authority adapter cùng version;
+- event matching fields nếu là event-only.
+
+Startup validator đối chiếu registry với `TBL_ACHIEVEMENT_REQUIRE` và `TBL_ACHIEVEMENT`. Server fail startup hoặc quarantine entry nếu ID, parent, type, target source hay dependency drift. Không dùng riêng `type`, không parse `name/description` ở runtime.
+
+Hai achievement `6438/6439` không có requirement dùng direct-completion registry và chỉ được hoàn thành bởi exact business event đã xác minh. SQL completion không được coi empty set là true.
+
+### 6.2 State reconcilers
+
+Tạo các reader theo domain, trả về positive proofs cho một snapshot nhất quán:
+
+- character/progression/wallet/final stats;
+- quest completion;
+- Pet roster, equipment, contract, evolution;
+- character/life skills và recipe;
+- equipment/loadout/dress;
+- title, guild, relationship, marriage;
+- shop history, Magic Estate, Pet Arena;
+- Star Instance, Fairy, Mystery Treasure, Hắc Diệu Thạch, PRS.
+
+Reconcile chạy lúc login sau khi state authoritative đã load và tại post-commit hook của mutation liên quan. Kết quả chỉ dùng max/mark-done; state vắng mặt không giảm/xóa achievement progress. Mỗi batch dùng event key dạng `state:<registry-version>:<authority-revision>` để retry an toàn.
+
+Không nhồi SQL/query từng subsystem vào handler Thành Tựu. Adapter đọc qua domain repository/service hiện có hoặc Postgres function schema-qualified khi cần aggregate dài.
+
+### 6.3 Durable event facts
+
+Event-only phải được tạo tại transaction/business boundary thành công, không phải từ callback UI. Mỗi fact gồm tối thiểu:
+
+- `fact_id` hoặc business transaction ID unique;
+- character/actor ID, event kind, occurred-at;
+- payload version và exact dimensions cần match: template, quest, battle context, role, quantity, result;
+- dedupe key ổn định qua retry/reconnect/restart.
+
+Thêm append-only `player.character_achievement_facts` hoặc outbox tương đương và consumer checkpoint. Mutation domain ghi business state + outbox trong cùng transaction nếu cùng DB; consumer chuyển fact thành requirement updates idempotent. Với service chưa thể transactional-outbox ngay, hook chỉ được mở khi có persisted business ID đủ để replay.
+
+Không dùng generic `BattleEnded(charID,battleType,won)` cho boss, instance hoặc party attribution. Event mới phải mang battle ID, encounter/template/context và winner/contribution policy. Login day phải dùng timezone/reset-day canonical của game, không dùng UTC thô.
+
+### 6.4 Completion và callback
+
+- Requirement update và parent completion vẫn nằm trong một Postgres transaction.
+- Multi-requirement dùng AND trên toàn bộ requirement đang bật của parent.
+- Callback chỉ phát sau commit: requirement delta type 2 trước, completion type 1 sau.
+- Retry, duplicate fact hoặc reconnect không được phát tăng lặp.
+- Snapshot luôn là nguồn phục hồi nếu callback bị mất.
+
+### 6.5 Reward ledger và recovery
+
+Giữ fail-closed cho achievement chưa có reward mapping canonical. Đối với mapping đã xác minh:
+
+- tạo durable grant ledger keyed `(character_id, achievement_id)` với trạng thái `reserved/granting/granted/finalized/failed`;
+- reward operation phải có idempotency key truyền xuống item/title/medal grant;
+- lưu grant receipt trước finalize claim;
+- startup/worker recovery chỉ finalize receipt đã grant hoặc retry operation idempotent; không cấp mù lần hai;
+- callback claim chỉ trả success khi ledger ở `finalized`.
+
+Không parse `desc`, không dùng tên gần giống và không tự cấu hình 51 reward claimable chưa xác minh đầy đủ.
+
+## 7. Các wave triển khai
+
+### Wave 0 — Registry và guardrail
+
+Phạm vi:
+
+1. Sinh/duy trì registry cho đủ 697 requirement bật và 2 direct achievements.
+2. Startup validation: unique ID, parent/type match, coverage S/E/U đủ 697, target source hợp lệ, không auto-complete `num=0`/empty set.
+3. Test census cố định: `431 + 159 + 107 = 697`; 30 parent nhiều requirement; 2 parent không requirement.
+4. Sửa login-day calendar authority và siết battle event hiện có trước khi mở thêm progress.
+
+Kết quả: catalog drift không thể âm thầm cộng sai.
+
+Trạng thái 2026-10-25: code-complete. `registry.go` phân loại đủ 697 requirement, khóa fingerprint catalog, census S/E/U, cấu trúc multi/empty parent và target authority; `cmd/gameserver` fail startup nếu drift. Fixture catalog thật và drift regression PASS. Chưa deploy runtime mới.
+
+### Wave 1 — 431 state-provable requirements
+
+Triển khai theo nhóm để giữ review/test nhỏ:
+
+1. Character, exact quest, skill/recipe, title, guild/social/marriage/shop: 95 requirement.
+2. Pet roster/equipment/contracts/evolution: 72 requirement.
+3. Equipment/loadout/dress activation và dress sets: 114 requirement.
+4. Magic Estate, Pet Arena history, Star Instance: 85 requirement.
+5. Fairy, achievement points, Mystery Treasure, Hắc Diệu Thạch, PRS: 65 requirement.
+
+Mỗi nhóm phải có table-driven registry tests, positive/negative state fixtures, multi-requirement completion và reconnect snapshot. Không backfill bằng suy đoán; login reconcile từ state hiện có là hợp lệ vì state tự chứng minh điều kiện.
+
+Trạng thái 2026-10-25: framework reconcile và 11 reader code-complete, phủ 177/431 requirement S ở character, 7 exact quest, 14 life skill/recipe, social, guild, title, achievement points, Star Instance, Hắc Diệu Thạch, PRS và Mật Bảo. Reader khai báo ownership khi startup; duplicate/non-state/unknown và proof ngoài ownership fail-closed. Character final stat `47–49`, daily act `421`, 5 quest nghề và phần skill/Pet/equipment còn lại chờ authority mapping tiếp theo. SQL positive-only đã sửa trong canonical draft nhưng chưa apply/capture migration, nên chưa deploy Wave 1.
+
+### Wave 2 — Harden 23 evaluator hiện có
+
+1. Level giữ target 10/50/100/140.
+2. Login day dùng game-day/reset boundary và event key versioned.
+3. Quest total dùng unique quest-completion business ID, không lấy UI callback.
+4. Battle total/Arena dùng exact match ID, result và battle context; loại encounter không đủ authority.
+5. Chạy migration dữ liệu chỉ nếu cần ledger metadata, không sửa progress hiện có theo hướng giảm.
+
+### Wave 3 — 159 event-only requirements
+
+Triển khai outbox/fact producer theo domain:
+
+1. battle/boss/Arena: 67;
+2. quest/loop/checkpoint: 30;
+3. life skills/farm/cooking/medicine/fishing: 15;
+4. item/action/capture/merchant/wishing tree: 24;
+5. guild donation/estate dated actions/Pet Arena settlement: 17;
+6. login day: 6, đã harden ở Wave 2.
+
+Mỗi producer cần: post-success placement, stable business ID, retry test, duplicate test, crash/replay test và actor attribution test. Requirement 294 giữ disabled cho tới khi giải quyết mâu thuẫn actor bằng source contract/runtime evidence.
+
+### Wave 4 — 107 unsupported requirements
+
+Không mở bằng stub hoặc fabricated progress. Thứ tự bổ sung authority đề xuất:
+
+1. các subsystem đã có UI/game-data nhưng thiếu persistence rõ ràng: Ảo Ma Tháp, Hành Lang Vô Tận, Quiz, Mê Cung;
+2. các feature-state còn thiếu: Chi Hồn, Hệ Thống Giác Quan, utility bag, PK/popularity;
+3. các instance/event lớn: Đông Huyền, Ảo Cảnh Tầm Bảo, Không Gian Rèn Luyện, Kỳ Thạch, Mạo Hiểm Bí Cảnh, Huyết Chiến Cổ Bích, Achilles;
+4. sáu legacy instance chưa map và các ranking/settlement còn lại.
+
+Mỗi subsystem phải có plan riêng về wire contract, persistence, reset semantics và event IDs trước khi nối achievement evaluator. Khi authority mới hoàn tất, entry registry chuyển U→S/E cùng regression census.
+
+### Wave 5 — Reward completion và recovery
+
+1. Kiểm kê 51 achievement claimable bằng nguồn canonical ngoài `desc`.
+2. Thêm reward registry cho từng mapping đã xác minh, gồm item/title/character medal/Pet medal.
+3. Thêm ledger/idempotent grant/recovery.
+4. SQL concurrency và crash-point tests tại trước grant, sau grant, trước finalize, sau finalize.
+5. Mapping chưa chứng minh tiếp tục trả lỗi rõ ràng và không claim.
+
+## 8. Điểm chạm dự kiến
+
+| Khu vực | Thay đổi |
+|---|---|
+| `internal/application/achievement/` | Registry, validator, state reconcilers, fact consumer, delta orchestration. |
+| `internal/domain/achievement/` | Definition/proof/fact/ledger contracts và typed context. |
+| `internal/infrastructure/persistence/postgres/achievement_repository.go` | Batch reconcile, fact/outbox/checkpoint và reward ledger function calls. |
+| `internal/application/events/` | Thay generic events bằng typed/versioned business facts; không phụ thuộc UI. |
+| Domain services liên quan | Ghi outbox tại post-success boundary; không đặt achievement logic trong RTMP handlers. |
+| `internal/presentation/rtmp/handlers/achievement/` | Claim ledger/recovery response và callback sau commit. |
+| `cmd/gameserver/main.go` | Wiring adapters, validator, consumer/recovery worker. |
+| `supabase/data/achievement_system.sql` | Batch reconcile, fact/outbox/checkpoint, reward ledger và recovery functions. |
+| `supabase/migrations/` | Chỉ sinh bằng Supabase CLI sau apply/verify compose DB. |
+
+## 9. Kiểm thử và tiêu chí hoàn thành
+
+### Tự động
+
+- registry coverage đủ 697 enabled requirement + 2 direct achievements;
+- target `num=0`, disabled parent, empty requirements và catalog drift đều fail-closed;
+- positive-only state reconcile, concurrent login và repeated reconcile idempotent;
+- multi-requirement AND, callback ordering và reconnect snapshot;
+- event producer post-success, stable dedupe, outbox replay và consumer restart;
+- SQL concurrency cho requirement updates, completion và claim/reward ledger;
+- reward crash recovery không mất thưởng/không cấp lặp;
+- focused tests từng domain, `go test` affected packages, targeted `go vet`, build `bin/gameserver.exe`, `git diff --check`;
+- Supabase shadow migration replay và RLS/advisor review.
+
+### Runtime an toàn
+
+- dùng read-only snapshot trước/sau login để xác minh Wave 1, không tạo tiến độ giả;
+- hành động event-only chỉ kiểm tra khi operator chủ động thực hiện gameplay bình thường;
+- không tự nhận thưởng, dùng item/Pet, mua bán hoặc sửa dữ liệu để ép progress;
+- Flash smoke trên cả 7 nhóm tab: progress, completion, reconnect và claim chỉ với reward đã xác minh;
+- log không có failed reconcile, duplicate grant hoặc callback contract error.
+
+### Định nghĩa “làm hết”
+
+Hệ thống hoàn tất khi mọi achievement bật thuộc một trong hai trạng thái minh bạch:
+
+1. **Supported**: có registry + authority + persistence + test + runtime verification; hoặc
+2. **Explicitly blocked**: fail-closed với subsystem/authority thiếu được ghi rõ, không hiển thị completion giả.
+
+Không thể coi 107 requirement U là implemented chỉ bằng evaluator đoán. Chúng chỉ chuyển sang supported sau khi subsystem tương ứng được xây dựng và kiểm chứng.
+
+## 10. Approval gate
+
+Trước khi sửa code cần operator duyệt:
+
+- triển khai Wave 0–2 và Wave 1 cho 431 state-provable trước;
+- sau đó Wave 3 theo từng domain, vì chạm nhiều transaction/economy path;
+- Wave 4 được tách thành các feature plan riêng cho 107 requirement thiếu authority;
+- reward ledger/mapping chỉ mở cho ID canonical đã xác minh.
+
+Không migration, restart/deploy, backfill hoặc player mutation chỉ dựa trên việc duyệt plan; các thao tác rủi ro vẫn cần checkpoint và xác nhận riêng theo quy tắc repository.

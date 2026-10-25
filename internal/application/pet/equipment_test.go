@@ -160,7 +160,8 @@ func TestEquipPetItemMovesItemToPetSlotAndAppliesBonuses(t *testing.T) {
 				GrowRate:        1,
 				Property:        map[string]interface{}{},
 				CreatureData: map[string]interface{}{
-					"classIds": 3,
+					"classId":  3,
+					"classIds": 8,
 					"qLevel":   1,
 				},
 			},
@@ -218,6 +219,9 @@ func TestEquipPetItemMovesItemToPetSlotAndAppliesBonuses(t *testing.T) {
 	if storedItem.SlotType != domainitem.SlotTypePetEquipped || storedItem.SlotIndex != 0 {
 		t.Fatalf("stored item slot = (%d,%d), want (%d,0)", storedItem.SlotType, storedItem.SlotIndex, domainitem.SlotTypePetEquipped)
 	}
+	if !storedItem.IsBound || storedItem.Properties["binded"] != "1" {
+		t.Fatalf("stored item bind state = (%v,%#v), want bound", storedItem.IsBound, storedItem.Properties["binded"])
+	}
 }
 
 func TestEquipPetItemReplacesExistingEquipmentIntoFreedBagSlot(t *testing.T) {
@@ -239,7 +243,8 @@ func TestEquipPetItemReplacesExistingEquipmentIntoFreedBagSlot(t *testing.T) {
 					"equipGroup": 0,
 				},
 				CreatureData: map[string]interface{}{
-					"classIds": 3,
+					"classId":  3,
+					"classIds": 8,
 					"qLevel":   1,
 				},
 			},
@@ -313,7 +318,8 @@ func TestUnequipPetItemMovesBackToBagAndClearsEquipmentBonus(t *testing.T) {
 					"equipGroup": 0,
 				},
 				CreatureData: map[string]interface{}{
-					"classIds": 3,
+					"classId":  3,
+					"classIds": 8,
 					"qLevel":   1,
 				},
 			},
@@ -362,6 +368,60 @@ func TestUnequipPetItemMovesBackToBagAndClearsEquipmentBonus(t *testing.T) {
 	if storedItem.SlotType != domainitem.SlotTypeBag || storedItem.SlotIndex != 0 {
 		t.Fatalf("stored item slot = (%d,%d), want (%d,0)", storedItem.SlotType, storedItem.SlotIndex, domainitem.SlotTypeBag)
 	}
+	if !storedItem.IsBound || storedItem.Properties["binded"] != "1" {
+		t.Fatalf("unequipped item bind state = (%v,%#v), want bound", storedItem.IsBound, storedItem.Properties["binded"])
+	}
+}
+
+func TestRefreshPetForEquipmentItemRecalculatesOwningPet(t *testing.T) {
+	petRepo := &openSkillPetRepo{pets: map[int64]*domainpet.Pet{
+		2484410: {
+			ID: 2484410, CharacterID: 1, TemplateID: 1001, Level: 20,
+			AptStrength: 10, AptAgility: 10, AptStamina: 10, AptIntelligence: 10, AptEnergy: 10,
+			GrowRate: 1, CurrentHP: 17, CurrentMP: 19,
+			Property: map[string]interface{}{"equ1": int64(9001)},
+		},
+	}}
+	itemRepo := &petEquipmentItemRepo{items: map[int64]*domainitem.Item{
+		9001: {
+			ID: 9001, CharacterID: 1, TemplateID: 5001, ItemType: domainitem.ItemTypeEquipment,
+			SlotType: domainitem.SlotTypePetEquipped, IsBound: true, Properties: map[string]interface{}{"bindMainPropNum1": 11},
+		},
+	}}
+	service := NewService(petRepo, zap.NewNop())
+	service.SetItemRepository(itemRepo)
+	service.SetGameDataManager(newPetEquipmentGameData(t))
+
+	refreshed, err := service.RefreshPetForEquipmentItem(context.Background(), 1, 9001)
+	if err != nil {
+		t.Fatalf("RefreshPetForEquipmentItem() error = %v", err)
+	}
+	if refreshed == nil || refreshed.ID != 2484410 {
+		t.Fatalf("RefreshPetForEquipmentItem() = %#v, want owning pet", refreshed)
+	}
+	if refreshed.CurrentHP != 17 || refreshed.CurrentMP != 19 {
+		t.Fatalf("vitals = (%d,%d), want (17,19)", refreshed.CurrentHP, refreshed.CurrentMP)
+	}
+	if got := refreshed.Property["finalStrength"]; got != 26 {
+		t.Fatalf("finalStrength = %#v, want 26", got)
+	}
+
+	missing, err := service.RefreshPetForEquipmentItem(context.Background(), 1, 9999)
+	if err != nil || missing != nil {
+		t.Fatalf("missing item owner = (%#v,%v), want (nil,nil)", missing, err)
+	}
+}
+
+func TestAddPetEquipmentItemBonusesMapsLockedHPPercentToHPStat(t *testing.T) {
+	bonuses := domainpet.NewEquipmentStatBonuses()
+	item := &domainitem.Item{IsBound: true, Properties: map[string]interface{}{"bindMainPropNum1": 7}}
+	template := &models.EquiptTemplateTemplate{MainProp1: 24, MainPropNum1: 10}
+
+	addPetEquipmentItemBonuses(&bonuses, item, template)
+
+	if bonuses.Percent[1] != 17 || bonuses.Percent[24] != 0 {
+		t.Fatalf("HP percent bonuses = %#v, want stat 1 total 17", bonuses.Percent)
+	}
 }
 
 func newPetEquipmentGameData(t *testing.T) *gamedata.Manager {
@@ -382,7 +442,7 @@ func newPetEquipmentGameData(t *testing.T) *gamedata.Manager {
 	}
 
 	loadTable(models.TableCreature,
-		`{"id":1001,"name":"Test Pet","apt_strength":10,"apt_agility":10,"apt_stamina":10,"apt_intelligence":10,"apt_energy":10,"grow_base":1,"element":1,"q_level":1,"class_ids":3}`,
+		`{"id":1001,"name":"Test Pet","apt_strength":10,"apt_agility":10,"apt_stamina":10,"apt_intelligence":10,"apt_energy":10,"grow_base":1,"element":1,"q_level":1,"class_id":3,"class_ids":8}`,
 	)
 	loadTable(models.TableEquiptTemplate,
 		`{"id":5001,"name":"Pet Fang","kind":9,"position":50,"req_level":1,"req_class":"|3|","req_class_id":"|1001|","main_prop1":20,"main_prop_num1":5,"prop1":6,"prop_num1":7,"prop2":11,"prop_num2":9}`,

@@ -10,6 +10,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -336,6 +337,7 @@ func (c *PlayerCache) SaveAllDirty(ctx context.Context) (*center.SaveStats, erro
 	stats := &center.SaveStats{
 		TotalCached: totalCached,
 	}
+	var saveErrors []error
 
 	for _, charID := range charIDs {
 		c.mu.RLock()
@@ -359,13 +361,14 @@ func (c *PlayerCache) SaveAllDirty(ctx context.Context) (*center.SaveStats, erro
 				c.logger.Error("Failed to persist player data",
 					zap.Int64("character_id", charID),
 					zap.Error(err))
+				saveErrors = append(saveErrors, fmt.Errorf("character %d: %w", charID, err))
 			} else {
 				stats.SavedCount++
 			}
 		}
 	}
 
-	return stats, nil
+	return stats, errors.Join(saveErrors...)
 }
 
 func (c *PlayerCache) persistPlayerData(ctx context.Context, data *PlayerData) error {

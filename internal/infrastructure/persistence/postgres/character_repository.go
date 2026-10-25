@@ -37,6 +37,9 @@ func (r *CharacterRepository) FindByID(ctx context.Context, id int64) (*characte
 
 	r.loadCharacterCurrencies(ctx, char)
 	r.loadCharacterClassProgress(ctx, char)
+	if err := r.loadCharacterProgression(ctx, char); err != nil {
+		return nil, err
+	}
 
 	return char, nil
 }
@@ -56,6 +59,9 @@ func (r *CharacterRepository) FindByAccountID(ctx context.Context, accountID uui
 	for _, char := range characters {
 		r.loadCharacterCurrencies(ctx, char)
 		r.loadCharacterClassProgress(ctx, char)
+		if err := r.loadCharacterProgression(ctx, char); err != nil {
+			return nil, err
+		}
 	}
 
 	return characters, nil
@@ -76,6 +82,9 @@ func (r *CharacterRepository) FindByMapID(ctx context.Context, mapID int) ([]*ch
 	for _, char := range characters {
 		r.loadCharacterCurrencies(ctx, char)
 		r.loadCharacterClassProgress(ctx, char)
+		if err := r.loadCharacterProgression(ctx, char); err != nil {
+			return nil, err
+		}
 	}
 
 	return characters, nil
@@ -92,6 +101,9 @@ func (r *CharacterRepository) FindByName(ctx context.Context, name string) (*cha
 
 	r.loadCharacterCurrencies(ctx, char)
 	r.loadCharacterClassProgress(ctx, char)
+	if err := r.loadCharacterProgression(ctx, char); err != nil {
+		return nil, err
+	}
 
 	return char, nil
 }

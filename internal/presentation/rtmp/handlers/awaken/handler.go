@@ -9,17 +9,33 @@
 package awaken
 
 import (
+	"context"
 	"strconv"
 
 	appawaken "mcgame-server/internal/application/awaken"
+	domainchar "mcgame-server/internal/domain/character"
 	"mcgame-server/internal/infrastructure/rtmp"
 
 	"go.uber.org/zap"
 )
 
 type Handler struct {
-	service *appawaken.Service
-	logger  *zap.Logger
+	service       *appawaken.Service
+	characterRepo characterStatLoader
+	bonusProvider characterBonusProvider
+	logger        *zap.Logger
+}
+
+type characterStatLoader interface {
+	FindByID(ctx context.Context, id int64) (*domainchar.Character, error)
+}
+
+type characterBonusProvider interface {
+	AggregateEquipmentStats(ctx context.Context, charID int64) domainchar.EquipmentStatBonuses
+}
+
+type callbackSender interface {
+	SendCallback(method string, args ...interface{}) error
 }
 
 func NewHandler(service *appawaken.Service, logger *zap.Logger) *Handler {
@@ -27,6 +43,11 @@ func NewHandler(service *appawaken.Service, logger *zap.Logger) *Handler {
 		logger = zap.NewNop()
 	}
 	return &Handler{service: service, logger: logger}
+}
+
+func (h *Handler) SetStatRefreshDependencies(characterRepo characterStatLoader, bonusProvider characterBonusProvider) {
+	h.characterRepo = characterRepo
+	h.bonusProvider = bonusProvider
 }
 
 func (h *Handler) RegisterHandlers(d *rtmp.RPCDispatcher) {
@@ -47,6 +68,9 @@ func (h *Handler) Awakening(ctx *rtmp.RPCContext, args []interface{}) (interface
 		h.logger.Warn("awakening failed", zap.Int64("char_id", charID), zap.Error(err))
 		return nil, nil
 	}
+	if awakeningSucceeded(data) {
+		h.sendStatRefresh(ctx.Context, ctx.Connection, charID)
+	}
 	return data, nil
 }
 
@@ -59,6 +83,9 @@ func (h *Handler) EnsureBuyAwaken(ctx *rtmp.RPCContext, args []interface{}) (int
 	if err != nil {
 		h.logger.Warn("ensureBuyAwaken failed", zap.Int64("char_id", charID), zap.Error(err))
 		return nil, nil
+	}
+	if awakeningSucceeded(data) {
+		h.sendStatRefresh(ctx.Context, ctx.Connection, charID)
 	}
 	return data, nil
 }
@@ -146,4 +173,22 @@ func intArg(args []interface{}, idx int) (int, bool) {
 		return n, true
 	}
 	return 0, false
+}
+
+func awakeningSucceeded(data map[string]interface{}) bool {
+	success, ok := data["success"].(bool)
+	return ok && success
+}
+
+func (h *Handler) sendStatRefresh(ctx context.Context, sender callbackSender, charID int64) {
+	if h == nil || h.characterRepo == nil || h.bonusProvider == nil || sender == nil {
+		return
+	}
+	char, err := h.characterRepo.FindByID(ctx, charID)
+	if err != nil || char == nil {
+		h.logger.Warn("awakening stat refresh failed", zap.Int64("char_id", charID), zap.Error(err))
+		return
+	}
+	bonuses := h.bonusProvider.AggregateEquipmentStats(ctx, charID)
+	_ = sender.SendCallback("onUPP", domainchar.BuildUPPPayloadWithEquipment(char, bonuses))
 }

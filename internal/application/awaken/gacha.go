@@ -193,6 +193,13 @@ func (s *Service) onHit(ctx context.Context, charID int64, char *character.Chara
 		return nil, fmt.Errorf("awaken: write progression: %w", err)
 	}
 
+	char.AwakenLevel = targetLevel
+	char.AwakenPoints = newPoint
+	char.AwakenPointsUsed = state.PointUsed
+	if err := s.charRepo.Update(ctx, char); err != nil {
+		return nil, fmt.Errorf("awaken: synchronize character progression: %w", err)
+	}
+
 	state.Point = newPoint
 	state.AwakenAdd = 0
 	if err := s.saveState(ctx, charID, state); err != nil {
@@ -200,9 +207,6 @@ func (s *Service) onHit(ctx context.Context, charID int64, char *character.Chara
 			zap.Int64("char_id", charID), zap.Int("target_level", targetLevel), zap.Error(err))
 		return nil, fmt.Errorf("awaken: save feature pool: %w", err)
 	}
-
-	char.AwakenLevel = targetLevel
-	char.AwakenPoints = newPoint
 
 	return map[string]interface{}{
 		"success":     true,

@@ -62,6 +62,7 @@
 - Runtime repository thường được bọc bởi `internal/infrastructure/cache/`.
 - `PlayerData` clone entity khi đọc/ghi; dirty snapshot được flush tại `PlayerCache.persistPlayerData`.
 - Item/Pet mới cần ID nên create có thể ghi DB ngay; update thường write-behind khi người chơi online.
+- `center.Service.Stop()` phải chờ worker hoàn tất final `SaveAllDirty`; `SaveAllDirty` phải trả lỗi aggregate nếu bất kỳ character snapshot nào persist thất bại, không được chỉ log rồi báo success. Main dừng RTMP trước, chờ final cache flush, rồi mới health-check/đóng database.
 - Mọi migration phải qua compose database và Supabase CLI theo `CLAUDE.md`.
 
 ## Đồng bộ client

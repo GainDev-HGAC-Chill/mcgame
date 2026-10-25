@@ -82,6 +82,34 @@ func TestBuildSkillInfoFromGamedata_NoFallbackForNonDamage(t *testing.T) {
 	}
 }
 
+func TestBuildSkillInfoFromGamedataUsesTransformedAwakeningTemplateFields(t *testing.T) {
+	tpl := &gamedatamodels.SkillTemplate{
+		ID:          201,
+		Name:        "Awakened Skill",
+		Type:        float64(gamedataTypeMagic),
+		TargetType:  8,
+		AreaAttack:  4,
+		TargetNum:   3,
+		UseMP:       25,
+		BuffID:      14,
+		BuffRate:    75,
+		BuffRound:   2,
+		Description: "Gây 175% sát thương ma pháp",
+	}
+
+	info := buildSkillInfoFromGamedata(tpl)
+
+	if info.Template.ID != 201 || info.Template.Multiplier != 1.75 || info.Template.MPCost != 25 {
+		t.Fatalf("transformed template = %#v", info.Template)
+	}
+	if info.CombatTarget != domaincombat.TargetTeam || info.AreaType != domaincombat.AreaRandom || info.AreaSize != 3 {
+		t.Fatalf("target mapping = target %v area %v size %d", info.CombatTarget, info.AreaType, info.AreaSize)
+	}
+	if info.BuffID != 14 || info.BuffRate != 0.75 || info.BuffDuration != 2 {
+		t.Fatalf("buff mapping = id %d rate %v duration %d", info.BuffID, info.BuffRate, info.BuffDuration)
+	}
+}
+
 func TestResolveCharacterSkillMultiplier(t *testing.T) {
 	tests := []struct {
 		name        string

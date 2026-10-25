@@ -462,11 +462,75 @@ func TestAggregateEquipmentStats_IncludesDressSlotBindBonuses(t *testing.T) {
 	svc := NewService(repo, logger)
 
 	bonuses := svc.AggregateEquipmentStats(context.Background(), 99)
-	if got := bonuses.Flat[domainchar.PropStrength]; got != 37 {
-		t.Fatalf("strength bonus = %d, want 37", got)
+	if got := bonuses.Flat[domainchar.PropStrength]; got != 30 {
+		t.Fatalf("flat strength bonus = %d, want 30", got)
+	}
+	if got := bonuses.Percent[domainchar.PropStrength]; got != 7 {
+		t.Fatalf("locked strength bonus = %d%%, want 7%%", got)
 	}
 	if got := bonuses.Flat[domainchar.PropHit]; got != 12 {
 		t.Fatalf("hit bonus = %d, want 12", got)
+	}
+}
+
+func TestAggregateEquipmentStats_IgnoresLockedPropsUntilBound(t *testing.T) {
+	repo := newItemServiceTestRepo()
+	repo.items[1] = &domainitem.Item{
+		ID: 1, CharacterID: 99, TemplateID: 5001, ItemType: domainitem.ItemTypeEquipment,
+		SlotType: domainitem.SlotTypeBag, Properties: map[string]interface{}{
+			"mainProp1": 20, "mainPropNum1": 30, "bindMainPropNum1": 7,
+		},
+	}
+	svc := NewService(repo, zap.NewNop())
+
+	bonuses := domainchar.NewEquipmentStatBonuses()
+	svc.aggregateEquipBaseStats(repo.items[1], &bonuses)
+	if got := bonuses.Percent[domainchar.PropStrength]; got != 0 {
+		t.Fatalf("unbound locked strength bonus = %d%%, want 0", got)
+	}
+}
+
+func TestAggregateEquipmentStats_ActivatesLegacyEquippedLockedProps(t *testing.T) {
+	svc := NewService(newItemServiceTestRepo(), zap.NewNop())
+	it := &domainitem.Item{
+		ItemType: domainitem.ItemTypeEquipment, SlotType: domainitem.SlotTypeEquipped,
+		Properties: map[string]interface{}{
+			"mainProp1": 20, "mainPropNum1": 30, "bindMainPropNum1": 7,
+		},
+	}
+	bonuses := domainchar.NewEquipmentStatBonuses()
+
+	svc.aggregateEquipBaseStats(it, &bonuses)
+
+	if got := bonuses.Percent[domainchar.PropStrength]; got != 7 {
+		t.Fatalf("legacy equipped locked strength bonus = %d%%, want 7%%", got)
+	}
+}
+
+func TestBuildClientItemDTO_TreatsLegacyEquippedItemAsBound(t *testing.T) {
+	svc := NewService(newItemServiceTestRepo(), zap.NewNop())
+	it := &domainitem.Item{ID: 1, ItemType: domainitem.ItemTypeEquipment, SlotType: domainitem.SlotTypeEquipped}
+
+	dto := svc.BuildClientItemDTO(it)
+	if dto["binded"] != "1" {
+		t.Fatalf("legacy equipped binded = %#v, want 1", dto["binded"])
+	}
+}
+
+func TestEquipItemBindsIncomingEquipment(t *testing.T) {
+	repo := newItemServiceTestRepo()
+	repo.items[1] = &domainitem.Item{
+		ID: 1, CharacterID: 99, TemplateID: 5001, ItemType: domainitem.ItemTypeEquipment,
+		SlotType: domainitem.SlotTypeBag, SlotIndex: 4,
+	}
+	svc := NewService(repo, zap.NewNop())
+
+	if _, err := svc.EquipItem(context.Background(), 99, 1, domainitem.EquipSlotWeapon); err != nil {
+		t.Fatal(err)
+	}
+	stored := repo.items[1]
+	if !stored.IsBound || stored.Properties["binded"] != "1" {
+		t.Fatalf("stored bind state = (%v,%#v), want bound", stored.IsBound, stored.Properties["binded"])
 	}
 }
 
@@ -581,6 +645,28 @@ func TestBuildClientItemDTO_LevelSixMaterialAliasesLegacyConsumableColor(t *test
 	dto := service.BuildClientItemDTO(it)
 	if dto["color"] != 4 || dto["colorCode"] != 5 {
 		t.Fatalf("material color contract = color %#v colorCode %#v", dto["color"], dto["colorCode"])
+	}
+}
+
+func TestBuildClientItemDTO_LevelSixMaterialAliasesLegacyPropertyColor(t *testing.T) {
+	service := NewService(newItemServiceTestRepo(), zap.NewNop())
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	raw, err := json.Marshal(models.ItemTemplateTemplate{ID: 7, Kind: 14, Type: 601})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{raw}); err != nil {
+		t.Fatal(err)
+	}
+	service.SetGameDataManager(manager)
+	it := &domainitem.Item{
+		ID: 1, TemplateID: 7, ItemType: domainitem.ItemTypeConsumable, StackCount: 3,
+		Properties: map[string]interface{}{"color": "5"},
+	}
+
+	dto := service.BuildClientItemDTO(it)
+	if dto["color"] != 4 || dto["colorCode"] != 5 {
+		t.Fatalf("legacy property color contract = color %#v colorCode %#v", dto["color"], dto["colorCode"])
 	}
 }
 

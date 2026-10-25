@@ -244,6 +244,12 @@ func TestRecordLoginUsesCanonicalLevelAndDailyRequirements(t *testing.T) {
 	if len(repo.events[0].updates) != 4 || repo.events[0].updates[1].RequirementID != 2 || repo.events[0].updates[1].Absolute == nil || *repo.events[0].updates[1].Absolute != 52 {
 		t.Fatalf("level updates = %#v", repo.events[0].updates)
 	}
+	wantTargets := []int{10, 50, 100, 140}
+	for index, update := range repo.events[0].updates {
+		if update.Target != wantTargets[index] {
+			t.Fatalf("level update %d target = %d, want %d", index, update.Target, wantTargets[index])
+		}
+	}
 	if repo.events[1].key != "login-day:v1:2026-10-19" {
 		t.Fatalf("login event key = %q", repo.events[1].key)
 	}

@@ -21,6 +21,10 @@ func (m *Manager) MysGetMystre(id int) *models.MystreTemplate {
 	return m.cache.MysGetMystre(id)
 }
 
+func (m *Manager) MysGetAllMystres() []*models.MystreTemplate {
+	return m.cache.MysGetAllMystres()
+}
+
 func (m *Manager) MysGetRuneChip(id int) *models.RuneChipTemplate {
 	return m.cache.MysGetRuneChip(id)
 }
@@ -39,6 +43,16 @@ func (c *Cache) MysGetMystre(id int) *models.MystreTemplate {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.mystres[id]
+}
+
+func (c *Cache) MysGetAllMystres() []*models.MystreTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	result := make([]*models.MystreTemplate, 0, len(c.mystres))
+	for _, template := range c.mystres {
+		result = append(result, template)
+	}
+	return result
 }
 
 func (c *Cache) MysGetRuneChip(id int) *models.RuneChipTemplate {

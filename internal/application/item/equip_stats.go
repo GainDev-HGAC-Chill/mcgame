@@ -105,8 +105,11 @@ func (s *Service) aggregateEquipBaseStats(eq *domainitem.Item, bonuses *characte
 	addEquipmentPropBonus(bonuses, mainProp1, int(float64(mainPropNum1)*starMult))
 
 	bindNum1 := equipPropertyInt(eq.Properties, "bindMainPropNum1")
-	if bindNum1 > 0 && mainProp1 > 0 {
-		addEquipmentPropBonus(bonuses, mainProp1, bindNum1)
+	if bindNum1 <= 0 && tpl != nil {
+		bindNum1 = int(tpl.BindPropNum)
+	}
+	if eq.BindingActive() && bindNum1 > 0 && mainProp1 > 0 {
+		addEquipmentBindPropBonus(bonuses, mainProp1, bindNum1)
 	}
 
 	mainProp2 := equipPropertyInt(eq.Properties, "mainProp2")
@@ -118,8 +121,11 @@ func (s *Service) aggregateEquipBaseStats(eq *domainitem.Item, bonuses *characte
 	addEquipmentPropBonus(bonuses, mainProp2, int(float64(mainPropNum2)*starMult))
 
 	bindNum2 := equipPropertyInt(eq.Properties, "bindMainPropNum2")
-	if bindNum2 > 0 && mainProp2 > 0 {
-		addEquipmentPropBonus(bonuses, mainProp2, bindNum2)
+	if bindNum2 <= 0 && tpl != nil {
+		bindNum2 = int(tpl.BindPropNum)
+	}
+	if eq.BindingActive() && bindNum2 > 0 && mainProp2 > 0 {
+		addEquipmentBindPropBonus(bonuses, mainProp2, bindNum2)
 	}
 
 	prop1 := equipPropertyInt(eq.Properties, "prop1")
@@ -233,4 +239,14 @@ func addEquipmentPropBonus(bonuses *character.EquipmentStatBonuses, rawProp, val
 	}
 
 	bonuses.AddFlat(statProp, value)
+}
+
+func addEquipmentBindPropBonus(bonuses *character.EquipmentStatBonuses, rawProp, value int) {
+	if bonuses == nil || rawProp <= 0 || value == 0 {
+		return
+	}
+	statProp := character.EquipmentPropToStat(rawProp)
+	if statProp != 0 {
+		bonuses.AddPercent(statProp, value)
+	}
 }

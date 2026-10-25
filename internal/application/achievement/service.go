@@ -21,6 +21,9 @@ import (
 type Service struct {
 	repo            domainachievement.Repository
 	gameDataManager *gamedata.Manager
+	requirements    *RequirementRegistry
+	stateReaders    []StateProofReader
+	stateOwners     map[int64]string
 	logger          *zap.Logger
 }
 
@@ -37,13 +40,24 @@ func NewService(repo domainachievement.Repository, logger *zap.Logger) *Service 
 	}
 
 	return &Service{
-		repo:   repo,
-		logger: logger,
+		repo:        repo,
+		stateOwners: make(map[int64]string),
+		logger:      logger,
 	}
 }
 
 func (s *Service) SetGameDataManager(manager *gamedata.Manager) {
 	s.gameDataManager = manager
+	if manager == nil {
+		s.requirements = nil
+		return
+	}
+	registry, _, _, err := BuildRequirementRegistry(manager)
+	if err != nil {
+		s.logger.Error("Failed to build achievement requirement registry", zap.Error(err))
+		return
+	}
+	s.requirements = registry
 }
 
 func (s *Service) SetEventBus(bus *appevents.Bus) {

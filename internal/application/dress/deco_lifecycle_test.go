@@ -140,6 +140,9 @@ func TestDecoShowOwnershipControlsEquipAndSuitActivation(t *testing.T) {
 	if !result.ActFlag || result.ActArr["1"] != 101 {
 		t.Fatalf("suit activation = %#v", result)
 	}
+	if len(result.SuitProp) != 1 || result.SuitProp[0]["t"] != 4 || result.SuitProp[0]["propVal"] != 25 {
+		t.Fatalf("suitProp array = %#v", result.SuitProp)
+	}
 }
 
 func TestAggregateDecoBonusesUsesCatalogBackedHoleAndEquippedShow(t *testing.T) {

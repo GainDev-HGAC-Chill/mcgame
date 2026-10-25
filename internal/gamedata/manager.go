@@ -283,6 +283,10 @@ func (m *Manager) GetAchievementRequiresByAchievementID(achievementID int) []*mo
 	return m.cache.GetAchievementRequiresByAchievementID(achievementID)
 }
 
+func (m *Manager) GetAllAchievementRequires() []*models.AchievementRequireTemplate {
+	return m.cache.GetAllAchievementRequires()
+}
+
 func (m *Manager) GetTitle(id int) *models.TitleTemplate {
 	return m.cache.GetTitle(id)
 }

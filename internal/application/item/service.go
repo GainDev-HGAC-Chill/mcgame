@@ -600,14 +600,6 @@ func (s *Service) BuildEquipActiveList(ctx context.Context, charID int64) map[st
 			continue
 		}
 
-		activePropNum := int(tpl.ActivePropNum)
-		if activePropNum <= 0 {
-			activePropNum = equipPropertyInt(eq.Properties, "activePropNum")
-		}
-		if activePropNum <= 0 {
-			continue
-		}
-
 		partner, partnerEquipped := equippedByTemplateID[activeEquipID]
 		if !partnerEquipped {
 			continue
@@ -771,7 +763,29 @@ func (s *Service) EquipItem(ctx context.Context, charID int64, itemID int64, equ
 		existing.SlotIndex = emptySlot
 	}
 
+	originalSlot := it.SlotIndex
+	originalBound := it.IsBound
+	originalBindValue, hadOriginalBindValue := it.Properties["binded"]
 	if err := s.itemRepo.MoveItem(ctx, itemID, item.SlotTypeEquipped, int(equipSlot)); err != nil {
+		if existing != nil {
+			_ = s.itemRepo.MoveItem(ctx, existing.ID, item.SlotTypeEquipped, int(equipSlot))
+		}
+		return nil, err
+	}
+	it.MoveTo(item.SlotTypeEquipped, int(equipSlot))
+	it.Bind()
+	if err := s.itemRepo.Update(ctx, it); err != nil {
+		it.MoveTo(item.SlotTypeBag, originalSlot)
+		it.IsBound = originalBound
+		if hadOriginalBindValue {
+			it.Properties["binded"] = originalBindValue
+		} else {
+			delete(it.Properties, "binded")
+		}
+		_ = s.itemRepo.MoveItem(ctx, itemID, item.SlotTypeBag, originalSlot)
+		if existing != nil {
+			_ = s.itemRepo.MoveItem(ctx, existing.ID, item.SlotTypeEquipped, int(equipSlot))
+		}
 		return nil, err
 	}
 
@@ -793,6 +807,12 @@ func (s *Service) UnequipItem(ctx context.Context, charID int64, equipSlot item.
 	emptySlot, err := s.itemRepo.FindFirstEmptySlot(ctx, charID, item.SlotTypeBag, maxBag)
 	if err != nil {
 		return nil, err
+	}
+	if !it.IsBound {
+		it.Bind()
+		if err := s.itemRepo.Update(ctx, it); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.itemRepo.MoveItem(ctx, it.ID, item.SlotTypeBag, emptySlot); err != nil {
@@ -2430,12 +2450,7 @@ func (s *Service) BindItem(ctx context.Context, charID int64, itemID int64) erro
 		return nil
 	}
 
-	it.IsBound = true
-	if it.Properties == nil {
-		it.Properties = make(map[string]interface{})
-	}
-	it.Properties["binded"] = "1"
-	it.UpdatedAt = time.Now()
+	it.Bind()
 
 	if err := s.itemRepo.Update(ctx, it); err != nil {
 		return err

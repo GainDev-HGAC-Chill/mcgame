@@ -190,6 +190,10 @@ func applyPetPct(base, pct int) int {
 	return base + (base * pct / 100)
 }
 
+func applyPetAttributePct(base float64, pct int) float64 {
+	return base + (base * float64(pct) / 100)
+}
+
 func petFloatPropertyKey(propID int) string {
 	switch propID {
 	case 14:

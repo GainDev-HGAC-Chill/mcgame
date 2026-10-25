@@ -572,7 +572,7 @@ func TestItemHandler_EquipOff_PrefersItemIDOverSlotWhenAmbiguous(t *testing.T) {
 func TestItemHandler_BuildEquipActiveList_UsesCurrentlyEquippedItems(t *testing.T) {
 	char := &domainchar.Character{ID: 1, Name: "tester", Level: 1}
 	activeItem := &domainitem.Item{ID: 10, CharacterID: 1, TemplateID: 3001, ItemType: domainitem.ItemTypeEquipment, SlotType: domainitem.SlotTypeEquipped, SlotIndex: 0, StackCount: 1,
-		Properties: map[string]interface{}{"element": 3}}
+		Properties: map[string]interface{}{"element": 3, "activeProp": 1, "activePropNum": 0}}
 	requiredItem := &domainitem.Item{ID: 11, CharacterID: 1, TemplateID: 3002, ItemType: domainitem.ItemTypeEquipment, SlotType: domainitem.SlotTypeEquipped, SlotIndex: 6, StackCount: 1,
 		Properties: map[string]interface{}{"element": 3}}
 	missingPairItem := &domainitem.Item{ID: 12, CharacterID: 1, TemplateID: 3003, ItemType: domainitem.ItemTypeEquipment, SlotType: domainitem.SlotTypeEquipped, SlotIndex: 3, StackCount: 1,
@@ -584,7 +584,7 @@ func TestItemHandler_BuildEquipActiveList_UsesCurrentlyEquippedItems(t *testing.
 	handler, ctx := buildItemTestHandler(t, char, activeItem, requiredItem, missingPairItem, mismatchItem, mismatchPartner)
 
 	templates := []models.EquiptTemplateTemplate{
-		{ID: 3001, Position: 1, ActiveEquipID: 3002, ActivePropType: 1, ActivePropNum: 10},
+		{ID: 3001, Position: 1, ActiveEquipID: 3002, ActivePropType: 1, ActivePropNum: 0},
 		{ID: 3002, Position: 7},
 		{ID: 3003, Position: 4, ActiveEquipID: 3999, ActivePropType: 1, ActivePropNum: 5},
 		{ID: 3004, Position: 9, ActiveEquipID: 3005, ActivePropType: 2, ActivePropNum: 8},
@@ -606,7 +606,7 @@ func TestItemHandler_BuildEquipActiveList_UsesCurrentlyEquippedItems(t *testing.
 
 	activeList := handler.itemService.BuildEquipActiveList(ctx.Context, char.ID)
 	if got := activeList["1"]; got != true {
-		t.Fatalf("expected slot 1 to be active (same element pair), got %v", got)
+		t.Fatalf("expected slot 1 to be active from the same-element pair even with zero bonus value, got %v", got)
 	}
 	if got := activeList["7"]; got != false {
 		t.Fatalf("expected slot 7 to stay inactive without activeEquipId, got %v", got)

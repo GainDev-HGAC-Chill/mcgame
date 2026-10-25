@@ -5,6 +5,7 @@ package pet
 import (
 	apppet "mcgame-server/internal/application/pet"
 	"mcgame-server/internal/domain/auth"
+	domainitem "mcgame-server/internal/domain/item"
 	gamedatamanager "mcgame-server/internal/gamedata"
 	"mcgame-server/internal/infrastructure/rtmp"
 
@@ -12,11 +13,20 @@ import (
 )
 
 type Handler struct {
-	petService      *apppet.Service
+	petService     *apppet.Service
+	itemDTOBuilder interface {
+		BuildClientItemDTO(*domainitem.Item) map[string]interface{}
+	}
 	accountRepo     auth.AccountRepository
 	sceneManager    *rtmp.SceneManager
 	gameDataManager *gamedatamanager.Manager
 	logger          *zap.Logger
+}
+
+func (h *Handler) SetItemDTOBuilder(builder interface {
+	BuildClientItemDTO(*domainitem.Item) map[string]interface{}
+}) {
+	h.itemDTOBuilder = builder
 }
 
 func NewHandler(petService *apppet.Service, accountRepo auth.AccountRepository, logger *zap.Logger) *Handler {

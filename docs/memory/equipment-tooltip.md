@@ -1,5 +1,9 @@
 # Equipment Tooltip Subsystems (TIPEQUIP_S)
 
+## Locked properties and bind-on-equip (2026-10-25)
+
+`TipEquip` only highlights `bindMainPropNum1/2` when instance `binded>0`, and renders each value with `%`. Character and Pet equip operations therefore bind and persist the incoming equipment; Pet equip/off also republishes the canonical instance DTO through `onChangeEquiptInst`. Legacy rows already in a character/Pet equipped slot are treated as bind-active immediately, then become persistently bound on their next equip/off transition. Locked values fallback to template `bindPropNum` and enter the percentage pipeline for the corresponding main property. Attribute percentages are applied before recalculating derived stats. Pet rollback restores the pre-equip bind state as well as slots.
+
 ## Live inventory redraw (2026-10-12)
 
 EquipOn/Off now use owner-only `equip_slot_refresh.go`: all original SID deletions precede final instance-cache updates and slot additions. Displaced old equipment SID comes from actual resolved equip destination, not requested auto sentinel-1. This avoids sourceSID0 and overlapping move cleanup; scene appearance/stats callbacks remain separate. IDs and equipment properties preserved; no actual Gain equip operation used for tests. Empty-slot/replacement/rings/unequip callback tests PASS; Flash retest pending. [Research](../research/2026-10-12_01_EQUIP_SHOP_GM_RESEARCH.md).
@@ -10,7 +14,7 @@ The client tooltip (`TipEquip.as`) renders equipment info from raw server data u
 
 ## Soul Activation
 
-Equipment templates define `ActiveEquipID`, `ActivePropType` (1-8), `ActivePropNum`. Server's `BuildEquipActiveList()` checks if the partner equipment is also equipped AND both items have matching `element` values, returns `map[slotID]bool`. Sent at login and refreshed on every equip/unequip via `onEquipActiveList` callback. Client uses TIPEQUIP_S[0] (cyan/active) or [1] (gray/inactive).
+Equipment templates define `ActiveEquipID`, `ActivePropType` (1-8), `ActivePropNum`. Server's `BuildEquipActiveList()` checks if the partner equipment is also equipped AND both items have matching positive `element` values, returns `map[slotID]bool`. `activePropNum` is the bonus magnitude, not an activation gate: legacy/catalog-zero rows can still light when their pair and element match, while stat aggregation naturally skips a zero bonus. Sent at login and refreshed on every equip/unequip via `onEquipActiveList` callback. Client uses TIPEQUIP_S[0] (cyan/active) or [1] (gray/inactive).
 
 ## Equipment Stat Bonuses
 

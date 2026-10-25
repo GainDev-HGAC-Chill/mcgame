@@ -133,3 +133,17 @@ func TestApplyEquipmentBonuses_AppliesDirectBonusesBeforePercentages(t *testing.
 		t.Fatalf("Attack = %d, want 27", got)
 	}
 }
+
+func TestApplyEquipmentBonusesAppliesAttributePercentBeforeRecalculate(t *testing.T) {
+	char := &Character{Strength: 100}
+	char.RecalculateStats()
+	bonuses := NewEquipmentStatBonuses()
+	bonuses.AddFlat(PropStrength, 20)
+	bonuses.AddPercent(PropStrength, 10)
+
+	char.ApplyEquipmentBonuses(bonuses)
+
+	if char.Strength != 132 {
+		t.Fatalf("strength = %d, want 132", char.Strength)
+	}
+}

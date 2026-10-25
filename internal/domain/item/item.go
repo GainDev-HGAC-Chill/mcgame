@@ -113,19 +113,19 @@ func (i *Item) IsStackable() bool {
 }
 
 func (i *Item) CanStack(other *Item) bool {
-    if i == nil || other == nil {
-        return false
-    }
+	if i == nil || other == nil {
+		return false
+	}
 
-    if !i.IsStackable() || !other.IsStackable() {
-        return false
-    }
+	if !i.IsStackable() || !other.IsStackable() {
+		return false
+	}
 
-    return i.TemplateID == other.TemplateID &&
-        i.ItemType == other.ItemType &&
-        i.IsBound == other.IsBound &&
-        i.SlotType == other.SlotType &&
-        i.ColorCode == other.ColorCode
+	return i.TemplateID == other.TemplateID &&
+		i.ItemType == other.ItemType &&
+		i.IsBound == other.IsBound &&
+		i.SlotType == other.SlotType &&
+		i.ColorCode == other.ColorCode
 }
 
 func (i *Item) IsEquipped() bool {
@@ -166,6 +166,25 @@ func (i *Item) MoveTo(slotType SlotType, slotIndex int) {
 	i.SlotType = slotType
 	i.SlotIndex = slotIndex
 	i.UpdatedAt = time.Now()
+}
+
+func (i *Item) Bind() {
+	if i == nil {
+		return
+	}
+	i.IsBound = true
+	if i.Properties == nil {
+		i.Properties = make(map[string]interface{})
+	}
+	i.Properties["binded"] = "1"
+	i.UpdatedAt = time.Now()
+}
+
+func (i *Item) BindingActive() bool {
+	if i == nil {
+		return false
+	}
+	return i.IsBound || i.SlotType == SlotTypeEquipped || i.SlotType == SlotTypePetEquipped
 }
 
 func (i *Item) Equip(equipSlot EquipSlot) {
@@ -242,6 +261,11 @@ func (i *Item) ToDTO() map[string]interface{} {
 			effectiveColorCode = displayIntValue(i.Properties["colorCode"])
 		}
 	}
+
+	dto["giid"] = i.TemplateID
+	dto["tid"] = i.TemplateID
+	dto["cid"] = i.TemplateID
+	dto["tplId"] = i.TemplateID
 
 	if i.ItemType == ItemTypeEquipment {
 		prefixType := ResolveEquipmentPrefixType(dto["preNameType"], effectiveColorCode)

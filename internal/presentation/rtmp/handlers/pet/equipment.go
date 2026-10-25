@@ -39,6 +39,13 @@ func (h *Handler) PetEquipOn(ctx *rtmp.RPCContext, args []interface{}) (interfac
 	for _, move := range result.Moves {
 		_ = ctx.Connection.SendCallback("onMoveItem", float64(move.FromSID), float64(move.ToSID), float64(move.ItemID))
 	}
+	if result.Item != nil {
+		dto := result.Item.ToDTO()
+		if h.itemDTOBuilder != nil {
+			dto = h.itemDTOBuilder.BuildClientItemDTO(result.Item)
+		}
+		_ = ctx.Connection.SendCallback("onChangeEquiptInst", dto)
+	}
 	sendPetPropRefresh(ctx, result.Pet)
 	_ = ctx.Connection.SendCallback("onPetEquipOn", map[string]interface{}{
 		"pid":    result.Pet.ID,
@@ -77,6 +84,13 @@ func (h *Handler) PetEquipOff(ctx *rtmp.RPCContext, args []interface{}) (interfa
 
 	slotKey := fmt.Sprintf("equ%d", result.Slot)
 	_ = ctx.Connection.SendCallback("onMoveItem", float64(result.Move.FromSID), float64(result.Move.ToSID), float64(result.Move.ItemID))
+	if result.Item != nil {
+		dto := result.Item.ToDTO()
+		if h.itemDTOBuilder != nil {
+			dto = h.itemDTOBuilder.BuildClientItemDTO(result.Item)
+		}
+		_ = ctx.Connection.SendCallback("onChangeEquiptInst", dto)
+	}
 	_ = ctx.Connection.SendCallback("onUpdatePet", float64(result.Pet.ID), slotKey, float64(0))
 	sendPetPropRefresh(ctx, result.Pet)
 	_ = ctx.Connection.SendCallback("onPetEquipOff", map[string]interface{}{

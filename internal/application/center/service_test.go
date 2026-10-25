@@ -6,6 +6,7 @@ package center
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -134,9 +135,15 @@ func TestService_StopIdempotent(t *testing.T) {
 	ctx := context.Background()
 	service.Start(ctx)
 
-	service.Stop()
-	service.Stop()
-	service.Stop()
+	if err := service.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Stop(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestService_SaveError(t *testing.T) {
@@ -151,7 +158,9 @@ func TestService_SaveError(t *testing.T) {
 
 	time.Sleep(80 * time.Millisecond)
 
-	service.Stop()
+	if err := service.Stop(); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop error = %v, want deadline exceeded", err)
+	}
 
 	if cache.getSaveCallCount() < 1 {
 		t.Error("expected save to be attempted even with errors")
@@ -170,13 +179,32 @@ func TestService_FinalSaveOnStop(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	countBefore := cache.getSaveCallCount()
-	service.Stop()
-
-	time.Sleep(50 * time.Millisecond)
+	if err := service.Stop(); err != nil {
+		t.Fatal(err)
+	}
 
 	countAfter := cache.getSaveCallCount()
 	if countAfter <= countBefore {
 		t.Error("expected final save on stop")
+	}
+}
+
+func TestService_StopWaitsForFinalSave(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	cache := newMockPlayerCache()
+	cache.saveDelay = 80 * time.Millisecond
+	service := NewService(cache, 10*time.Second, logger)
+	service.Start(context.Background())
+
+	started := time.Now()
+	if err := service.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed < cache.saveDelay {
+		t.Fatalf("Stop returned after %v, before final save delay %v", elapsed, cache.saveDelay)
+	}
+	if cache.getSaveCallCount() != 1 {
+		t.Fatalf("save calls = %d, want 1", cache.getSaveCallCount())
 	}
 }
 

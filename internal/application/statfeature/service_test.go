@@ -118,6 +118,35 @@ func TestAggregateCharacterStatBonusesAppliesMultipleSystems(t *testing.T) {
 	}
 }
 
+func TestAggregateCharacterStatBonusesAccumulatesAwakeningRows(t *testing.T) {
+	repo := &testRepository{
+		progression: &domainfeature.CharacterProgression{CharacterID: 7, AwakenLevel: 4},
+	}
+	service := NewService(repo, zap.NewNop())
+	service.SetGameDataManager(loadTestManager(t, map[string][]map[string]interface{}{
+		models.TableAwakening: {
+			{"id": 1, "prop1": 1, "prop_num1": 100, "prop2": -1, "prop_num2": 0},
+			{"id": 2, "prop1": 4, "prop_num1": 20, "prop2": 5, "prop_num2": 15},
+			{"id": 4, "prop1": 1, "prop_num1": 50, "prop2": 62, "prop_num2": 0.0048},
+		},
+	}))
+
+	bonuses := service.AggregateCharacterStatBonuses(context.Background(), 7)
+
+	if got, want := bonuses.Flat[domainchar.PropMaxHP], 150; got != want {
+		t.Fatalf("PropMaxHP bonus = %d, want %d", got, want)
+	}
+	if got, want := bonuses.Flat[domainchar.PropAttack], 20; got != want {
+		t.Fatalf("PropAttack bonus = %d, want %d", got, want)
+	}
+	if got, want := bonuses.Flat[domainchar.PropMagicAttack], 15; got != want {
+		t.Fatalf("PropMagicAttack bonus = %d, want %d", got, want)
+	}
+	if got, want := bonuses.Float[domainchar.PropFinalPhysBonus], 0.48; got != want {
+		t.Fatalf("PropFinalPhysBonus bonus = %v, want %v", got, want)
+	}
+}
+
 func TestAggregateCharacterStatBonusesAppliesHeiyaoshiBuff(t *testing.T) {
 	repo := &testRepository{
 		characterState: []*domainfeature.CharacterFeatureState{

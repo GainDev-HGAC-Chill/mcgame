@@ -1426,6 +1426,16 @@ func (c *Cache) GetAchievementRequiresByAchievementID(achievementID int) []*mode
 	return result
 }
 
+func (c *Cache) GetAllAchievementRequires() []*models.AchievementRequireTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	result := make([]*models.AchievementRequireTemplate, 0, len(c.achieveReqs))
+	for _, requirement := range c.achieveReqs {
+		result = append(result, requirement)
+	}
+	return result
+}
+
 func (c *Cache) GetTitle(id int) *models.TitleTemplate {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

@@ -27,6 +27,8 @@ type PetItemUseResult struct {
 
 var petStarSuccessRates = [...]int{0, 100, 100, 90, 80, 70, 60, 50, 30, 30, 30, 30, 20}
 
+const petStarClearItemTemplateID = 2245
+
 func (s *Service) loadPetFunctionItem(ctx context.Context, charID, itemID int64) (*domainitem.Item, error) {
 	if s.itemRepo == nil {
 		return nil, pkgerrors.ErrInvalidInput
@@ -134,12 +136,19 @@ func (s *Service) ClearStarsWithItem(ctx context.Context, charID, petID, itemID 
 	if err != nil {
 		return nil, err
 	}
+	if s.gameDataManager == nil {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+	tpl := s.gameDataManager.GetItem(it.TemplateID)
+	if it.TemplateID != petStarClearItemTemplateID || tpl == nil || int(tpl.Type) != 507 || int(tpl.UseType) != 4 || int(tpl.PropType) != 5 {
+		return nil, pkgerrors.ErrInvalidInput
+	}
 	p, err := s.getPetAndValidate(ctx, charID, petID)
 	if err != nil {
 		return nil, err
 	}
 	original := p.Clone()
-	p.ClearStars()
+	p.ResetStarEnhancement()
 	return s.finishPetItemUse(ctx, original, p, it)
 }
 

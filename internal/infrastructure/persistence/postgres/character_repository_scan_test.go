@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"mcgame-server/internal/domain/character"
+	"mcgame-server/internal/domain/statfeature"
 )
 
 func TestHydrateCharacterState_RecalculatesDerivedStatsAndClampsVitals(t *testing.T) {
@@ -58,5 +59,22 @@ func TestHydrateCharacterState_RecalculatesDerivedStatsAndClampsVitals(t *testin
 	}
 	if char.CurrentSP != char.MaxSP {
 		t.Fatalf("current sp = %d, want clamped max sp %d", char.CurrentSP, char.MaxSP)
+	}
+}
+
+func TestApplyCharacterProgressionRestoresPersistedAwakeningAfterRestart(t *testing.T) {
+	char := &character.Character{ID: 3}
+	progression := &statfeature.CharacterProgression{
+		CharacterID: 3, AwakenLevel: 33, AwakenPoints: 2, AwakenPointsUsed: 9,
+		SoulLevel: 4, SoulExp: 500, SoulPoints: 6,
+	}
+
+	applyCharacterProgression(char, progression)
+
+	if char.AwakenLevel != 33 || char.AwakenPoints != 2 || char.AwakenPointsUsed != 9 {
+		t.Fatalf("awakening progression = (%d,%d,%d), want (33,2,9)", char.AwakenLevel, char.AwakenPoints, char.AwakenPointsUsed)
+	}
+	if char.SoulLevel != 4 || char.SoulExp != 500 || char.SoulPoints != 6 {
+		t.Fatalf("soul progression = (%d,%d,%d), want (4,500,6)", char.SoulLevel, char.SoulExp, char.SoulPoints)
 	}
 }
