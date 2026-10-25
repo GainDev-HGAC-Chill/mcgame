@@ -83,6 +83,25 @@ This file is the single source of truth for AI coding assistants in this repo (C
 - `docs/memory/*.{md,html}` — authoritative per-feature knowledge.
 - `docs/research/*.{md,html}`, `docs/plans/*.{md,html}` — research notes and feature proposals.
 
+## External Gameplay References
+
+- https://web.4399.com/mlxt/
+  Chinese original-game reference.
+
+- https://vuaphapthuat.go.vn/
+  Vietnamese gameplay and feature reference.
+
+When researching or implementing game features:
+- Consult both websites when relevant.
+- Compare gameplay descriptions, skill effects,
+  pet systems, equipment, quests and activities.
+- Verify mechanics against docs/client/,
+  game-data tables and current Go source.
+- Account for differences between game versions.
+- Never treat website descriptions as authoritative
+  RPC contracts or database specifications.
+- Record relevant source URLs in feature research docs.
+
 ## AI Memory Workflow
 
 Before fixing a bug, read `docs/ai-memory/INDEX.md` and `docs/ai-memory/WORK_STATE.md`, then consult only the relevant rows/sections in `MODULE_MAP.md`, `FIX_HISTORY.md`, and `ARCHITECTURE.md`. Search source when memory is insufficient or may be stale; Markdown never overrides current code. After each fix, update only the affected memory files, and refresh `WORK_STATE.md` before ending the session.
