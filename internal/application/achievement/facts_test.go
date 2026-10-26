@@ -9,6 +9,8 @@ import (
 	"time"
 
 	domainachievement "mcgame-server/internal/domain/achievement"
+	"mcgame-server/internal/gamedata"
+	"mcgame-server/internal/gamedata/models"
 
 	"go.uber.org/zap"
 )
@@ -35,6 +37,34 @@ func TestProcessPendingFactsRecordsQuestCompletionOnce(t *testing.T) {
 	}
 	if len(repo.processed) != 1 || repo.processed[0] != repo.facts[0].FactID {
 		t.Fatalf("processed = %#v", repo.processed)
+	}
+}
+
+func TestProcessPendingFactsMatchesExactQuestAchievement(t *testing.T) {
+	now := time.Date(2026, 10, 26, 8, 30, 0, 0, time.UTC)
+	repo := &achievementTestRepo{facts: []domainachievement.Fact{{
+		FactID:      "quest-completed:v1:81:1",
+		CharacterID: 99,
+		Kind:        domainachievement.FactKindQuestCompleted,
+		Payload:     json.RawMessage(`{"progress_id":81,"quest_id":2579,"completion_count":1}`),
+		OccurredAt:  now,
+	}}}
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	raw, err := json.Marshal(models.QuestTemplate{ID: 2579, Name: "Tiêu Diệt Phản Quân Đại Tướng", Type: 6, SubType: "-1"})
+	if err != nil {
+		t.Fatalf("marshal quest: %v", err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableQuest, []json.RawMessage{raw}); err != nil {
+		t.Fatalf("load quest: %v", err)
+	}
+	service := NewService(repo, zap.NewNop())
+	service.SetGameDataManager(manager)
+
+	if _, err := service.ProcessPendingFacts(context.Background(), 99, now.Add(time.Minute)); err != nil {
+		t.Fatalf("ProcessPendingFacts() error = %v", err)
+	}
+	if len(repo.events) != 1 || len(repo.events[0].updates) != 5 || repo.events[0].updates[4].RequirementID != 226 {
+		t.Fatalf("updates = %#v", repo.events)
 	}
 }
 

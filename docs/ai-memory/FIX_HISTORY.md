@@ -1,5 +1,11 @@
 # MCGame Fix History
 
+## FIX-2026-10-26-02 — Thành Tựu authority completion và fail-closed census
+
+- Hoàn tất authority census `472 state + 74 event + 151 unsupported`: startup/test khóa đủ đúng một reader cho `472/472 S` và đúng một producer cho `74/74 E`. Chuyển 10 RID state không có bằng chứng và 69 RID event không có durable producer/aggregate sang U thay vì biểu thị coverage giả; toàn bộ U tiếp tục fail-closed.
+- Bổ sung persisted authority cho TempBag, nhân khí âm, Giác Quan, 32 title-backed RID; Magic Estate `406–410` từ steal-log aggregate theo ngày Việt Nam; derived tứ thần/tứ ma `324/325` từ AND persisted source. Battle resolution ghi arena participation và 50 boss/quái RID bằng canonical battle UUID, exact dead creature ID + catalog name; quest fact thêm exact RID `226/254` với catalog drift guard.
+- Focused Achievement/PostgreSQL/combat/gameserver PASS. `go vet ./...`, Windows gameserver build và `git diff --check` PASS. `go test ./...` chỉ còn cùng baseline ngoài phạm vi đã ghi trước đó: `cmd/questaudit` census 242, activity `BuySendCombine()=0` và hai chat stat HP expectation; rerun riêng ba package xác nhận ổn định. Không deploy/restart, runtime smoke, claim/backfill hoặc mutate player/DB.
+
 ## FIX-2026-10-26-01 — Thành Tựu reward registry và durable claim ledger
 
 - Đối chiếu đủ 30 reward trong bài hướng dẫn chính thức với achievement/item/title/buff/medal catalog: 9 title, 9 item và 12 Ấn Chương. Mapping cuối `6066 → title 274` được chứng minh bằng exact catalog link `TBL_TITLE.b=2793 → TBL_BUFF.name=Giáo Sư Biết Tuốt`; startup validator fail nếu link/name drift.

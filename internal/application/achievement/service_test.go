@@ -346,14 +346,19 @@ func TestRecordBattleEndedAddsArenaRequirementsOnlyForWins(t *testing.T) {
 	if len(repo.events) != 1 || repo.events[0].key != "battle:v1:"+battleID {
 		t.Fatalf("events = %#v", repo.events)
 	}
-	if len(repo.events[0].updates) != 9 || repo.events[0].updates[5].RequirementID != 151 {
+	if len(repo.events[0].updates) != 12 || repo.events[0].updates[0].RequirementID != 155 || repo.events[0].updates[3].RequirementID != 185 || repo.events[0].updates[8].RequirementID != 151 {
 		t.Fatalf("arena updates = %#v", repo.events[0].updates)
 	}
 	if _, err := service.RecordBattleEnded(context.Background(), 99, "cb22f355-06a1-451c-a22a-cbca876ff0d4", 3, false, now); err != nil {
 		t.Fatalf("lost RecordBattleEnded() error = %v", err)
 	}
-	if len(repo.events) != 1 {
-		t.Fatalf("lost battle recorded an event")
+	if len(repo.events) != 2 || len(repo.events[1].updates) != 3 {
+		t.Fatalf("lost arena battle events = %#v", repo.events)
+	}
+	for _, update := range repo.events[1].updates {
+		if update.RequirementID < 155 || update.RequirementID > 157 {
+			t.Fatalf("lost arena updated non-participation requirement: %#v", update)
+		}
 	}
 }
 

@@ -59,6 +59,12 @@ var arenaRequirements = []requirementTarget{
 	{RequirementID: 154, AchievementID: 4004, Target: 1000},
 }
 
+var arenaParticipationRequirements = []requirementTarget{
+	{RequirementID: 155, AchievementID: 4005, Target: 1},
+	{RequirementID: 156, AchievementID: 4006, Target: 5},
+	{RequirementID: 157, AchievementID: 4007, Target: 10},
+}
+
 func (s *Service) RecordLogin(ctx context.Context, charID int64, level int, now time.Time) (domainachievement.ProgressUpdate, error) {
 	if charID <= 0 || level <= 0 || now.IsZero() {
 		return domainachievement.ProgressUpdate{}, fmt.Errorf("invalid achievement login event")
@@ -100,16 +106,31 @@ func (s *Service) RecordQuestFinished(ctx context.Context, charID int64, questID
 }
 
 func (s *Service) RecordBattleEnded(ctx context.Context, charID int64, battleID string, battleType domaincombat.BattleType, won bool, now time.Time) (domainachievement.ProgressUpdate, error) {
+	return s.RecordBattleEndedWithDefeated(ctx, charID, battleID, battleType, won, nil, now)
+}
+
+func (s *Service) RecordBattleEndedWithDefeated(ctx context.Context, charID int64, battleID string, battleType domaincombat.BattleType, won bool, defeatedCreatureIDs []int, now time.Time) (domainachievement.ProgressUpdate, error) {
 	parsedBattleID, parseErr := uuid.Parse(battleID)
 	if charID <= 0 || battleID == "" || strings.TrimSpace(battleID) != battleID || parseErr != nil || parsedBattleID.String() != battleID || now.IsZero() || !supportedAchievementBattleType(battleType) {
 		return domainachievement.ProgressUpdate{}, fmt.Errorf("invalid achievement battle event")
 	}
-	if !won {
-		return emptyProgressUpdate(), nil
-	}
-	requirements := append([]requirementTarget{}, battleRequirements...)
+	requirements := make([]requirementTarget, 0, len(battleRequirements)+len(arenaRequirements)+len(arenaParticipationRequirements))
 	if battleType == domaincombat.BattleTypeArena {
-		requirements = append(requirements, arenaRequirements...)
+		requirements = append(requirements, arenaParticipationRequirements...)
+	}
+	if won {
+		requirements = append(requirements, battleRequirements...)
+		if battleType == domaincombat.BattleTypeArena {
+			requirements = append(requirements, arenaRequirements...)
+		}
+		creatureRequirements, err := s.defeatedCreatureRequirements(defeatedCreatureIDs)
+		if err != nil {
+			return domainachievement.ProgressUpdate{}, err
+		}
+		requirements = append(requirements, creatureRequirements...)
+	}
+	if len(requirements) == 0 {
+		return emptyProgressUpdate(), nil
 	}
 	return s.recordIncrement(ctx, charID, "battle:v1:"+battleID, requirements, now)
 }

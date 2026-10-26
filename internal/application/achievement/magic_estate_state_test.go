@@ -9,8 +9,14 @@ import (
 )
 
 type magicEstateStateRepoFixture struct {
-	profile *domainfarm.MagicEstateProfile
-	err     error
+	profile      *domainfarm.MagicEstateProfile
+	maxDayStreak int
+	maxDailyWins int
+	err          error
+}
+
+func (r magicEstateStateRepoFixture) GetMagicEstateStealAchievementState(context.Context, int64) (int, int, error) {
+	return r.maxDayStreak, r.maxDailyWins, r.err
 }
 
 func (r magicEstateStateRepoFixture) FindByCharacter(context.Context, int64) (*domainfarm.MagicEstateProfile, error) {
@@ -22,24 +28,24 @@ func TestMagicEstateStateReaderUsesEstateLevelAndUnlockedLand(t *testing.T) {
 		CharacterID: 99,
 		Exp:         61,
 		FarmNum:     8,
-	}})
+	}, maxDayStreak: 30, maxDailyWins: 45})
 	proofs, err := reader.ReadStateProofs(context.Background(), 99)
 	if err != nil {
 		t.Fatalf("ReadStateProofs() error = %v", err)
 	}
-	if len(proofs) != 5 {
-		t.Fatalf("proof count = %d, want 5", len(proofs))
+	if len(proofs) != 10 {
+		t.Fatalf("proof count = %d, want 10", len(proofs))
 	}
 	byID := make(map[int64]StateProof, len(proofs))
 	for _, proof := range proofs {
 		byID[proof.RequirementID] = proof
 	}
-	for _, requirementID := range []int64{399, 401, 402} {
+	for _, requirementID := range []int64{399, 401, 402, 406, 407, 409} {
 		if !byID[requirementID].Done {
 			t.Fatalf("requirement %d proof = %#v, want done", requirementID, byID[requirementID])
 		}
 	}
-	for _, requirementID := range []int64{400, 403} {
+	for _, requirementID := range []int64{400, 403, 408, 410} {
 		if byID[requirementID].Done {
 			t.Fatalf("requirement %d proof = %#v, want incomplete", requirementID, byID[requirementID])
 		}

@@ -27,7 +27,7 @@ func (r *CharacterStateReader) Name() string {
 }
 
 func (r *CharacterStateReader) RequirementIDs() []int64 {
-	return []int64{1, 2, 3, 4, 17, 18, 19, 20, 22, 57, 58, 100, 101, 134, 135, 136, 137, 142, 143, 144, 145, 146, 147, 148, 149, 395, 510, 535}
+	return []int64{1, 2, 3, 4, 17, 18, 19, 20, 22, 57, 58, 100, 101, 134, 135, 136, 137, 142, 143, 144, 145, 146, 147, 148, 149, 386, 387, 392, 393, 394, 395, 510, 535, 652, 653, 654, 655, 656, 657, 658}
 }
 
 func (r *CharacterStateReader) ReadStateProofs(ctx context.Context, characterID int64) ([]StateProof, error) {
@@ -67,14 +67,33 @@ func (r *CharacterStateReader) ReadStateProofs(ctx context.Context, characterID 
 		stateProof(147, boundedStateProgress(character.Reputation), 2000),
 		stateProof(148, boundedStateProgress(character.Reputation), 5000),
 		stateProof(149, boundedStateProgress(character.Reputation), 10000),
+		stateProof(386, character.TempBagSlots, 1),
+		stateProof(387, character.TempBagSlots, 5),
+		stateProof(392, negativeThresholdProgress(character.Pop, -500), 1),
+		stateProof(393, negativeThresholdProgress(character.Pop, -5000), 1),
+		stateProof(394, negativeThresholdProgress(character.Pop, -10000), 1),
 		stateProof(395, character.PetMaxNum, 60),
 		stateProof(510, character.Level, 150),
 		stateProof(535, character.RebirthLvl, 1),
+		stateProof(652, character.AwakenLevel, 11),
+		stateProof(653, character.AwakenLevel, 22),
+		stateProof(654, character.AwakenLevel, 33),
+		stateProof(655, character.AwakenLevel, 44),
+		stateProof(656, character.AwakenLevel, 55),
+		stateProof(657, character.AwakenLevel, 66),
+		stateProof(658, character.AwakenLevel, 77),
 	}
 	if character.Level >= 60 && character.Money == 0 && character.MoneyBind == 0 && character.Gold == 0 && character.GoldBind == 0 {
 		proofs = append(proofs, stateProof(22, 1, 1))
 	}
 	return proofs, nil
+}
+
+func negativeThresholdProgress(value, threshold int64) int {
+	if value <= threshold {
+		return 1
+	}
+	return 0
 }
 
 func stateProof(requirementID int64, progress, target int) StateProof {

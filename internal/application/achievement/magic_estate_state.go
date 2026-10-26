@@ -13,6 +13,7 @@ import (
 
 type MagicEstateStateRepository interface {
 	FindByCharacter(ctx context.Context, characterID int64) (*domainfarm.MagicEstateProfile, error)
+	GetMagicEstateStealAchievementState(ctx context.Context, characterID int64) (maxDayStreak int, maxDailyWins int, err error)
 }
 
 type MagicEstateStateReader struct {
@@ -28,7 +29,7 @@ func (r *MagicEstateStateReader) Name() string {
 }
 
 func (r *MagicEstateStateReader) RequirementIDs() []int64 {
-	return requirementIDRange(399, 403)
+	return append(requirementIDRange(399, 403), requirementIDRange(406, 410)...)
 }
 
 func (r *MagicEstateStateReader) ReadStateProofs(ctx context.Context, characterID int64) ([]StateProof, error) {
@@ -48,11 +49,23 @@ func (r *MagicEstateStateReader) ReadStateProofs(ctx context.Context, characterI
 		estateLevel = appfarm.MagicEstateLevelByExp(profile.Exp)
 		farmNum = profile.FarmNum
 	}
+	maxDayStreak, maxDailyWins, err := r.repo.GetMagicEstateStealAchievementState(ctx, characterID)
+	if err != nil {
+		return nil, err
+	}
+	if maxDayStreak < 0 || maxDailyWins < 0 {
+		return nil, fmt.Errorf("invalid magic-estate steal state for character %d", characterID)
+	}
 	return []StateProof{
 		stateProof(399, estateLevel, 2),
 		stateProof(400, estateLevel, 5),
 		stateProof(401, farmNum, 4),
 		stateProof(402, farmNum, 8),
 		stateProof(403, farmNum, 16),
+		stateProof(406, maxDayStreak, 7),
+		stateProof(407, maxDayStreak, 30),
+		stateProof(408, maxDayStreak, 90),
+		stateProof(409, maxDailyWins, 30),
+		stateProof(410, maxDailyWins, 60),
 	}, nil
 }

@@ -36,7 +36,7 @@ func (s *Service) ProcessPendingFacts(ctx context.Context, charID int64, now tim
 		if fact.CharacterID != charID {
 			return mergeProgressUpdates(results...), fmt.Errorf("achievement fact character mismatch")
 		}
-		updates, evaluateErr := evaluateAchievementFact(fact)
+		updates, evaluateErr := s.evaluateAchievementFact(fact)
 		if evaluateErr != nil {
 			return mergeProgressUpdates(results...), evaluateErr
 		}
@@ -56,7 +56,7 @@ func (s *Service) ProcessPendingFacts(ctx context.Context, charID int64, now tim
 	return mergeProgressUpdates(results...), nil
 }
 
-func evaluateAchievementFact(fact domainachievement.Fact) ([]domainachievement.RequirementUpdate, error) {
+func (s *Service) evaluateAchievementFact(fact domainachievement.Fact) ([]domainachievement.RequirementUpdate, error) {
 	if fact.FactID == "" || fact.CharacterID <= 0 || fact.OccurredAt.IsZero() {
 		return nil, fmt.Errorf("invalid achievement fact identity")
 	}
@@ -73,8 +73,34 @@ func evaluateAchievementFact(fact domainachievement.Fact) ([]domainachievement.R
 		if fact.FactID != expectedID {
 			return nil, fmt.Errorf("achievement quest fact identity mismatch")
 		}
-		return buildIncrementUpdates(questRequirements), nil
+		updates := buildIncrementUpdates(questRequirements)
+		specific, err := s.specificQuestFactUpdates(payload.QuestID)
+		if err != nil {
+			return nil, err
+		}
+		return append(updates, specific...), nil
 	default:
 		return nil, fmt.Errorf("unsupported achievement fact kind %q", fact.Kind)
+	}
+}
+
+func (s *Service) specificQuestFactUpdates(questID int) ([]domainachievement.RequirementUpdate, error) {
+	if s == nil || s.gameDataManager == nil {
+		return nil, nil
+	}
+	template := s.gameDataManager.GetQuest(questID)
+	switch questID {
+	case 2579:
+		if template == nil || template.Name != "Tiêu Diệt Phản Quân Đại Tướng" || int(template.Type) != 6 || template.SubType != "-1" {
+			return nil, fmt.Errorf("quest authority for requirement 226 is invalid")
+		}
+		return buildIncrementUpdates([]requirementTarget{{RequirementID: 226, AchievementID: 5031, Target: 1}}), nil
+	case 3202:
+		if template == nil || template.Name != "Làm 1 Nhiệm Vụ Treo Thưởng" || int(template.Type) != 1 || template.SubType != "-1" {
+			return nil, fmt.Errorf("quest authority for requirement 254 is invalid")
+		}
+		return buildIncrementUpdates([]requirementTarget{{RequirementID: 254, AchievementID: 5048, Target: 1}}), nil
+	default:
+		return nil, nil
 	}
 }

@@ -46,8 +46,8 @@ func TestRequirementRegistryMatchesAuditedCatalog(t *testing.T) {
 	if registry.Len() != 697 {
 		t.Fatalf("registry length = %d, want 697", registry.Len())
 	}
-	if stats.StateRequirements != 431 || stats.EventRequirements != 159 || stats.UnsupportedRequirements != 107 {
-		t.Fatalf("authority stats = %d/%d/%d, want 431/159/107", stats.StateRequirements, stats.EventRequirements, stats.UnsupportedRequirements)
+	if stats.StateRequirements != 472 || stats.EventRequirements != 74 || stats.UnsupportedRequirements != 151 {
+		t.Fatalf("authority stats = %d/%d/%d, want 472/74/151", stats.StateRequirements, stats.EventRequirements, stats.UnsupportedRequirements)
 	}
 	if stats.EnabledAchievements != 566 || stats.EnabledRequirements != 697 || stats.AllRequirementTypes != 60 {
 		t.Fatalf("catalog stats = %#v", stats)
@@ -60,6 +60,43 @@ func TestRequirementRegistryMatchesAuditedCatalog(t *testing.T) {
 	}
 	if fingerprint != auditedAchievementCatalogFingerprint {
 		t.Fatalf("fingerprint = %s, want %s", fingerprint, auditedAchievementCatalogFingerprint)
+	}
+}
+
+func TestEventAuthorityMatchesImplementedProducerCoverage(t *testing.T) {
+	registry, _, _, err := BuildRequirementRegistry(loadAchievementCatalogFixture(t))
+	if err != nil {
+		t.Fatalf("BuildRequirementRegistry() error = %v", err)
+	}
+	implemented := make(map[int64]struct{})
+	add := func(requirements []requirementTarget) {
+		for _, requirement := range requirements {
+			if _, exists := implemented[requirement.RequirementID]; exists {
+				t.Fatalf("duplicate event producer ownership for requirement %d", requirement.RequirementID)
+			}
+			implemented[requirement.RequirementID] = struct{}{}
+		}
+	}
+	add(loginRequirements)
+	add(questRequirements)
+	add(battleRequirements)
+	add(arenaRequirements)
+	add(arenaParticipationRequirements)
+	add([]requirementTarget{{RequirementID: 226}, {RequirementID: 254}})
+	for _, requirement := range battleCreatureRequirements {
+		add([]requirementTarget{{RequirementID: requirement.requirementID}})
+	}
+	if len(implemented) != 74 {
+		t.Fatalf("implemented event coverage = %d, want 74", len(implemented))
+	}
+	for requirementID, definition := range registry.definitions {
+		_, hasProducer := implemented[requirementID]
+		if definition.Authority == RequirementAuthorityEvent && !hasProducer {
+			t.Fatalf("event requirement %d has no producer", requirementID)
+		}
+		if hasProducer && definition.Authority != RequirementAuthorityEvent {
+			t.Fatalf("producer requirement %d authority = %s", requirementID, definition.Authority)
+		}
 	}
 }
 

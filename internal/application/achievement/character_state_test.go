@@ -20,31 +20,33 @@ func (r characterStateRepositoryFixture) FindByID(ctx context.Context, id int64)
 
 func TestCharacterStateReaderBuildsPersistedProofs(t *testing.T) {
 	character := &domaincharacter.Character{
-		ID:          99,
-		Level:       150,
-		RebirthLvl:  2,
-		Money:       900000000,
-		Gold:        30000,
-		BagSlotNum:  2,
-		BankSlotNum: 1,
-		PetMaxNum:   60,
-		ArenaPoints: 200000,
-		Pop:         10000,
-		Reputation:  10000,
+		ID:           99,
+		Level:        150,
+		RebirthLvl:   2,
+		Money:        900000000,
+		Gold:         30000,
+		BagSlotNum:   2,
+		BankSlotNum:  1,
+		TempBagSlots: 5,
+		PetMaxNum:    60,
+		ArenaPoints:  200000,
+		Pop:          10000,
+		Reputation:   10000,
+		AwakenLevel:  77,
 	}
 	reader := NewCharacterStateReader(characterStateRepositoryFixture{character: character})
 	proofs, err := reader.ReadStateProofs(context.Background(), 99)
 	if err != nil {
 		t.Fatalf("ReadStateProofs() error = %v", err)
 	}
-	if len(proofs) != 27 {
-		t.Fatalf("proof count = %d, want 27", len(proofs))
+	if len(proofs) != 39 {
+		t.Fatalf("proof count = %d, want 39", len(proofs))
 	}
 	byID := make(map[int64]StateProof, len(proofs))
 	for _, proof := range proofs {
 		byID[proof.RequirementID] = proof
 	}
-	for _, requirementID := range []int64{1, 4, 17, 20, 57, 58, 100, 101, 134, 137, 142, 149, 395, 510, 535} {
+	for _, requirementID := range []int64{1, 4, 17, 20, 57, 58, 100, 101, 134, 137, 142, 149, 386, 387, 395, 510, 535, 652, 658} {
 		proof, ok := byID[requirementID]
 		if !ok || !proof.Done {
 			t.Fatalf("requirement %d proof = %#v, found=%t", requirementID, proof, ok)
@@ -52,6 +54,21 @@ func TestCharacterStateReaderBuildsPersistedProofs(t *testing.T) {
 	}
 	if _, exists := byID[22]; exists {
 		t.Fatalf("zero-wallet requirement should be absent for non-zero wallet")
+	}
+}
+
+func TestCharacterStateReaderProvesNegativePopularityMilestones(t *testing.T) {
+	character := &domaincharacter.Character{ID: 99, Pop: -5000}
+	proofs, err := NewCharacterStateReader(characterStateRepositoryFixture{character: character}).ReadStateProofs(context.Background(), 99)
+	if err != nil {
+		t.Fatalf("ReadStateProofs() error = %v", err)
+	}
+	byID := make(map[int64]StateProof, len(proofs))
+	for _, proof := range proofs {
+		byID[proof.RequirementID] = proof
+	}
+	if !byID[392].Done || !byID[393].Done || byID[394].Done {
+		t.Fatalf("negative popularity proofs = %#v/%#v/%#v", byID[392], byID[393], byID[394])
 	}
 }
 

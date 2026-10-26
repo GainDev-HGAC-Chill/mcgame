@@ -284,6 +284,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	if err := achievementService.RegisterStateProofReader(appachievement.NewPetArenaHistoryStateReader(petArenaRepo)); err != nil {
 		log.Fatal("Failed to register pet-arena-history achievement state reader", zap.Error(err))
 	}
+	if err := achievementService.RegisterStateProofReader(appachievement.NewBattleDerivedStateReader(achievementRepo)); err != nil {
+		log.Fatal("Failed to register derived battle achievement state reader", zap.Error(err))
+	}
 	if err := achievementService.RegisterStateProofReader(appachievement.NewCharacterStateReader(characterRepo)); err != nil {
 		log.Fatal("Failed to register character achievement state reader", zap.Error(err))
 	}
@@ -314,7 +317,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	if err := achievementService.RegisterStateProofReader(appachievement.NewSocialStateReader(relationshipRepo)); err != nil {
 		log.Fatal("Failed to register social achievement state reader", zap.Error(err))
 	}
-	if err := achievementService.RegisterStateProofReader(appachievement.NewTitleStateReader(titleRepo)); err != nil {
+	if err := achievementService.RegisterStateProofReader(appachievement.NewTitleStateReader(titleRepo, gameDataManager)); err != nil {
 		log.Fatal("Failed to register title achievement state reader", zap.Error(err))
 	}
 	if err := achievementService.RegisterStateProofReader(appachievement.NewAchievementPointsStateReader(achievementRepo, gameDataManager)); err != nil {

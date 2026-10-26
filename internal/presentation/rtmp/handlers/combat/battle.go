@@ -427,7 +427,15 @@ func (h *Handler) EndBattle(ctx *rtmp.RPCContext, args []interface{}) (interface
 	}
 	if h.achievementService != nil {
 		won := result.WinnerSide == combatdomain.SidePlayer
-		update, progressErr := h.achievementService.RecordBattleEnded(ctx.Context, characterID, battleID, battle.BattleType, won, time.Now().UTC())
+		defeatedCreatureIDs := make([]int, 0)
+		if won {
+			for _, enemy := range battle.GetParticipantsBySide(combatdomain.SideEnemy) {
+				if enemy != nil && enemy.EntityType == combatdomain.ParticipantTypeCreature && !enemy.IsAlive && enemy.CurrentHP <= 0 && enemy.EntityID > 0 {
+					defeatedCreatureIDs = append(defeatedCreatureIDs, int(enemy.EntityID))
+				}
+			}
+		}
+		update, progressErr := h.achievementService.RecordBattleEndedWithDefeated(ctx.Context, characterID, battleID, battle.BattleType, won, defeatedCreatureIDs, time.Now().UTC())
 		if progressErr != nil {
 			h.logger.Warn("Failed to record battle achievement progress",
 				zap.Int64("character_id", characterID),

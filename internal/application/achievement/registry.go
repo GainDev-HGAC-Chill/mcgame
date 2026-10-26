@@ -169,7 +169,7 @@ func ValidateRequirementCatalog(catalog RequirementCatalog) error {
 	if len(registry.definitions) != 697 || stats.EnabledAchievements != 566 || stats.EnabledRequirements != 697 {
 		return fmt.Errorf("achievement catalog census drift: achievements=%d requirements=%d", stats.EnabledAchievements, stats.EnabledRequirements)
 	}
-	if stats.AllRequirementTypes != 60 || stats.StateRequirements != 431 || stats.EventRequirements != 159 || stats.UnsupportedRequirements != 107 {
+	if stats.AllRequirementTypes != 60 || stats.StateRequirements != 472 || stats.EventRequirements != 74 || stats.UnsupportedRequirements != 151 {
 		return fmt.Errorf("achievement authority census drift: types=%d state=%d event=%d unsupported=%d", stats.AllRequirementTypes, stats.StateRequirements, stats.EventRequirements, stats.UnsupportedRequirements)
 	}
 	if stats.MultiRequirementParents != 30 || stats.MultiRequirementRows != 163 || stats.EmptyRequirementParents != 2 || stats.AuthorityTargetRequirements != 550 {
@@ -270,7 +270,7 @@ func between(value, first, last int64) bool {
 
 func isEventRequirement(id int64) bool {
 	switch {
-	case between(id, 53, 56), between(id, 83, 84), between(id, 102, 109), between(id, 119, 128):
+	case between(id, 53, 56), id == 83, between(id, 102, 109), between(id, 119, 127):
 		return true
 	case between(id, 150, 157), between(id, 185, 211), between(id, 221, 223):
 		return true
@@ -278,9 +278,9 @@ func isEventRequirement(id int64) bool {
 		return true
 	case between(id, 270, 275), between(id, 277, 280), between(id, 287, 288), between(id, 290, 294):
 		return true
-	case between(id, 324, 332), between(id, 337, 338), between(id, 348, 353):
+	case id == 326, id == 338, between(id, 348, 353):
 		return true
-	case id == 376, between(id, 379, 382), between(id, 404, 410), between(id, 423, 424):
+	case id == 376, between(id, 379, 382), between(id, 404, 405), between(id, 423, 424):
 		return true
 	case id == 514, id == 518, between(id, 526, 534), between(id, 570, 575):
 		return true
@@ -293,15 +293,27 @@ func isEventRequirement(id int64) bool {
 
 func isUnsupportedRequirement(id int64) bool {
 	switch {
-	case between(id, 138, 141), between(id, 161, 165), between(id, 170, 182), between(id, 213, 220):
+	case id == 21, between(id, 132, 133), id == 289, between(id, 7499, 7504):
 		return true
-	case between(id, 333, 336), between(id, 383, 387), between(id, 389, 394), between(id, 396, 397):
+	case id == 83, between(id, 102, 109), between(id, 119, 127), id == 150:
+		return true
+	case between(id, 221, 223), between(id, 244, 247), between(id, 255, 258):
+		return true
+	case between(id, 270, 275), between(id, 277, 280), between(id, 287, 288), between(id, 290, 294):
+		return true
+	case id == 338, between(id, 348, 353), id == 376, between(id, 379, 382):
+		return true
+	case between(id, 404, 405), id == 518, between(id, 745, 750), id == 753:
+		return true
+	case between(id, 138, 141), between(id, 161, 162), between(id, 164, 165), between(id, 213, 219):
+		return true
+	case between(id, 333, 334), between(id, 389, 391), between(id, 396, 397):
 		return true
 	case id == 517, between(id, 519, 522):
 		return true
-	case id == 538, between(id, 562, 568), between(id, 576, 591):
+	case id == 538, between(id, 562, 568), between(id, 576, 581), between(id, 585, 591):
 		return true
-	case id == 462, between(id, 652, 666), between(id, 726, 733), between(id, 737, 740):
+	case id == 462, between(id, 659, 666), between(id, 726, 733), between(id, 737, 740):
 		return true
 	case between(id, 751, 752), id == 760:
 		return true

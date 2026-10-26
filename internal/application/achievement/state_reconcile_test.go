@@ -136,7 +136,7 @@ func TestStateReaderOwnershipMatchesImplementedCoverage(t *testing.T) {
 		NewCharacterStateReader(nil),
 		NewSocialStateReader(nil),
 		NewGuildStateReader(nil),
-		NewTitleStateReader(nil),
+		NewTitleStateReader(nil, nil),
 		NewAchievementPointsStateReader(nil, nil),
 		NewStarInstanceStateReader(nil),
 		NewHeiyaoshiStateReader(nil),
@@ -160,14 +160,15 @@ func TestStateReaderOwnershipMatchesImplementedCoverage(t *testing.T) {
 		NewCoupleWingStateReader(nil, nil, nil),
 		NewMarriageHistoryStateReader(nil),
 		NewPetArenaHistoryStateReader(nil),
+		NewBattleDerivedStateReader(nil),
 	}
 	for _, reader := range readers {
 		if err := service.RegisterStateProofReader(reader); err != nil {
 			t.Fatalf("RegisterStateProofReader(%s) error = %v", reader.Name(), err)
 		}
 	}
-	if len(service.stateOwners) != 421 {
-		t.Fatalf("state reader coverage = %d, want 421", len(service.stateOwners))
+	if len(service.stateOwners) != 472 {
+		t.Fatalf("state reader coverage = %d, want 472", len(service.stateOwners))
 	}
 	for requirementID, owner := range service.stateOwners {
 		definition, ok := service.requirements.Get(requirementID)

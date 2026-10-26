@@ -24,6 +24,35 @@ func NewMagicEstateRepository(db *Database) *MagicEstateRepository {
 	return &MagicEstateRepository{db: db}
 }
 
+func (r *MagicEstateRepository) GetMagicEstateStealAchievementState(ctx context.Context, characterID int64) (int, int, error) {
+	const query = `
+with wins_by_day as (
+    select (l.created_at at time zone 'Asia/Ho_Chi_Minh')::date as game_day,
+           count(*)::integer as wins
+    from player.character_magic_estate_logs l
+    where l.character_id = $1
+      and l.cid = $1
+      and not l.guest
+      and l.result = 1
+    group by 1
+), islands as (
+    select game_day,
+           game_day - row_number() over (order by game_day)::integer as island
+    from wins_by_day
+), streaks as (
+    select count(*)::integer as streak
+    from islands
+    group by island
+)
+select coalesce((select max(streak) from streaks), 0)::integer,
+       coalesce((select max(wins) from wins_by_day), 0)::integer`
+	var maxDayStreak, maxDailyWins int
+	if err := r.db.pool.QueryRow(ctx, query, characterID).Scan(&maxDayStreak, &maxDailyWins); err != nil {
+		return 0, 0, pkgerrors.Wrap(err, "failed to query magic estate achievement state")
+	}
+	return maxDayStreak, maxDailyWins, nil
+}
+
 func (r *MagicEstateRepository) FindByCharacter(ctx context.Context, characterID int64) (*domainfarm.MagicEstateProfile, error) {
 	profile := &domainfarm.MagicEstateProfile{}
 	err := r.db.pool.QueryRow(ctx, "select * from player.get_magic_estate_profile($1)", characterID).Scan(
