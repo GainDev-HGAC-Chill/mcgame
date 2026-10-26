@@ -122,45 +122,78 @@ func (r *AchievementRepository) scanEventResult(ctx context.Context, query strin
 	return result, nil
 }
 
-func (r *AchievementRepository) ReserveClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reservedAt time.Time) (bool, error) {
-	var reserved bool
-	if err := r.db.pool.QueryRow(ctx,
-		"select player.reserve_character_achievement_claim($1, $2, $3, $4)",
+func (r *AchievementRepository) PrepareRewardGrant(ctx context.Context, characterID, achievementID int64, rewardKind, templateID, quantity int, token uuid.UUID, preparedAt time.Time) (*domainachievement.RewardGrant, error) {
+	row := r.db.pool.QueryRow(ctx,
+		"select * from player.prepare_character_achievement_reward_grant($1, $2, $3, $4, $5, $6, $7)",
 		characterID,
 		achievementID,
+		rewardKind,
+		templateID,
+		quantity,
 		token,
-		reservedAt,
-	).Scan(&reserved); err != nil {
-		return false, pkgerrors.Wrap(err, "failed to reserve achievement claim")
-	}
-	return reserved, nil
+		preparedAt,
+	)
+	return scanAchievementRewardGrant(row)
 }
 
-func (r *AchievementRepository) FinalizeClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, claimedAt time.Time) (*domainachievement.Progress, error) {
+func (r *AchievementRepository) MarkRewardGrantGranted(ctx context.Context, characterID, achievementID int64, token uuid.UUID, receipt json.RawMessage, grantedAt time.Time) (*domainachievement.RewardGrant, error) {
 	row := r.db.pool.QueryRow(ctx,
-		"select * from player.finalize_character_achievement_claim($1, $2, $3, $4)",
+		"select * from player.mark_character_achievement_reward_granted($1, $2, $3, $4::jsonb, $5)",
 		characterID,
 		achievementID,
 		token,
-		claimedAt,
+		receipt,
+		grantedAt,
+	)
+	return scanAchievementRewardGrant(row)
+}
+
+func (r *AchievementRepository) MarkRewardGrantFailed(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reason string, failedAt time.Time) error {
+	var marked bool
+	if err := r.db.pool.QueryRow(ctx,
+		"select player.mark_character_achievement_reward_failed($1, $2, $3, $4, $5)",
+		characterID,
+		achievementID,
+		token,
+		reason,
+		failedAt,
+	).Scan(&marked); err != nil {
+		return pkgerrors.Wrap(err, "failed to mark achievement reward grant failed")
+	}
+	if !marked {
+		return fmt.Errorf("achievement reward grant lease not found")
+	}
+	return nil
+}
+
+func (r *AchievementRepository) FinalizeRewardGrant(ctx context.Context, characterID, achievementID int64, finalizedAt time.Time) (*domainachievement.Progress, error) {
+	row := r.db.pool.QueryRow(ctx,
+		"select * from player.finalize_character_achievement_reward_grant($1, $2, $3)",
+		characterID,
+		achievementID,
+		finalizedAt,
 	)
 	return scanAchievementProgress(row)
 }
 
-func (r *AchievementRepository) ReleaseClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID) error {
-	var released bool
-	if err := r.db.pool.QueryRow(ctx,
-		"select player.release_character_achievement_claim($1, $2, $3)",
-		characterID,
-		achievementID,
-		token,
-	).Scan(&released); err != nil {
-		return pkgerrors.Wrap(err, "failed to release achievement claim")
+func (r *AchievementRepository) ListGrantedRewardGrants(ctx context.Context, characterID int64, limit int) ([]domainachievement.RewardGrant, error) {
+	rows, err := r.db.pool.Query(ctx, "select * from player.list_granted_character_achievement_rewards($1, $2)", characterID, limit)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to list granted achievement rewards")
 	}
-	if !released {
-		return fmt.Errorf("achievement claim reservation not found")
+	defer rows.Close()
+	grants := make([]domainachievement.RewardGrant, 0)
+	for rows.Next() {
+		grant, scanErr := scanAchievementRewardGrant(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		grants = append(grants, *grant)
 	}
-	return nil
+	if err := rows.Err(); err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to iterate granted achievement rewards")
+	}
+	return grants, nil
 }
 
 func NewAchievementRepository(db *Database) *AchievementRepository {
@@ -258,6 +291,34 @@ func (r *AchievementRepository) ListClaimedCounts(ctx context.Context, character
 
 type achievementProgressScanner interface {
 	Scan(dest ...interface{}) error
+}
+
+func scanAchievementRewardGrant(scanner achievementProgressScanner) (*domainachievement.RewardGrant, error) {
+	grant := &domainachievement.RewardGrant{}
+	var receipt []byte
+	if err := scanner.Scan(
+		&grant.CharacterID,
+		&grant.AchievementID,
+		&grant.ClaimToken,
+		&grant.RewardKind,
+		&grant.TemplateID,
+		&grant.Quantity,
+		&grant.Status,
+		&receipt,
+		&grant.LastError,
+		&grant.LeaseExpires,
+		&grant.CreatedAt,
+		&grant.UpdatedAt,
+		&grant.GrantedAt,
+		&grant.FinalizedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("achievement reward grant not available")
+		}
+		return nil, pkgerrors.Wrap(err, "failed to scan achievement reward grant")
+	}
+	grant.Receipt = receipt
+	return grant, nil
 }
 
 func scanAchievementProgress(scanner achievementProgressScanner) (*domainachievement.Progress, error) {

@@ -5,6 +5,7 @@ package achievement
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -123,41 +124,71 @@ func (s *Service) LoadSnapshot(ctx context.Context, charID int64) (domainachieve
 	return snapshot, nil
 }
 
-func (s *Service) ReserveClaim(ctx context.Context, charID, achievementID int64, token uuid.UUID) error {
+func (s *Service) PrepareClaim(ctx context.Context, charID, achievementID int64, token uuid.UUID) (*domainachievement.RewardGrant, error) {
 	if s.repo == nil {
-		return fmt.Errorf("achievement repository not configured")
+		return nil, fmt.Errorf("achievement repository not configured")
 	}
-	if _, ok := RewardForAchievement(achievementID); !ok {
-		return ErrAchievementRewardUnknown
+	reward, ok := RewardForAchievement(achievementID)
+	if !ok {
+		return nil, ErrAchievementRewardUnknown
 	}
-	reserved, err := s.repo.ReserveClaim(ctx, charID, achievementID, token, time.Now().UTC())
+	grant, err := s.repo.PrepareRewardGrant(ctx, charID, achievementID, int(reward.Kind), reward.TemplateID, reward.Quantity, token, time.Now().UTC())
 	if err != nil {
-		return err
-	}
-	if !reserved {
 		rows, loadErr := s.repo.GetProgressByCharacter(ctx, charID)
 		if loadErr != nil {
-			return ErrAchievementClaimBusy
+			return nil, err
 		}
 		for _, row := range rows {
 			if row == nil || row.AchievementID != achievementID {
 				continue
 			}
 			if row.IsClaimed {
-				return ErrAchievementClaimed
+				return nil, ErrAchievementClaimed
 			}
 			if !row.IsCompleted {
-				return ErrAchievementNotCompleted
+				return nil, ErrAchievementNotCompleted
 			}
-			return ErrAchievementClaimBusy
+			return nil, err
 		}
-		return ErrAchievementNotCompleted
+		return nil, ErrAchievementNotCompleted
+	}
+	if grant == nil {
+		return nil, ErrAchievementClaimBusy
+	}
+	if grant.Status == domainachievement.RewardGrantGranting && grant.ClaimToken != token {
+		return nil, ErrAchievementClaimBusy
+	}
+	return grant, nil
+}
+
+func (s *Service) MarkClaimGranted(ctx context.Context, charID, achievementID int64, token uuid.UUID, receipt domainachievement.RewardReceipt) error {
+	if err := ValidateRewardReceipt(achievementID, receipt); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(receipt)
+	if err != nil {
+		return err
+	}
+	grant, err := s.repo.MarkRewardGrantGranted(ctx, charID, achievementID, token, raw, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if grant == nil || grant.Status != domainachievement.RewardGrantGranted {
+		return fmt.Errorf("achievement reward grant receipt was not persisted")
 	}
 	return nil
 }
 
-func (s *Service) FinalizeClaim(ctx context.Context, charID, achievementID int64, token uuid.UUID) error {
-	updated, err := s.repo.FinalizeClaim(ctx, charID, achievementID, token, time.Now().UTC())
+func (s *Service) MarkClaimFailed(ctx context.Context, charID, achievementID int64, token uuid.UUID, cause error) error {
+	reason := "reward grant failed"
+	if cause != nil {
+		reason = cause.Error()
+	}
+	return s.repo.MarkRewardGrantFailed(ctx, charID, achievementID, token, reason, time.Now().UTC())
+}
+
+func (s *Service) FinalizeClaim(ctx context.Context, charID, achievementID int64) error {
+	updated, err := s.repo.FinalizeRewardGrant(ctx, charID, achievementID, time.Now().UTC())
 	if err != nil {
 		return err
 	}
@@ -167,11 +198,34 @@ func (s *Service) FinalizeClaim(ctx context.Context, charID, achievementID int64
 	return nil
 }
 
-func (s *Service) ReleaseClaim(ctx context.Context, charID, achievementID int64, token uuid.UUID) error {
-	return s.repo.ReleaseClaim(ctx, charID, achievementID, token)
+func (s *Service) OnLogin(ctx context.Context, charID int64) error {
+	return s.RecoverGrantedRewards(ctx, charID)
 }
 
-func (s *Service) OnLogin(ctx context.Context, charID int64) error {
+func (s *Service) RecoverGrantedRewards(ctx context.Context, charID int64) error {
+	if s.repo == nil {
+		return nil
+	}
+	grants, err := s.repo.ListGrantedRewardGrants(ctx, charID, 100)
+	if err != nil {
+		return err
+	}
+	for _, grant := range grants {
+		reward, ok := RewardForAchievement(grant.AchievementID)
+		if !ok || grant.RewardKind != int(reward.Kind) || grant.TemplateID != reward.TemplateID || grant.Quantity != reward.Quantity {
+			return fmt.Errorf("achievement reward grant %d definition is invalid", grant.AchievementID)
+		}
+		var receipt domainachievement.RewardReceipt
+		if err := json.Unmarshal(grant.Receipt, &receipt); err != nil {
+			return fmt.Errorf("decode recovered achievement reward %d receipt: %w", grant.AchievementID, err)
+		}
+		if err := ValidateRewardReceipt(grant.AchievementID, receipt); err != nil {
+			return fmt.Errorf("validate recovered achievement reward %d receipt: %w", grant.AchievementID, err)
+		}
+		if _, err := s.repo.FinalizeRewardGrant(ctx, charID, grant.AchievementID, time.Now().UTC()); err != nil {
+			return fmt.Errorf("finalize recovered achievement reward %d: %w", grant.AchievementID, err)
+		}
+	}
 	return nil
 }
 

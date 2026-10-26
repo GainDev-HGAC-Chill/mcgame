@@ -4,8 +4,11 @@
 package achievement
 
 import (
+	"encoding/json"
 	"strconv"
 
+	appachievement "mcgame-server/internal/application/achievement"
+	domainachievement "mcgame-server/internal/domain/achievement"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -35,28 +38,59 @@ func (h *Handler) GetAchieveAward(ctx *rtmp.RPCContext, args []interface{}) (int
 	}
 
 	token := uuid.New()
-	if err := h.achievementService.ReserveClaim(ctx.Context, characterID, achievementID, token); err != nil {
+	grant, err := h.achievementService.PrepareClaim(ctx.Context, characterID, achievementID, token)
+	if err != nil {
 		h.logClaimFailure(characterID, achievementID, "reserve", err)
 		h.sendClaimFailure(ctx)
 		return map[string]interface{}{"flag": false}, nil
 	}
-	if err := h.grantReward(ctx, characterID, achievementID); err != nil {
-		releaseErr := h.achievementService.ReleaseClaim(ctx.Context, characterID, achievementID, token)
-		h.logClaimFailure(characterID, achievementID, "grant", err)
-		if releaseErr != nil {
-			h.logClaimFailure(characterID, achievementID, "release", releaseErr)
+	if grant.Status == domainachievement.RewardGrantFinalized {
+		return map[string]interface{}{"flag": true, "aid": achievementID}, nil
+	}
+	receipt := domainachievement.RewardReceipt{}
+	if grant.Status == domainachievement.RewardGrantGranted {
+		if err := json.Unmarshal(grant.Receipt, &receipt); err != nil {
+			h.logClaimFailure(characterID, achievementID, "receipt", err)
+			h.sendClaimFailure(ctx)
+			return map[string]interface{}{"flag": false}, nil
 		}
+	} else {
+		receipt, err = h.grantReward(ctx, characterID, achievementID)
+		if err != nil {
+			markErr := h.achievementService.MarkClaimFailed(ctx.Context, characterID, achievementID, token, err)
+			h.logClaimFailure(characterID, achievementID, "grant", err)
+			if markErr != nil {
+				h.logClaimFailure(characterID, achievementID, "mark-failed", markErr)
+			}
+			h.sendClaimFailure(ctx)
+			return map[string]interface{}{"flag": false}, nil
+		}
+		if err := h.achievementService.MarkClaimGranted(ctx.Context, characterID, achievementID, token, receipt); err != nil {
+			h.logger.Error("Achievement reward delivered but receipt persistence failed; idempotent grant key retained",
+				zap.Int64("character_id", characterID),
+				zap.Int64("achievement_id", achievementID),
+				zap.String("claim_token", token.String()),
+				zap.Error(err))
+			h.sendClaimFailure(ctx)
+			return map[string]interface{}{"flag": false}, nil
+		}
+	}
+	if err := appachievement.ValidateRewardReceipt(achievementID, receipt); err != nil {
+		h.logClaimFailure(characterID, achievementID, "receipt-validation", err)
 		h.sendClaimFailure(ctx)
 		return map[string]interface{}{"flag": false}, nil
 	}
-	if err := h.achievementService.FinalizeClaim(ctx.Context, characterID, achievementID, token); err != nil {
-		h.logger.Error("Achievement reward granted but claim finalization failed; reservation retained",
+	if err := h.achievementService.FinalizeClaim(ctx.Context, characterID, achievementID); err != nil {
+		h.logger.Error("Achievement reward granted but claim finalization failed; grant receipt retained",
 			zap.Int64("character_id", characterID),
 			zap.Int64("achievement_id", achievementID),
 			zap.String("claim_token", token.String()),
 			zap.Error(err))
 		h.sendClaimFailure(ctx)
 		return map[string]interface{}{"flag": false}, nil
+	}
+	if err := h.sendRewardCallbacks(ctx, characterID, achievementID, receipt); err != nil {
+		h.logClaimFailure(characterID, achievementID, "callback", err)
 	}
 
 	if ctx.Connection != nil {

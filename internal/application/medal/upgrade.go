@@ -71,6 +71,9 @@ func (s *Service) nextLevelID(tid int) (int, bool) {
 }
 
 func (s *Service) UpMedal(ctx context.Context, charID int64, index int) (*OpResult, error) {
+	lock := s.mutationLock(charID)
+	lock.Lock()
+	defer lock.Unlock()
 	if index <= 0 {
 		return nil, ErrInvalidArgs
 	}
@@ -104,6 +107,9 @@ func (s *Service) UpMedal(ctx context.Context, charID int64, index int) (*OpResu
 }
 
 func (s *Service) BreakMedal(ctx context.Context, charID int64, index, count, breakType int) (*OpResult, error) {
+	lock := s.mutationLock(charID)
+	lock.Lock()
+	defer lock.Unlock()
 	if index <= 0 || count <= 0 {
 		return nil, ErrInvalidArgs
 	}

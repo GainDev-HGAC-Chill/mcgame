@@ -182,6 +182,30 @@ func TestAddMedalToBag_StacksAndPlaces(t *testing.T) {
 	}
 }
 
+func TestAddMedalToBagIdempotentReusesGrantReceipt(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo, nil, zap.NewNop())
+
+	firstSlot, firstCount, err := svc.AddMedalToBagIdempotent(context.Background(), 1, 701, 2, "achievement:1:1015")
+	if err != nil {
+		t.Fatalf("first grant: %v", err)
+	}
+	secondSlot, secondCount, err := svc.AddMedalToBagIdempotent(context.Background(), 1, 701, 2, "achievement:1:1015")
+	if err != nil {
+		t.Fatalf("retry grant: %v", err)
+	}
+	if firstSlot != secondSlot || firstCount != 2 || secondCount != 2 {
+		t.Fatalf("receipt mismatch: first=(%d,%d) second=(%d,%d)", firstSlot, firstCount, secondSlot, secondCount)
+	}
+	state, err := svc.loadState(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if state.Bag[firstSlot].N != 2 || len(state.Grants) != 1 {
+		t.Fatalf("retry duplicated medal: state=%+v", state)
+	}
+}
+
 func TestMoveMedal_InventoryToEquip(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()

@@ -5,6 +5,7 @@ package achievement
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ type achievementTestRepo struct {
 	requirements []*domainachievement.RequirementProgress
 	claimedIDs   []int64
 	reserved     bool
+	grant        *domainachievement.RewardGrant
 	events       []achievementTestEvent
 	facts        []domainachievement.Fact
 	processed    []string
@@ -90,28 +92,49 @@ func (r *achievementTestRepo) MarkFactProcessed(ctx context.Context, factID stri
 	return true, nil
 }
 
-func (r *achievementTestRepo) ReserveClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reservedAt time.Time) (bool, error) {
+func (r *achievementTestRepo) PrepareRewardGrant(ctx context.Context, characterID, achievementID int64, rewardKind, templateID, quantity int, token uuid.UUID, reservedAt time.Time) (*domainachievement.RewardGrant, error) {
 	if r.reserved {
-		return false, nil
+		return r.grant, nil
 	}
 	for _, row := range r.rows {
 		if row != nil && row.AchievementID == achievementID && row.IsCompleted && !row.IsClaimed {
 			r.reserved = true
-			return true, nil
+			r.grant = &domainachievement.RewardGrant{CharacterID: characterID, AchievementID: achievementID, ClaimToken: token, RewardKind: rewardKind, TemplateID: templateID, Quantity: quantity, Status: domainachievement.RewardGrantGranting}
+			return r.grant, nil
 		}
 	}
-	return false, nil
+	return nil, fmt.Errorf("reward grant unavailable")
 }
 
-func (r *achievementTestRepo) FinalizeClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID, claimedAt time.Time) (*domainachievement.Progress, error) {
-	if !r.reserved {
-		return nil, nil
+func (r *achievementTestRepo) MarkRewardGrantGranted(ctx context.Context, characterID, achievementID int64, token uuid.UUID, receipt json.RawMessage, grantedAt time.Time) (*domainachievement.RewardGrant, error) {
+	if r.grant == nil || r.grant.ClaimToken != token {
+		return nil, fmt.Errorf("reward grant unavailable")
+	}
+	r.grant.Status = domainachievement.RewardGrantGranted
+	r.grant.Receipt = receipt
+	return r.grant, nil
+}
+
+func (r *achievementTestRepo) MarkRewardGrantFailed(ctx context.Context, characterID, achievementID int64, token uuid.UUID, reason string, failedAt time.Time) error {
+	if r.grant == nil || r.grant.ClaimToken != token {
+		return fmt.Errorf("reward grant unavailable")
+	}
+	r.grant.Status = domainachievement.RewardGrantFailed
+	r.grant.LastError = reason
+	r.reserved = false
+	return nil
+}
+
+func (r *achievementTestRepo) FinalizeRewardGrant(ctx context.Context, characterID, achievementID int64, claimedAt time.Time) (*domainachievement.Progress, error) {
+	if r.grant == nil || r.grant.Status != domainachievement.RewardGrantGranted {
+		return nil, fmt.Errorf("reward grant unavailable")
 	}
 	for _, row := range r.rows {
 		if row != nil && row.AchievementID == achievementID {
 			row.IsClaimed = true
 			row.ClaimedAt = &claimedAt
 			r.claimedIDs = append(r.claimedIDs, achievementID)
+			r.grant.Status = domainachievement.RewardGrantFinalized
 			r.reserved = false
 			return row, nil
 		}
@@ -119,9 +142,11 @@ func (r *achievementTestRepo) FinalizeClaim(ctx context.Context, characterID, ac
 	return nil, nil
 }
 
-func (r *achievementTestRepo) ReleaseClaim(ctx context.Context, characterID, achievementID int64, token uuid.UUID) error {
-	r.reserved = false
-	return nil
+func (r *achievementTestRepo) ListGrantedRewardGrants(ctx context.Context, characterID int64, limit int) ([]domainachievement.RewardGrant, error) {
+	if r.grant != nil && r.grant.CharacterID == characterID && r.grant.Status == domainachievement.RewardGrantGranted {
+		return []domainachievement.RewardGrant{*r.grant}, nil
+	}
+	return []domainachievement.RewardGrant{}, nil
 }
 
 func TestLoadSnapshotBuildsClientMaps(t *testing.T) {
@@ -199,7 +224,7 @@ func TestLoadSnapshotBuildsClientMaps(t *testing.T) {
 	}
 }
 
-func TestClaimReservationFinalizesCompletedAchievement(t *testing.T) {
+func TestRewardGrantLedgerFinalizesCompletedAchievement(t *testing.T) {
 	repo := &achievementTestRepo{rows: []*domainachievement.Progress{{
 		ID:            1,
 		CharacterID:   99,
@@ -212,10 +237,13 @@ func TestClaimReservationFinalizesCompletedAchievement(t *testing.T) {
 
 	service := NewService(repo, zap.NewNop())
 	token := uuid.New()
-	if err := service.ReserveClaim(context.Background(), 99, 1008, token); err != nil {
-		t.Fatalf("ReserveClaim() error = %v", err)
+	if _, err := service.PrepareClaim(context.Background(), 99, 1008, token); err != nil {
+		t.Fatalf("PrepareClaim() error = %v", err)
 	}
-	if err := service.FinalizeClaim(context.Background(), 99, 1008, token); err != nil {
+	if err := service.MarkClaimGranted(context.Background(), 99, 1008, token, domainachievement.RewardReceipt{ItemID: 77}); err != nil {
+		t.Fatalf("MarkClaimGranted() error = %v", err)
+	}
+	if err := service.FinalizeClaim(context.Background(), 99, 1008); err != nil {
 		t.Fatalf("FinalizeClaim() error = %v", err)
 	}
 	if len(repo.claimedIDs) != 1 || repo.claimedIDs[0] != 1008 {
@@ -226,7 +254,7 @@ func TestClaimReservationFinalizesCompletedAchievement(t *testing.T) {
 	}
 }
 
-func TestClaimReservationRejectsAlreadyClaimedAchievement(t *testing.T) {
+func TestRewardGrantLedgerRejectsAlreadyClaimedAchievement(t *testing.T) {
 	repo := &achievementTestRepo{rows: []*domainachievement.Progress{{
 		ID:            1,
 		CharacterID:   99,
@@ -238,12 +266,40 @@ func TestClaimReservationRejectsAlreadyClaimedAchievement(t *testing.T) {
 	}}}
 
 	service := NewService(repo, zap.NewNop())
-	err := service.ReserveClaim(context.Background(), 99, 1021, uuid.New())
+	_, err := service.PrepareClaim(context.Background(), 99, 1021, uuid.New())
 	if err == nil {
-		t.Fatalf("ReserveClaim() error = nil, want already claimed error")
+		t.Fatalf("PrepareClaim() error = nil, want already claimed error")
 	}
 	if len(repo.claimedIDs) != 0 {
 		t.Fatalf("claimedIDs = %#v, want empty", repo.claimedIDs)
+	}
+}
+
+func TestOnLoginFinalizesPersistedGrantedReward(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &achievementTestRepo{rows: []*domainachievement.Progress{{CharacterID: 99, AchievementID: 1008, IsCompleted: true}}, reserved: true}
+	repo.grant = &domainachievement.RewardGrant{CharacterID: 99, AchievementID: 1008, RewardKind: int(RewardKindItem), TemplateID: 3984, Quantity: 2, Status: domainachievement.RewardGrantGranted, Receipt: json.RawMessage(`{"item_id":77}`), GrantedAt: &now}
+	service := NewService(repo, zap.NewNop())
+
+	if err := service.OnLogin(context.Background(), 99); err != nil {
+		t.Fatalf("OnLogin() error = %v", err)
+	}
+	if !repo.rows[0].IsClaimed || repo.grant.Status != domainachievement.RewardGrantFinalized {
+		t.Fatalf("recovery did not finalize: progress=%+v grant=%+v", repo.rows[0], repo.grant)
+	}
+}
+
+func TestOnLoginRejectsInvalidPersistedRewardReceipt(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &achievementTestRepo{rows: []*domainachievement.Progress{{CharacterID: 99, AchievementID: 1008, IsCompleted: true}}, reserved: true}
+	repo.grant = &domainachievement.RewardGrant{CharacterID: 99, AchievementID: 1008, RewardKind: int(RewardKindItem), TemplateID: 3984, Quantity: 2, Status: domainachievement.RewardGrantGranted, Receipt: json.RawMessage(`{}`), GrantedAt: &now}
+	service := NewService(repo, zap.NewNop())
+
+	if err := service.OnLogin(context.Background(), 99); err == nil {
+		t.Fatalf("OnLogin() error = nil, want invalid receipt error")
+	}
+	if repo.rows[0].IsClaimed || repo.grant.Status != domainachievement.RewardGrantGranted {
+		t.Fatalf("invalid receipt was finalized: progress=%+v grant=%+v", repo.rows[0], repo.grant)
 	}
 }
 
@@ -359,6 +415,7 @@ func TestOfficialRewardRegistry(t *testing.T) {
 		5050: {Kind: RewardKindTitle, TemplateID: 279, Quantity: 1},
 		6026: {Kind: RewardKindMedal, TemplateID: 394, Quantity: 1},
 		6030: {Kind: RewardKindTitle, TemplateID: 276, Quantity: 1},
+		6066: {Kind: RewardKindTitle, TemplateID: 274, Quantity: 1},
 		6078: {Kind: RewardKindTitle, TemplateID: 278, Quantity: 1},
 		6092: {Kind: RewardKindTitle, TemplateID: 273, Quantity: 1},
 		6096: {Kind: RewardKindMedal, TemplateID: 383, Quantity: 1},
@@ -383,8 +440,8 @@ func TestOfficialRewardRegistry(t *testing.T) {
 			t.Fatalf("reward %d = %#v, %v; want %#v", achievementID, got, ok, want)
 		}
 	}
-	if _, ok := RewardForAchievement(6066); ok {
-		t.Fatalf("achievement 6066 must fail closed without canonical title ID")
+	if _, ok := RewardForAchievement(6067); ok {
+		t.Fatalf("unverified achievement 6067 must fail closed")
 	}
 }
 

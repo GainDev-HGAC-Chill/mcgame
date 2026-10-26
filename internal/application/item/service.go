@@ -2436,6 +2436,64 @@ func (s *Service) AddItemToSlot(ctx context.Context, charID int64, templateID in
 	return lastModifiedItem, nil
 }
 
+func (s *Service) AddItemToSlotIdempotent(ctx context.Context, charID int64, templateID int, itemType item.ItemType, stackCount int, isBound bool, slotType item.SlotType, grantKey string) (*item.Item, error) {
+	if grantKey == "" || stackCount <= 0 {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+	inventory, err := s.itemRepo.FindByCharacterAndSlotType(ctx, charID, slotType)
+	if err != nil {
+		return nil, err
+	}
+	if existing := findItemByGrantKey(inventory, grantKey); existing != nil {
+		return existing, nil
+	}
+	maxStack := 1
+	if s.gameDataRec != nil {
+		if template := s.gameDataRec.GetItem(templateID); template != nil && int(template.StackMax) > 0 {
+			maxStack = int(template.StackMax)
+		}
+	}
+	if stackCount > maxStack {
+		return nil, fmt.Errorf("idempotent item grant quantity %d exceeds max stack %d", stackCount, maxStack)
+	}
+	maxSlots := s.getMaxSlots(ctx, charID, slotType)
+	for attempt := 0; attempt < 3; attempt++ {
+		emptySlot, findErr := s.itemRepo.FindFirstEmptySlot(ctx, charID, slotType, maxSlots)
+		if findErr != nil {
+			return nil, findErr
+		}
+		granted := item.NewItem(charID, templateID, itemType, slotType, emptySlot)
+		granted.StackCount = stackCount
+		granted.IsBound = isBound
+		granted.Properties["achievement_reward_key"] = grantKey
+		if createErr := s.itemRepo.Create(ctx, granted); createErr == nil {
+			return granted, nil
+		} else if !strings.Contains(createErr.Error(), "23505") && !strings.Contains(createErr.Error(), "duplicate key") {
+			return nil, createErr
+		}
+		inventory, err = s.itemRepo.FindByCharacterAndSlotType(ctx, charID, slotType)
+		if err != nil {
+			return nil, err
+		}
+		if existing := findItemByGrantKey(inventory, grantKey); existing != nil {
+			return existing, nil
+		}
+	}
+	return nil, pkgerrors.ErrInventoryFull
+}
+
+func findItemByGrantKey(items []*item.Item, grantKey string) *item.Item {
+	for _, candidate := range items {
+		if candidate == nil || candidate.Properties == nil {
+			continue
+		}
+		if key, ok := candidate.Properties["achievement_reward_key"].(string); ok && key == grantKey {
+			return candidate
+		}
+	}
+	return nil
+}
+
 func (s *Service) BindItem(ctx context.Context, charID int64, itemID int64) error {
 	it, err := s.itemRepo.FindByID(ctx, itemID)
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
@@ -40,9 +41,10 @@ var (
 )
 
 type Service struct {
-	featureRepo domainfeature.Repository
-	gameData    *gamedata.Manager
-	logger      *zap.Logger
+	featureRepo   domainfeature.Repository
+	gameData      *gamedata.Manager
+	logger        *zap.Logger
+	mutationLocks [64]sync.Mutex
 }
 
 func NewService(featureRepo domainfeature.Repository, gameData *gamedata.Manager, logger *zap.Logger) *Service {
@@ -82,6 +84,27 @@ func (s *Service) GetInfo(ctx context.Context, charID int64) (map[string]interfa
 }
 
 func (s *Service) AddMedalToBag(ctx context.Context, charID int64, tid, count int) (int, int, error) {
+	lock := s.mutationLock(charID)
+	lock.Lock()
+	defer lock.Unlock()
+	return s.addMedalToBag(ctx, charID, tid, count, "")
+}
+
+func (s *Service) AddMedalToBagIdempotent(ctx context.Context, charID int64, tid, count int, grantKey string) (int, int, error) {
+	if grantKey == "" {
+		return 0, 0, ErrInvalidArgs
+	}
+	lock := s.mutationLock(charID)
+	lock.Lock()
+	defer lock.Unlock()
+	return s.addMedalToBag(ctx, charID, tid, count, grantKey)
+}
+
+func (s *Service) mutationLock(charID int64) *sync.Mutex {
+	return &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+}
+
+func (s *Service) addMedalToBag(ctx context.Context, charID int64, tid, count int, grantKey string) (int, int, error) {
 	if tid <= 0 || count <= 0 {
 		return 0, 0, ErrInvalidArgs
 	}
@@ -89,10 +112,16 @@ func (s *Service) AddMedalToBag(ctx context.Context, charID int64, tid, count in
 	if err != nil {
 		return 0, 0, err
 	}
+	if receipt, ok := state.Grants[grantKey]; grantKey != "" && ok {
+		return receipt.Slot, receipt.Count, nil
+	}
 	for slot, entry := range state.Bag {
 		if isInventory(slot) && entry.T == tid {
 			entry.N += count
 			state.Bag[slot] = entry
+			if grantKey != "" {
+				state.Grants[grantKey] = GrantReceipt{Slot: slot, Count: entry.N}
+			}
 			if err := s.saveState(ctx, charID, state); err != nil {
 				return 0, 0, err
 			}
@@ -105,6 +134,9 @@ func (s *Service) AddMedalToBag(ctx context.Context, charID int64, tid, count in
 	}
 	entry := BagEntry{I: slot, T: tid, N: count}
 	state.Bag[slot] = entry
+	if grantKey != "" {
+		state.Grants[grantKey] = GrantReceipt{Slot: slot, Count: entry.N}
+	}
 	if err := s.saveState(ctx, charID, state); err != nil {
 		return 0, 0, err
 	}
@@ -122,6 +154,9 @@ type MoveResult struct {
 }
 
 func (s *Service) MoveMedal(ctx context.Context, charID int64, fromSid, toSid int) (*MoveResult, error) {
+	lock := s.mutationLock(charID)
+	lock.Lock()
+	defer lock.Unlock()
 	if fromSid <= 0 || toSid <= 0 || fromSid == toSid {
 		return nil, ErrInvalidArgs
 	}
@@ -192,6 +227,9 @@ func (s *Service) MoveMedal(ctx context.Context, charID int64, fromSid, toSid in
 }
 
 func (s *Service) ArrangeBag(ctx context.Context, charID int64) (map[string]interface{}, error) {
+	lock := s.mutationLock(charID)
+	lock.Lock()
+	defer lock.Unlock()
 	state, err := s.loadState(ctx, charID)
 	if err != nil {
 		return nil, err

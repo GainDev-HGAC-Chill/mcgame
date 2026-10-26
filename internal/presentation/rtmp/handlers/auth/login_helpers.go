@@ -135,6 +135,15 @@ func (h *Handler) loadAchievementSnapshot(ctx context.Context, charID int64, lev
 	if h.achievementState == nil {
 		return snapshot
 	}
+	if recoverer, ok := h.achievementState.(interface {
+		RecoverGrantedRewards(context.Context, int64) error
+	}); ok {
+		if err := recoverer.RecoverGrantedRewards(ctx, charID); err != nil {
+			h.logger.Warn("Failed to recover granted achievement rewards",
+				zap.Int64("character_id", charID),
+				zap.Error(err))
+		}
+	}
 	if processor, ok := h.achievementState.(interface {
 		ProcessPendingFacts(context.Context, int64, time.Time) (domainachievement.ProgressUpdate, error)
 	}); ok {

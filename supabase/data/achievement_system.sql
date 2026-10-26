@@ -42,6 +42,33 @@ create table if not exists player.character_achievement_claim_reservations (
 
 alter table player.character_achievement_claim_reservations enable row level security;
 
+create table if not exists player.character_achievement_reward_grants (
+    character_id bigint not null references player.characters(id) on delete cascade,
+    achievement_id integer not null,
+    claim_token uuid not null unique,
+    reward_kind smallint not null check (reward_kind between 1 and 3),
+    template_id integer not null check (template_id > 0),
+    quantity integer not null check (quantity > 0),
+    status text not null check (status in ('reserved', 'granting', 'granted', 'finalized', 'failed')),
+    receipt jsonb,
+    last_error text not null default '',
+    lease_expires_at timestamptz,
+    created_at timestamptz not null default current_timestamp,
+    updated_at timestamptz not null default current_timestamp,
+    granted_at timestamptz,
+    finalized_at timestamptz,
+    primary key (character_id, achievement_id)
+);
+
+alter table player.character_achievement_reward_grants enable row level security;
+
+revoke all on table player.character_achievement_reward_grants from public, anon, authenticated;
+grant select, insert, update on table player.character_achievement_reward_grants to service_role;
+
+create unique index if not exists idx_character_items_achievement_reward_key
+    on player.character_items (character_id, ((properties ->> 'achievement_reward_key')))
+    where properties ? 'achievement_reward_key';
+
 create or replace function player.list_character_achievement_requirements(p_character_id bigint)
 returns table (
     character_id bigint,
@@ -478,3 +505,213 @@ as $function$
     )
     select exists(select 1 from deleted);
 $function$;
+
+create or replace function player.prepare_character_achievement_reward_grant(
+    p_character_id bigint,
+    p_achievement_id bigint,
+    p_reward_kind integer,
+    p_template_id integer,
+    p_quantity integer,
+    p_claim_token uuid,
+    p_prepared_at timestamptz
+)
+returns setof player.character_achievement_reward_grants
+language plpgsql
+set search_path to ''
+as $function$
+declare
+    v_grant player.character_achievement_reward_grants%rowtype;
+begin
+    perform pg_advisory_xact_lock(p_character_id);
+
+    select * into v_grant
+    from player.character_achievement_reward_grants g
+    where g.character_id = p_character_id
+      and g.achievement_id = p_achievement_id
+    for update;
+
+    if not found then
+        if not exists (
+            select 1
+            from player.character_achievements a
+            where a.character_id = p_character_id
+              and a.achievement_id = p_achievement_id
+              and a.is_completed = true
+              and a.is_claimed = false
+        ) then
+            return;
+        end if;
+
+        insert into player.character_achievement_reward_grants (
+            character_id, achievement_id, claim_token, reward_kind,
+            template_id, quantity, status, created_at, updated_at
+        ) values (
+            p_character_id, p_achievement_id, p_claim_token, p_reward_kind,
+            p_template_id, p_quantity, 'reserved', p_prepared_at, p_prepared_at
+        ) returning * into v_grant;
+    end if;
+
+    if v_grant.reward_kind <> p_reward_kind
+       or v_grant.template_id <> p_template_id
+       or v_grant.quantity <> p_quantity then
+        raise exception 'achievement reward definition drift for character %, achievement %', p_character_id, p_achievement_id;
+    end if;
+
+    if v_grant.status in ('granted', 'finalized') then
+        return next v_grant;
+        return;
+    end if;
+
+    if v_grant.status = 'granting'
+       and v_grant.lease_expires_at is not null
+       and v_grant.lease_expires_at > p_prepared_at then
+        return next v_grant;
+        return;
+    end if;
+
+    update player.character_achievement_reward_grants g
+    set claim_token = p_claim_token,
+        status = 'granting',
+        last_error = '',
+        lease_expires_at = p_prepared_at + interval '5 minutes',
+        updated_at = p_prepared_at
+    where g.character_id = p_character_id
+      and g.achievement_id = p_achievement_id
+    returning * into v_grant;
+
+    return next v_grant;
+end;
+$function$;
+
+create or replace function player.mark_character_achievement_reward_granted(
+    p_character_id bigint,
+    p_achievement_id bigint,
+    p_claim_token uuid,
+    p_receipt jsonb,
+    p_granted_at timestamptz
+)
+returns setof player.character_achievement_reward_grants
+language sql
+set search_path to ''
+as $function$
+    update player.character_achievement_reward_grants g
+    set status = 'granted',
+        receipt = p_receipt,
+        lease_expires_at = null,
+        updated_at = p_granted_at,
+        granted_at = coalesce(g.granted_at, p_granted_at)
+    where g.character_id = p_character_id
+      and g.achievement_id = p_achievement_id
+      and g.claim_token = p_claim_token
+      and g.status = 'granting'
+    returning g.*;
+$function$;
+
+create or replace function player.mark_character_achievement_reward_failed(
+    p_character_id bigint,
+    p_achievement_id bigint,
+    p_claim_token uuid,
+    p_reason text,
+    p_failed_at timestamptz
+)
+returns boolean
+language sql
+set search_path to ''
+as $function$
+    with updated as (
+        update player.character_achievement_reward_grants g
+        set status = 'failed',
+            last_error = left(coalesce(p_reason, 'reward grant failed'), 1000),
+            lease_expires_at = null,
+            updated_at = p_failed_at
+        where g.character_id = p_character_id
+          and g.achievement_id = p_achievement_id
+          and g.claim_token = p_claim_token
+          and g.status = 'granting'
+        returning 1
+    )
+    select exists(select 1 from updated);
+$function$;
+
+create or replace function player.finalize_character_achievement_reward_grant(
+    p_character_id bigint,
+    p_achievement_id bigint,
+    p_finalized_at timestamptz
+)
+returns setof player.character_achievements
+language plpgsql
+set search_path to ''
+as $function$
+declare
+    v_status text;
+begin
+    perform pg_advisory_xact_lock(p_character_id);
+
+    select g.status into v_status
+    from player.character_achievement_reward_grants g
+    where g.character_id = p_character_id
+      and g.achievement_id = p_achievement_id
+    for update;
+
+    if v_status = 'finalized' then
+        return query
+        select a.*
+        from player.character_achievements a
+        where a.character_id = p_character_id
+          and a.achievement_id = p_achievement_id
+          and a.is_claimed = true;
+        return;
+    end if;
+
+    if v_status <> 'granted' then
+        return;
+    end if;
+
+    return query
+    update player.character_achievements a
+    set is_claimed = true,
+        claimed_at = p_finalized_at
+    where a.character_id = p_character_id
+      and a.achievement_id = p_achievement_id
+      and a.is_completed = true
+      and a.is_claimed = false
+    returning a.*;
+
+    if found then
+        update player.character_achievement_reward_grants g
+        set status = 'finalized',
+            finalized_at = p_finalized_at,
+            updated_at = p_finalized_at
+        where g.character_id = p_character_id
+          and g.achievement_id = p_achievement_id;
+    end if;
+end;
+$function$;
+
+create or replace function player.list_granted_character_achievement_rewards(
+    p_character_id bigint,
+    p_limit integer default 100
+)
+returns setof player.character_achievement_reward_grants
+language sql
+stable
+set search_path to ''
+as $function$
+    select g.*
+    from player.character_achievement_reward_grants g
+    where g.character_id = p_character_id
+      and g.status = 'granted'
+    order by g.granted_at, g.achievement_id
+    limit greatest(1, least(coalesce(p_limit, 100), 1000));
+$function$;
+
+revoke execute on function player.prepare_character_achievement_reward_grant(bigint, bigint, integer, integer, integer, uuid, timestamptz) from public, anon, authenticated;
+grant execute on function player.prepare_character_achievement_reward_grant(bigint, bigint, integer, integer, integer, uuid, timestamptz) to service_role;
+revoke execute on function player.mark_character_achievement_reward_granted(bigint, bigint, uuid, jsonb, timestamptz) from public, anon, authenticated;
+grant execute on function player.mark_character_achievement_reward_granted(bigint, bigint, uuid, jsonb, timestamptz) to service_role;
+revoke execute on function player.mark_character_achievement_reward_failed(bigint, bigint, uuid, text, timestamptz) from public, anon, authenticated;
+grant execute on function player.mark_character_achievement_reward_failed(bigint, bigint, uuid, text, timestamptz) to service_role;
+revoke execute on function player.finalize_character_achievement_reward_grant(bigint, bigint, timestamptz) from public, anon, authenticated;
+grant execute on function player.finalize_character_achievement_reward_grant(bigint, bigint, timestamptz) to service_role;
+revoke execute on function player.list_granted_character_achievement_rewards(bigint, integer) from public, anon, authenticated;
+grant execute on function player.list_granted_character_achievement_rewards(bigint, integer) to service_role;

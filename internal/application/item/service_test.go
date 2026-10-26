@@ -148,6 +148,33 @@ func (r *itemServiceTestRepo) CountBySlotType(ctx context.Context, charID int64,
 	return count, nil
 }
 
+func TestAddItemToSlotIdempotentReusesGrantReceipt(t *testing.T) {
+	logger := zap.NewNop()
+	repo := newItemServiceTestRepo()
+	svc := NewService(repo, logger)
+	manager := gamedata.NewManager(nil, logger)
+	raw, err := json.Marshal(models.ItemTemplateTemplate{ID: 3984, StackMax: 99})
+	if err != nil {
+		t.Fatalf("marshal item template: %v", err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{raw}); err != nil {
+		t.Fatalf("load item template: %v", err)
+	}
+	svc.SetGameDataManager(manager)
+
+	first, err := svc.AddItemToSlotIdempotent(context.Background(), 1, 3984, domainitem.ItemTypeConsumable, 3, false, domainitem.SlotTypeBag, "achievement:1:6191")
+	if err != nil {
+		t.Fatalf("first grant: %v", err)
+	}
+	second, err := svc.AddItemToSlotIdempotent(context.Background(), 1, 3984, domainitem.ItemTypeConsumable, 3, false, domainitem.SlotTypeBag, "achievement:1:6191")
+	if err != nil {
+		t.Fatalf("retry grant: %v", err)
+	}
+	if first.ID != second.ID || len(repo.items) != 1 || second.StackCount != 3 {
+		t.Fatalf("retry created duplicate: first=%+v second=%+v rows=%d", first, second, len(repo.items))
+	}
+}
+
 func TestAddItemWithBindAndColor_EquipmentSetsDurabilityAndEndureLeft(t *testing.T) {
 	logger := zap.NewNop()
 	repo := newItemServiceTestRepo()

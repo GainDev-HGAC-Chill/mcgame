@@ -29,6 +29,7 @@ const (
 	petBuffStateKey   = "petBuff"
 	charBuffStateKey  = "charBuff"
 	checkFlagStateKey = "checkFlag"
+	grantsStateKey    = "achievementGrants"
 
 	bagMaxID      = 600
 	bagDisplayCap = 320
@@ -57,10 +58,16 @@ type State struct {
 	PetBuffT  int
 	CharBuffT int
 	CheckFlag bool
+	Grants    map[string]GrantReceipt
+}
+
+type GrantReceipt struct {
+	Slot  int
+	Count int
 }
 
 func defaultState() *State {
-	return &State{Bag: map[int]BagEntry{}}
+	return &State{Bag: map[int]BagEntry{}, Grants: map[string]GrantReceipt{}}
 }
 
 func stateFromMap(raw map[string]interface{}) *State {
@@ -90,7 +97,28 @@ func stateFromMap(raw map[string]interface{}) *State {
 	if b, ok := raw[checkFlagStateKey].(bool); ok {
 		state.CheckFlag = b
 	}
+	if grants, ok := raw[grantsStateKey].(map[string]interface{}); ok {
+		for key, val := range grants {
+			entry, valid := grantReceiptFrom(val)
+			if valid {
+				state.Grants[key] = entry
+			}
+		}
+	}
 	return state
+}
+
+func grantReceiptFrom(val interface{}) (GrantReceipt, bool) {
+	m, ok := val.(map[string]interface{})
+	if !ok {
+		return GrantReceipt{}, false
+	}
+	slot, slotOK := intFrom(m["slot"])
+	count, countOK := intFrom(m["count"])
+	if !slotOK || !countOK || slot <= 0 || count <= 0 {
+		return GrantReceipt{}, false
+	}
+	return GrantReceipt{Slot: slot, Count: count}, true
 }
 
 func bagEntryFrom(val interface{}) (BagEntry, bool) {
@@ -142,12 +170,17 @@ func entryToWire(entry BagEntry) map[string]interface{} {
 }
 
 func (s *State) toPersist() map[string]interface{} {
+	grants := make(map[string]interface{}, len(s.Grants))
+	for key, receipt := range s.Grants {
+		grants[key] = map[string]interface{}{"slot": receipt.Slot, "count": receipt.Count}
+	}
 	return map[string]interface{}{
 		expStateKey:       s.Exp,
 		bagStateKey:       s.bagToWire(),
 		petBuffStateKey:   map[string]interface{}{"t": s.PetBuffT},
 		charBuffStateKey:  map[string]interface{}{"t": s.CharBuffT},
 		checkFlagStateKey: s.CheckFlag,
+		grantsStateKey:    grants,
 	}
 }
 

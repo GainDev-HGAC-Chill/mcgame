@@ -239,3 +239,11 @@ Absence trong state không được xóa tiến độ đã đạt. Event-only kh
 - 30 achievement nhiều requirement phải hoàn thành bằng phép AND trên requirement ID; danh sách: `1015,1036,2012,2013,2044,5005,5010,5013,5017,5035,5037,6010,6020,6045,6046,6047,6101,6102,6103,6187,6210,6250,6251,6252,6253,6305,6306,6307,6414,6424`.
 - Reward canonical vẫn chỉ xác minh một phần trong 51 achievement claimable. Không parse `desc` để cấp thưởng.
 - Reservation hiện chặn double grant nhưng grant và finalize chưa cùng transaction; cần durable reward ledger để phục hồi crash sau grant.
+
+## Addendum reward chính thức — 2026-10-26
+
+Đối chiếu toàn bộ bốn bảng tại [Nhận Thưởng Thành Tựu](https://vuaphapthuat.go.vn/bai-viet/nhan-thuong-thanh-tuu/4975.html) với `TBL_ACHIEVEMENT`, `TBL_ITEM_TEMPLATE`, `TBL_TITLE`, `TBL_BUFF` và `TBL_MEDAL` xác minh đủ 30 dòng: 9 title, 9 item, 8 Ấn Chương nhân vật và 4 Ấn Chương Pet. Registry dùng exact achievement ID, item/title/medal ID và số lượng; không parse mô tả lúc runtime.
+
+Trường hợp duy nhất không exact theo tên hiển thị title là achievement `6066 Giáo Sư Biết Tuốt`. `TBL_TITLE.id=274` hiển thị `Tuổi Trẻ Bồng Bột`, nhưng title này có `b=2793`; `TBL_BUFF.id=2793` có exact name `Giáo Sư Biết Tuốt`, và không có title khác liên kết buff này. Kết hợp với exact reward name trong achievement 6066 và nguồn chính thức, đây là quan hệ catalog trực tiếp đủ để map `6066 → title 274`. Startup validation phải khóa cả `title 274 → buff 2793 → exact buff name`; nếu drift thì fail startup.
+
+Reward ledger mới không dựa vào callback UI để xác nhận cấp thưởng. DB giữ state machine và receipt; item lưu stable key trên một stack riêng có unique expression index, medal lưu stable key cùng JSON state được grant, title dựa trên unique ownership. Crash sau mutation nhưng trước receipt có thể retry sau lease mà operation key trả lại cùng item/medal/title; crash sau receipt nhưng trước claim finalize được login hoặc request kế tiếp finalize mà không grant lại. Callback live chỉ phát sau finalize, còn snapshot/inventory persisted là recovery source khi callback bị mất.

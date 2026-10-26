@@ -19,8 +19,8 @@ Cơ sở nghiên cứu:
 - Website chính thức xác nhận mỗi reward chỉ nhận một lần và gồm title, item, Ấn Chương nhân vật/Pet.
 - Item 3984 là `Tinh Hồn Chi Thực`; item 4029 là `Quả Linh Tê`.
 - Base medal đã xác minh bằng exact name + `level=0`: 1 Lục Quân, 23 May Mắn, 111 Chúng Thần, 133 Thành Nhân, 155 Quang Huy, 317 Chiến Hồn, 328 Trí Tuệ, 361 Tấn Tiệp, 383 Kỳ Ảo, 394 Cuồng Nộ, 416 Mị Hoặc, 449 Kinh Nhận.
-- Title reward đã xác minh: 256 Đại Sư Bắt Pet, 257 Huấn Luyện Sư Đa Công Năng, 273 Độc Cô Cầu Bại, 275 Đĩa Hút Máu, 276 Củ Cải Phong Lưu, 277 Phú Hào, 278 Địa Chủ, 279 Thợ Săn Tiền Thưởng.
-- Không có exact title `Giáo Sư Biết Tuốt` trong catalog. Title 274 có tên khác nên không được dùng thay thế.
+- Title reward đã xác minh: 256 Đại Sư Bắt Pet, 257 Huấn Luyện Sư Đa Công Năng, 273 Độc Cô Cầu Bại, 274 Giáo Sư Biết Tuốt qua liên kết title→buff, 275 Đĩa Hút Máu, 276 Củ Cải Phong Lưu, 277 Phú Hào, 278 Địa Chủ, 279 Thợ Săn Tiền Thưởng.
+- Catalog có anomaly ở title 274: tên hiển thị là `Tuổi Trẻ Bồng Bột`, nhưng field `b=2793` liên kết duy nhất tới `TBL_BUFF.id=2793` có exact name `Giáo Sư Biết Tuốt`; achievement 6066 và bài hướng dẫn chính thức cùng ghi exact reward name này. Mapping dùng quan hệ ID trực tiếp, không dùng tên gần giống hay thứ tự dòng.
 
 ## 2. Thiết kế
 
@@ -58,7 +58,7 @@ Cơ sở nghiên cứu:
 - Item reward dùng `ItemTypeConsumable`, không dùng `ItemTypeQuest`.
 - Medal reward gọi `medal.Service.AddMedalToBag` và phát `updateMedalInBag({i,t,n})`.
 - Title reward cấp bằng title ID canonical và phát callback title hiện có.
-- `Giáo Sư Biết Tuốt` và mọi reward chưa ánh xạ trả thất bại rõ ràng, không claim rỗng.
+- Mọi reward chưa ánh xạ trả thất bại rõ ràng, không claim rỗng.
 
 ### 2.5 Điểm chạm
 
@@ -78,7 +78,7 @@ Cơ sở nghiên cứu:
 - Không tự suy đoán 60 requirement type từ mô tả tiếng Việt; các type chưa có event/state authority tiếp tục fail closed.
 - Không sửa ActionScript.
 - Không backfill tiến độ người chơi hiện có ngoài reconcile cấp độ/đăng nhập/tổng quest/battle có dữ liệu authority.
-- Không cấp title gần giống cho `Giáo Sư Biết Tuốt`.
+- Không cấp title gần giống; trường hợp title 274 chỉ được chấp nhận khi startup validator còn thấy exact link buff 2793 `Giáo Sư Biết Tuốt`.
 - Không restart/deploy hoặc kiểm thử bằng item/người chơi thật.
 
 ## 4. Kiểm thử
@@ -242,6 +242,8 @@ Mỗi subsystem phải có plan riêng về wire contract, persistence, reset se
 3. Thêm ledger/idempotent grant/recovery.
 4. SQL concurrency và crash-point tests tại trước grant, sau grant, trước finalize, sau finalize.
 5. Mapping chưa chứng minh tiếp tục trả lỗi rõ ràng và không claim.
+
+Trạng thái 2026-10-26: code + DB complete, chưa deploy. Đã xác minh đủ 30 reward trong nguồn chính thức; title 274 được khóa qua exact linked buff 2793. Durable ledger có lease, persisted receipt, on-login finalize recovery và idempotent operation key xuống item/medal/title. Migration `20261026045011_achievement_reward_ledger.sql`, rollback-smoke các crash point, exact service-role privilege và full shadow replay PASS; không claim reward thật trong verification.
 
 ## 8. Điểm chạm dự kiến
 

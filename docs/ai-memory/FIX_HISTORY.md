@@ -1,5 +1,12 @@
 # MCGame Fix History
 
+## FIX-2026-10-26-01 — Thành Tựu reward registry và durable claim ledger
+
+- Đối chiếu đủ 30 reward trong bài hướng dẫn chính thức với achievement/item/title/buff/medal catalog: 9 title, 9 item và 12 Ấn Chương. Mapping cuối `6066 → title 274` được chứng minh bằng exact catalog link `TBL_TITLE.b=2793 → TBL_BUFF.name=Giáo Sư Biết Tuốt`; startup validator fail nếu link/name drift.
+- Thay reservation-only claim bằng ledger state `reserved/granting/granted/finalized/failed`, lease 5 phút, receipt persisted trước finalize và login recovery trước snapshot. Item grant dùng stable property key + unique index draft; medal lưu receipt cùng feature state; title dùng unique ownership. Retry crash-point không cấp lặp, callback chỉ phát sau finalize, và application boundary từ chối definition/receipt không hợp lệ ở cả direct claim lẫn login recovery.
+- Focused achievement/item/medal/PostgreSQL/achievement-handler/auth/cmd tests, focused vet, `go vet ./...`, Windows build và diff-check PASS. `go test ./...` chỉ còn đúng 4 baseline ngoài phạm vi: questaudit census, activity SendCombine và 2 chat stat expectation.
+- Operator cho phép DB step: pre-apply schema dump đã lưu; ledger table/5 function/unique item key index/RLS/privilege đã apply. Rollback smoke lease/failure/recovery/finalize/unique-key và exact `service_role` PASS, để lại 0 row. Migration `20261026045011_achievement_reward_ledger.sql` được CLI sinh, normalize khỏi live drift và full shadow push PASS; live/shadow definition+ACL hash exact match, history mark applied. Chưa restart/deploy hoặc claim thật; chỉ DB chạy. Backup dump/checksum và `AGENTS.md` đang modified ngoài phạm vi, không được stage/ghi đè.
+
 ## FIX-2026-10-25-05 — Thành Tựu Wave 1 state-reader batch
 
 - Thêm state reconciliation framework positive-only, login reconcile trước snapshot và startup ownership validation cho từng reader; unknown/non-state/duplicate ownership hoặc proof ngoài phạm vi reader đều fail trước ghi DB. Coverage regression hiện khóa 421 requirement S đã có reader.

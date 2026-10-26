@@ -6,6 +6,7 @@ package achievement
 import (
 	"fmt"
 
+	domainachievement "mcgame-server/internal/domain/achievement"
 	"mcgame-server/internal/gamedata/models"
 )
 
@@ -25,6 +26,7 @@ type RewardDefinition struct {
 
 type RewardCatalog interface {
 	GetAchievement(id int) *models.AchievementTemplate
+	GetBuff(id int) *models.BuffTemplate
 	GetItem(id int) *models.ItemTemplateTemplate
 	GetTitle(id int) *models.TitleTemplate
 	GetMedal(id int) *models.MedalTemplate
@@ -47,6 +49,7 @@ var achievementRewards = map[int64]RewardDefinition{
 	5050: {Kind: RewardKindTitle, TemplateID: 279, Quantity: 1},
 	6026: {Kind: RewardKindMedal, TemplateID: 394, Quantity: 1},
 	6030: {Kind: RewardKindTitle, TemplateID: 276, Quantity: 1},
+	6066: {Kind: RewardKindTitle, TemplateID: 274, Quantity: 1},
 	6078: {Kind: RewardKindTitle, TemplateID: 278, Quantity: 1},
 	6092: {Kind: RewardKindTitle, TemplateID: 273, Quantity: 1},
 	6096: {Kind: RewardKindMedal, TemplateID: 383, Quantity: 1},
@@ -65,6 +68,30 @@ var achievementRewards = map[int64]RewardDefinition{
 func RewardForAchievement(achievementID int64) (RewardDefinition, bool) {
 	reward, ok := achievementRewards[achievementID]
 	return reward, ok
+}
+
+func ValidateRewardReceipt(achievementID int64, receipt domainachievement.RewardReceipt) error {
+	reward, ok := RewardForAchievement(achievementID)
+	if !ok {
+		return ErrAchievementRewardUnknown
+	}
+	switch reward.Kind {
+	case RewardKindItem:
+		if receipt.ItemID <= 0 {
+			return fmt.Errorf("invalid achievement item receipt")
+		}
+	case RewardKindTitle:
+		if receipt.TitleID != reward.TemplateID {
+			return fmt.Errorf("invalid achievement title receipt")
+		}
+	case RewardKindMedal:
+		if receipt.MedalSlot <= 0 || receipt.MedalCount < reward.Quantity {
+			return fmt.Errorf("invalid achievement medal receipt")
+		}
+	default:
+		return fmt.Errorf("unsupported achievement reward kind")
+	}
+	return nil
 }
 
 func ValidateRewardCatalog(catalog RewardCatalog) error {
@@ -95,6 +122,14 @@ func ValidateRewardCatalog(catalog RewardCatalog) error {
 		if reward.Quantity <= 0 {
 			return fmt.Errorf("achievement %d has invalid reward quantity", achievementID)
 		}
+	}
+	title := catalog.GetTitle(274)
+	if title == nil || int(title.B) != 2793 {
+		return fmt.Errorf("achievement 6066 title authority is invalid")
+	}
+	buff := catalog.GetBuff(2793)
+	if buff == nil || buff.Name != "Giáo Sư Biết Tuốt" {
+		return fmt.Errorf("achievement 6066 linked title buff authority is invalid")
 	}
 	return nil
 }
