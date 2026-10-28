@@ -15,12 +15,13 @@ import (
 )
 
 type Pet struct {
-	ID          int64
-	CharacterID int64
-	TemplateID  int
-	Name        string
-	Level       int
-	Experience  int64
+	CacheRevision uint64 `json:"-"`
+	ID            int64
+	CharacterID   int64
+	TemplateID    int
+	Name          string
+	Level         int
+	Experience    int64
 
 	AptStrength     int
 	AptAgility      int

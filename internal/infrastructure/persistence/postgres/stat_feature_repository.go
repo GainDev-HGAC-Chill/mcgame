@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	domainachievement "mcgame-server/internal/domain/achievement"
 	"mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/statfeature"
 	pkgerrors "mcgame-server/pkg/errors"
@@ -148,6 +149,68 @@ func (r *StatFeatureRepository) CommitBloodBagPurchase(ctx context.Context, char
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return pkgerrors.Wrap(err, "failed to commit blood bag purchase")
+	}
+	return nil
+}
+
+func (r *StatFeatureRepository) CommitLottoDraw(ctx context.Context, charID int64, newGold int64, expectedState, newState map[string]interface{}, facts []domainachievement.Fact) error {
+	expectedRaw, err := json.Marshal(normalizeFeatureState(expectedState))
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to marshal expected lotto state")
+	}
+	newRaw, err := json.Marshal(normalizeFeatureState(newState))
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to marshal lotto state")
+	}
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to begin lotto draw")
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "select pg_advisory_xact_lock(hashtextextended('lotto:' || $1::text, 0))", charID); err != nil {
+		return pkgerrors.Wrap(err, "failed to lock lotto state")
+	}
+	var stateMatches bool
+	if err := tx.QueryRow(ctx, `
+		select case
+			when exists (
+				select 1 from player.character_stat_features
+				where character_id = $1 and feature_key = $2
+			) then (
+				select state = $3::jsonb from player.character_stat_features
+				where character_id = $1 and feature_key = $2
+			)
+			else true
+		end`, charID, statfeature.FeatureLotto, expectedRaw).Scan(&stateMatches); err != nil {
+		return pkgerrors.Wrap(err, "failed to validate lotto state")
+	}
+	if !stateMatches {
+		return statfeature.ErrLottoStateConflict
+	}
+	var storedGold int64
+	if err := tx.QueryRow(ctx, "update player.character_wallet set gold = $2 where character_id = $1 returning gold", charID, newGold).Scan(&storedGold); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pkgerrors.ErrCharacterNotFound
+		}
+		return pkgerrors.Wrap(err, "failed to update lotto gold")
+	}
+	if storedGold != newGold {
+		return fmt.Errorf("lotto gold mismatch")
+	}
+	var stored bool
+	if err := tx.QueryRow(ctx, "select player.upsert_character_feature_state($1, $2, $3::jsonb)", charID, statfeature.FeatureLotto, newRaw).Scan(&stored); err != nil {
+		return pkgerrors.Wrap(err, "failed to update lotto state")
+	}
+	for _, fact := range facts {
+		if fact.CharacterID != charID {
+			return fmt.Errorf("lotto achievement fact character mismatch")
+		}
+		if err := appendAchievementFact(ctx, tx, fact); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return pkgerrors.Wrap(err, "failed to commit lotto draw")
 	}
 	return nil
 }

@@ -143,7 +143,7 @@ func (h *Handler) ClickNpc(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	if handled, err := h.tryHandleHerbNPCClick(ctx, characterID, npcID); handled || err != nil {
 		return nil, err
 	}
-	if handled, err := h.tryHandleGuildBuildingNPCClick(ctx, npcID); handled || err != nil {
+	if handled, err := h.tryHandleGuildBuildingNPCClick(ctx, characterID, npcID); handled || err != nil {
 		return nil, err
 	}
 
@@ -881,17 +881,17 @@ func (h *Handler) ClickNpc(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	}
 
 	if npcID == 387 {
-    h.logger.Info("WISH_TREE_CALLBACK_DEBUG",
-        zap.Int64("character_id", characterID),
-        zap.Int("npc_id", npcID),
-        zap.Any("payload", interaction.payload),
-    )
+		h.logger.Info("WISH_TREE_CALLBACK_DEBUG",
+			zap.Int64("character_id", characterID),
+			zap.Int("npc_id", npcID),
+			zap.Any("payload", interaction.payload),
+		)
 	}
 
 	if err := ctx.Connection.SendCallbackSync("npcFuncInit", interaction.payload); err != nil {
 		if npcID == 387 {
 			h.logger.Info("WISH_TREE_TEST_SKIP_CALLBACK")
-		return nil, nil
+			return nil, nil
 		}
 		h.logger.Error("Failed to send npcFuncInit callback", zap.Error(err))
 	}

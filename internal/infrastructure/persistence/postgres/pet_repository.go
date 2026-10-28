@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	domainachievement "mcgame-server/internal/domain/achievement"
 	domainitem "mcgame-server/internal/domain/item"
 	"mcgame-server/internal/domain/pet"
 	pkgerrors "mcgame-server/pkg/errors"
@@ -36,6 +37,41 @@ func (r *PetRepository) Save(ctx context.Context, p *pet.Pet) error {
 		return r.create(ctx, p)
 	}
 	return r.update(ctx, p)
+}
+
+func (r *PetRepository) SaveCaptured(ctx context.Context, p *pet.Pet) error {
+	if p == nil || p.ID != 0 || p.CharacterID <= 0 || p.TemplateID <= 0 {
+		return pkgerrors.ErrInvalidInput
+	}
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to begin captured pet transaction")
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := createPet(ctx, tx, p); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(domainachievement.PetCapturedFactPayload{
+		PetID:              p.ID,
+		CreatureTemplateID: int64(p.TemplateID),
+	})
+	if err != nil {
+		return pkgerrors.Wrap(err, "failed to marshal captured pet fact")
+	}
+	fact := domainachievement.Fact{
+		FactID:      fmt.Sprintf("pet-captured:v1:%d", p.ID),
+		CharacterID: p.CharacterID,
+		Kind:        domainachievement.FactKindPetCaptured,
+		Payload:     payload,
+		OccurredAt:  p.CreatedAt.UTC(),
+	}
+	if err := appendAchievementFact(ctx, tx, fact); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return pkgerrors.Wrap(err, "failed to commit captured pet transaction")
+	}
+	return nil
 }
 
 func (r *PetRepository) create(ctx context.Context, p *pet.Pet) error {

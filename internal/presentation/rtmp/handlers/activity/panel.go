@@ -99,7 +99,14 @@ func (h *Handler) GetSendCombineAct(ctx *rtmp.RPCContext, args []interface{}) (i
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID))
 
-	activities := buildSendCombineActivitiesWithBuyCounts(h.getSendCombineBuyCounts(characterID))
+	if h.sendCombineService == nil {
+		return nil, errors.ErrSystemError
+	}
+	buyCounts, err := h.sendCombineService.BuyCounts(ctx.Context, characterID, sendCombineEndTime)
+	if err != nil {
+		return nil, err
+	}
+	activities := buildSendCombineActivitiesWithBuyCounts(buyCounts)
 
 	h.logger.Info("GetSendCombineAct: returning send combine activities",
 		zap.Uint32("conn_id", ctx.ConnID),

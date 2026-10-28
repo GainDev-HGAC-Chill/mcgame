@@ -56,14 +56,15 @@ const (
 )
 
 type Item struct {
-	ID          int64
-	CharacterID int64
-	TemplateID  int
-	ItemType    ItemType
-	SlotType    SlotType
-	SlotIndex   int
-	StackCount  int
-	IsBound     bool
+	CacheRevision uint64 `json:"-"`
+	ID            int64
+	CharacterID   int64
+	TemplateID    int
+	ItemType      ItemType
+	SlotType      SlotType
+	SlotIndex     int
+	StackCount    int
+	IsBound       bool
 
 	Durability    *int
 	MaxDurability *int

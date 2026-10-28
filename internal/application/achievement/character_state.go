@@ -27,7 +27,7 @@ func (r *CharacterStateReader) Name() string {
 }
 
 func (r *CharacterStateReader) RequirementIDs() []int64 {
-	return []int64{1, 2, 3, 4, 17, 18, 19, 20, 22, 57, 58, 100, 101, 134, 135, 136, 137, 142, 143, 144, 145, 146, 147, 148, 149, 386, 387, 392, 393, 394, 395, 510, 535, 652, 653, 654, 655, 656, 657, 658}
+	return []int64{1, 2, 3, 4, 17, 18, 19, 20, 22, 57, 58, 100, 101, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 386, 387, 392, 393, 394, 395, 510, 535, 652, 653, 654, 655, 656, 657, 658}
 }
 
 func (r *CharacterStateReader) ReadStateProofs(ctx context.Context, characterID int64) ([]StateProof, error) {
@@ -59,6 +59,10 @@ func (r *CharacterStateReader) ReadStateProofs(ctx context.Context, characterID 
 		stateProof(135, character.ArenaPoints, 30000),
 		stateProof(136, character.ArenaPoints, 100000),
 		stateProof(137, character.ArenaPoints, 200000),
+		stateProof(138, character.Honor, 10),
+		stateProof(139, character.Honor, 25),
+		stateProof(140, character.Honor, 100),
+		stateProof(141, character.Honor, 200),
 		stateProof(142, boundedStateProgress(character.Pop), 500),
 		stateProof(143, boundedStateProgress(character.Pop), 2000),
 		stateProof(144, boundedStateProgress(character.Pop), 5000),

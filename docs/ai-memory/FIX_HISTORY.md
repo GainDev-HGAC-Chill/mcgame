@@ -1,5 +1,108 @@
 # MCGame Fix History
 
+## FIX-2026-10-29-03 — Atomic guild disband và Hall-derived guild level
+
+- Disband dùng expected member snapshot, stable multi-player cache barrier và một PostgreSQL command: leader/membership revalidation, currency20/21→0, floor90% restore, clear guild, cascade guild-owned rows, committed state reconcile và cleanup guild quest cho mọi thành viên.
+- Finish Hall chỉ nhận exact catalog family `BUILD100001`, prop1=4/value=level; cùng transaction với cost/building commit sẽ cập nhật guild level và từ chối lower/skip/drift.
+- Migration `20261028175744_guild_disband_and_hall_level.sql` history/shadow/post-diff/ACL PASS. Rollback smoke PASS. Concurrent duplicate disband cho một winner; concurrent Hall finish/reset serialize một winner. Guarded cleanup trả character1 và guild1 về exact baseline.
+- Verification tổng PASS: full tests, vet, Windows build và scoped Docker Linux race. Toàn bộ RID84/SendCombine/disband/Hall source đã deploy trong gameserver `6b592e88356f...`, restart0, 118.540 records, health/metrics HTTP200 và startup log sạch. Login-only Flash smoke chưa chạy do không có operator; không tuyên bố đã exercise login path.
+
+## FIX-2026-10-29-02 — SendCombine durable atomic purchase
+
+- Thay quota process-local và flow grant-item/update-wallet nhiều bước bằng durable ledger + một PostgreSQL command atomic qua shared player mutation barrier; callback chỉ phát từ committed result.
+- Function validate expiry, limit, gold, template/stack và bag capacity; lỗi rollback toàn bộ. Migration CLI-generated `20261028174942_send_combine_atomic_purchase.sql` được normalize byte-identical canonical, history/shadow/post-diff và ACL PASS.
+- Success/rejection rollback smoke PASS. Hai call đồng thời limit1 cho đúng một winner và một `SEND_COMBINE_LIMIT_REACHED`; guarded cleanup trả gold/item/ledger/sequence về exact baseline. Focused tests PASS; deploy source được gộp sau wave disband/Hall.
+
+## FIX-2026-10-29-01 — Achievement RID84 authority và stale full-suite baselines
+
+- Loại RID84 khỏi title-state ownership: title256 là reward của AID2017, không phải điều kiện hoàn thành. Capture fact hiện tăng đồng thời RID83 target1 và RID84 target5000; census authority thành `475/81/141`.
+- Cập nhật questaudit census hiện hành, chat stat assertions theo unified payload và fixture SendCombine có đủ canonical item templates.
+- Focused tests và full `go test ./... -count=1` PASS toàn bộ; không mutation DB/runtime, restart, commit hoặc push.
+
+## FIX-2026-10-28-05 — Guild-loop Pet turn-in canonical collections và objective revalidation
+
+- Live qid30535 exposed two pre-mutation failures with full rollback: pet-only command encoded nil Items as JSON `null`, then SQL rejected persisted Pet objective `current=0` before its authoritative locked-Pet validation even though login/service derived current1.
+- Consumption planning and PostgreSQL adapter now canonicalize empty Items/PetIDs to `[]`. SQL requires persisted current only for non-consume objectives; item/Pet objectives are validated by exact locked consumables below. Regression/focused suites PASS.
+- Migration `20261028130058_guild_loop_consume_objective_revalidation.sql` was generated then normalized to the exact function; shadow replay/post-diff, ACL and persisted rollback smoke PASS. Natural live qid30535 turn-in then consumed Pet385, granted exact `288000/288000/1610/3220`, diary +2 and advanced atomically to ft1/qid30101.
+- Sau logout, strict guarded cleanup restored exact character/Pet/guild/currency/diary/loop/progress/Achievement baseline, rewound the quest sequence, evicted transient cache and restarted gameserver healthy. Focused tests, targeted vet, Windows/container builds and diff-check PASS; không commit/push.
+
+## FIX-2026-10-28-04 — Guild-loop Vua Pháp Thuật NEO atomic reward
+
+- Chuyển gameplay reward lid2 sang profile NEO-calibrated được operator cho phép: cấp 30–160, Bạc/Ngân phiếu base `48*level²`, cống hiến base `round(2173*level²/90²)`, EXP bang bằng 2× cống hiến, hệ số vòng `0.6..1.5` và giữ `1.5` cho vòng 11–15. Hai mẫu level 90 khóa đúng `233280/1304/2608` và `272160/1521/3042`. Không grant `Kết Tinh...`, character EXP hoặc guild funds khi chưa có mapping/calibration.
+- Completion chạy qua một PostgreSQL command atomic: revalidate active qid/ft/progress/objective và exact item color/Pet template-grow tier; consume item/Pet; cộng Bạc/Ngân phiếu, currency20, member normal/total/weekly, guild EXP và diary task5 +2 tối đa 15 lần; delete current progress; tạo next round hoặc deactivate. Shared cache barrier flush trước command và reconcile committed character/item/Pet/quest state sạch sau commit.
+- Migration CLI-captured `20261028072205_guild_loop_neo_atomic.sql` đã normalize khỏi drift ngoài phạm vi, apply/history mark; shadow replay và post-diff không còn guild-loop function. ACL `anon=false`, `authenticated=false`, `service_role=true`. Success/rejection rollback smoke PASS và exact baseline character3/guild1/loop row9/item62 không đổi sau rollback.
+- Migration/function và gameserver đã deploy; container runtime restart0, 118.540 game-data, RTMP/admin/metrics healthy. Live catch phát hiện và sửa thêm combat gate: Flash/catalog coi `catchable>0`, trong khi server cũ chỉ nhận đúng 1 nên quest Pet template179 (`catchable=2`) luôn rate0. Regression 0/-1 reject, 1/2 accept; live callback sau fix đạt rate28/25.
+- Natural live completion vẫn chưa chạy được: khi RNG catch thành công, atomic Pet contract rollback vì function Achievement ngoài phạm vi `player.append_character_achievement_fact` chưa có trong DB. Không bypass hoặc apply Achievement migration. Toàn bộ delta test (EXP, bound money, gold, HP/MP, Pet EXP/HP/MP, vị trí, shop item/buff) đã restore bằng strict transaction về exact pre-test baseline; không có Pet mới, loop row9/qid30535/current0 và guild economy nguyên vẹn. Focused combat/quest/cache/PostgreSQL/handler/gameserver, `go vet ./...`, Windows build và diff-check PASS; full-suite baseline trước đó vẫn là questaudit 242, activity SendCombine và hai chat HP expectations.
+
+## FIX-2026-10-28-01 — Dọn và compact cache build Docker/Go
+
+- Ổ I ban đầu chỉ còn 7.11 GB. `docker system df -v` xác định BuildKit cache 73.93 GB; Go `GOCACHE` tại `.local/go/cache` chiếm 5.51 GB. Đã chạy `docker builder prune --all --force` và `go clean -cache`; không prune image/container/database volume.
+- Vì prune chưa trả block VHDX về host, đã checkpoint rồi dừng Docker, chạy `fstrim -av` trong distro `docker-desktop`, shutdown WSL và `Optimize-VHD -Mode Full` bằng quyền Administrator. `.local/docker/disk/docker_data.vhdx` giảm 86.08 GB xuống 20.12 GB; ổ I tăng lên 78.61 GB trống.
+- Docker Desktop đã start lại; đủ 10 container Up, toàn bộ service có healthcheck đều healthy và Docker Build Cache còn 0 B. Lần build tiếp theo sẽ chậm hơn một lần do cache phải tạo lại.
+- Ngăn tái diễn: `cmd/game` thay policy giữ 10 GB sau success bằng full BuildKit prune trước build và sau mọi build attempt, kể cả failure. `Dockerfile` bỏ `COPY . .`, chỉ copy `api/cmd/internal/pkg`; cold build context giảm khoảng 2.27 GB xuống 8.77 MB. Regression prune policy, `go test/vet ./cmd/game`, launcher build, Compose config, Docker cold build và diff-check PASS; hậu kiểm Build Cache 0 B, stack không mất container/data.
+
+## FIX-2026-10-28-03 — Bang hội khóa công trình chức năng và guild-loop thiếu reward
+
+- Characterization khóa đủ 16 template công trình thực: family/level, prerequisite, limit, năm cost dimension, Gold=0 và property pairs. Không thêm timer/progress/quest gate ngoài contract Flash.
+- Kho/quyên góp/Học viện nay chỉ khả dụng khi guild có persisted building đã hoàn thành với đúng `funcScript`; pending building không mở chức năng. Gate bao phủ NPC cố định, `execBuildFunc`, direct read/contribution/warehouse mutation/skill development RPC để không bypass bằng gọi trực tiếp.
+- Guild loop lid2 trước đây consume item/Pet rồi bỏ qua lỗi reward và vẫn advance dù 275 child quest không có award row. Nay take mới fail-closed và active round cũ dừng trước consume/delete/advance. Không suy đoán EXP/contribution/guild funds/material/milestone formula.
+- Focused application guild/quest, guild/NPC handlers, cache, PostgreSQL và gameserver PASS. Không migration, restart/deploy, live mutation, ActionScript hoặc game-data JSON; House capacity/building effects/construction-task route vẫn chờ authority.
+
+## FIX-2026-10-28-02 — Bang hội live mutation, construction và shipped callback contract
+
+- Live lifecycle apply/cancel/refuse/approve/leave, money/material contribution, warehouse move/drop và construction start/restart-hydrate/progress/reset/finish đã được kiểm chứng. Approval leader-offline được authoritative panel refresh; material contribution dùng persisted `ColorCode`; warehouse và economy giữ transaction atomic. Building state persisted theo guild/extension, finish debit tại commit, reset không refund/cost.
+- Shipped main asset được giải XOR thành SWF SHA-256 `FD7B5538376A63C8D4701DB43515B92B7390F00093B9D935F7817D42436D43AC`. Complete `CallBack` trait xác nhận construction entry `onShowNewBuildManager(10)`, pending progress, `onCancelCreate({bid,ext})`, reload/NPC-state callbacks và sửa kết luận từ source decompile bị cắt: rank dùng một wrapper `{gid,rankData}`; property/number/info phải đi qua global `onGuildPropertyRefresh`, `onUpdateGuildNumProp` / `onUpdatePerNumProp`, `updateGuildInfo`, không gửi panel-only method qua NetConnection.
+- Live Đại sảnh cấp 1 finish committed đúng template 2/revision 2 với cost 0. AsyncError hậu commit từ tên panel-only đã được sửa toàn bộ helper/usages và regression exact method/arity; Go không còn `onUpdateGuildProperty`, `onUpdateNumProp`, `onUpdateGuildInfo` dưới dạng callback literal. Completed test row ID 10 sau đó được xóa bằng transaction có exact pre/postcondition; transient cache character 3 được evict.
+- Hậu kiểm baseline: guild 1 population 1, funds/exp/contribution 0; member ledgers 0; 0 building/warehouse/application/skill/rank; wallet/currency20/21 và item 879/1927/1997 đúng baseline; Redis chỉ còn cold quest/skill/Pet keys. Gameserver callback-fixed image healthy/restart 0, Build Cache 0 B. Focused suites, `go vet ./...`, Windows build và diff-check PASS; full suite chỉ còn đúng bốn baseline ngoài guild: questaudit census, activity SendCombine và hai chat HP expectations.
+- Chưa verify Windows `-race`, distributed multi-server race hoặc simultaneous multi-client approval. Invite/disband và upgrade thiếu cost authority tiếp tục fail-closed; không suy đoán gameplay/cost/callback còn thiếu.
+
+## FIX-2026-10-27-06 — Bang hội DB apply, concurrency và legacy cleanup
+
+- Đã backup schema trước apply tại `C:\Users\gaingain\AppData\Local\Temp\opencode\mcgame-guild-preapply-20261027-174133.dump` (SHA-256 `77FDF5BDD18D993A90E7322B11FEF64AAC80E82C8AF90EC1EBE7CD4DA5D9A6B1`), apply guild rank/economy/warehouse/building/lifecycle trong một transaction và sửa ba PL/pgSQL output-column ambiguity được rollback smoke phát hiện ở create/building/leadership transfer.
+- Rollback smoke create/contribution/warehouse/building/skill/lifecycle PASS và để DB về đúng baseline. Concurrency money, approve↔refuse, move↔drop, finish↔reset đều serialize; session thứ hai chờ khoảng 2,2 giây, không deadlock/timeout.
+- Migration `20261027104736_guild_system_atomic.sql` đã normalize khỏi Achievement/character-deletion/findback drift, shadow replay PASS, post-diff không còn object guild và history đã mark applied. RLS/ACL/search_path/service-role checks PASS.
+- `player.upsert_guild_warehouse_material` được xác nhận không còn caller và bypass actor/page/max-stack/item-debit command, nên đã bỏ dead Go interface/adapter và drop bằng migration CLI-captured `20261027105140_guild_legacy_warehouse_cleanup.sql`. Shadow replay + post-diff `GUILD_MATCHES=0`; DB lint không còn lỗi guild, chỉ còn ba lỗi legacy ngoài phạm vi tại create/update character và farm plot.
+- Flash approval trace xác nhận callback dùng application ID ở top-level `tableId` để chuyển pending row, còn nested `gData.tableId` mang member ID mới. Handler nay phát cho applicant theo thứ tự `onConfirmGuildApply` → committed contribution `onUPP` → message; callback-spy regression phủ hai identity khác nhau và leader/applicant delivery.
+- Focused guild/cache/PostgreSQL/handler suites, `go vet ./...`, Windows/Linux container builds và diff-check PASS. Full test chỉ còn bốn baseline questaudit/activity/chat đã biết. Full compose stack healthy; game-data 118.540 row, RTMP/admin/registration start sạch, metrics/dashboard/client config HTTP 200 và RTMP edge TCP reachable. Log handshake EOF duy nhất do TCP reachability probe chủ động đóng trước C0/C1. Flash projector đã mở nhưng chưa có login thật trong log, nên live panel rendering/multi-client flow chưa được quan sát; invite/disband tiếp tục fail-closed.
+- Runtime follow-up: Docker Desktop từng tắt nhưng compose recovery giữ nguyên migration/data baseline. Login character 3, scene map 49 và `initViewGuildP` PASS; operator xác nhận panel `Gain`, member/application, skill và warehouse read views hiển thị bình thường. Không chạy mutation RPC và hậu kiểm DB không đổi. Hai shop quarantine warning và Achievement RID 84 drift là baseline ngoài guild; không có guild ERROR/SQLSTATE/panic.
+
+## FIX-2026-10-27-05 — Bang hội SQL draft static hardening
+
+- Sửa adapter finish công trình gọi 11 placeholder cho function chỉ có 10 tham số. Skill/building draft từ chối array family null hoặc trùng thay vì để SQL ba-trạng-thái bỏ qua validation.
+- Quyên góp vật liệu truyền max-stack catalog và page-count persisted vào transaction; SQL khóa guild trước member/warehouse, chỉ merge khi còn sức chứa hoặc cấp slot trống trong đúng số trang, từ chối full/overflow. Lock order economy được đồng bộ với lifecycle/warehouse/transfer.
+- Lifecycle refusal dùng per-character advisory lock; approve/exit/transfer kiểm tra affected-row invariant. Error mapping bổ sung unauthorized refusal và warehouse full. Focused suites, `go vet ./...`, Windows build và diff-check PASS; full test chỉ còn baseline questaudit/activity/chat đã biết. SQL vẫn chưa apply/syntax-smoke/concurrency, không restart/deploy/mutate DB/player.
+
+## FIX-2026-10-27-04 — Shared cache barrier cho item và Pet command
+
+- Đổi tên nhân vật, Pet fusion, illusion và skill-book nay dùng cùng `runPlayerCommand` với bang hội: giữ per-player mutation lock xuyên suốt flush → DB command → clean reconcile → Redis sync. Striped command lock cũng bao Load/Save/Evict, nên player đang offline không thể login và hydrate snapshot giữa transaction. Command không chạy nếu flush lỗi; command lỗi sau flush không áp committed result giả.
+- Character/item/Pet snapshot có cache revision; mọi online update/stack/move/delete liên quan từ chối snapshot cũ sau DB commit thay vì ghi đè tên, stack hoặc Pet đã commit. Pet fusion/illusion/skill-book tăng revision cho cả Pet chính, Pet tiêu hao và item tiêu hao.
+- Regression active/offline barrier, stale snapshot, flush failure và command failure PASS; focused item/Pet/guild/cache/PostgreSQL/RTMP handler/gameserver và focused vet PASS. Chưa DB/distributed concurrency, race instrumentation hoặc Flash runtime; không apply SQL, restart/deploy hay mutate player.
+
+## FIX-2026-10-27-03 — Bang hội kho transactional draft
+
+- Move/merge/drop kho chuyển từ nhiều mutation độc lập sang command có draft transaction, validate quyền/page/source/stack và trả committed result cho callback cũ; rank settings replace dùng guild lock. Legacy rank chưa migrate: nonleader bị từ chối an toàn trong SQL.
+- Focused guild/cache/PostgreSQL/RTMP handler/gameserver tests và diff-check PASS. SQL chưa apply hay DB smoke/concurrency verify; lifecycle, building, cache economy barrier và runtime Flash còn chưa hoàn tất. Không deploy/mutate player.
+
+## FIX-2026-10-27-02 — Bang hội wire và checkpoint an toàn
+
+- Sửa callback rank/property/numeric/full-info theo Flash; callback full-info sau đổi bang chủ chỉ gửi trong bang để không ghi đè bang của người chơi khác. Typed rank permissions từ chối cờ số lẻ và quyền không hợp lệ.
+- Review Wave 2 phát hiện SQL draft dùng sai bảng wallet/level và cache write-behind chưa có shared mutation barrier. Draft đã đổi sang bảng sau schema split; create/quyên góp mới bị khóa fail-closed cho đến khi có cơ chế đồng bộ và kiểm thử concurrency thực sự. Không xem đây là hệ thống bang hội hoàn tất.
+- Focused domain/application guild, cache, PostgreSQL, guild handler và gameserver PASS; `git diff --check` PASS với cảnh báo LF→CRLF. SQL chưa apply/DB smoke, chưa test race/end-to-end, chưa restart/deploy hoặc mutate dữ liệu.
+
+## FIX-2026-10-27-01 — Thành Tựu điểm PK và đổi tên
+
+- Mở RID `138–141` bằng state authority `Character.Honor`, đúng Flash contract dùng `honor` để tính màu tên đỏ; target lần lượt 10/25/100/200 và progress giữ positive-only.
+- Mở RID `150` bằng durable fact `character-renamed:v1:<operationUUID>`. Flow đổi tên mới flush cache pending rồi transaction lock/consume đúng Thẻ Đổi Tên instance template 2126, persist tên mới và append fact cùng commit; lỗi tên trùng, thiếu thẻ hoặc fact đều rollback, callback chỉ gửi sau commit và login vẫn recovery.
+- Census mới `476 state + 80 event + 141 unsupported`. Regression PK threshold, rename fact identity, card decrement và injected commit failure PASS. Focused Achievement/item/PostgreSQL/cache/item-handler/gameserver, `go vet ./...`, Windows build và diff-check PASS; full test chỉ còn baseline questaudit census, activity SendCombine và hai chat stat HP.
+- Migration generic append-fact vẫn chưa apply; chưa restart/deploy/runtime smoke/backfill/claim hoặc mutate player.
+
+## FIX-2026-10-26-03 — Thành Tựu bắt Pet và Cây Ước Nguyện
+
+- Code-complete authority RID `83,106–109`: bắt Pet chỉ ghi fact sau khi Pet instance được tạo và fact cùng commit; Wish Tree ghi một fact cho mỗi kết quả `ti=12` cùng transaction Gold, quota ngày và holding bag. Stable IDs lần lượt là persisted Pet ID và draw UUID + ordinal; consumer validate identity/payload, normalize quality rồi cấp đúng any/lam/tím/cam idempotently.
+- Registry chuyển đúng 5 RID U→E, census `472 state + 79 event + 146 unsupported`; Mystery Merchant `102–105` giữ fail-closed vì chưa có RPC/catalog/purchase ledger authority. Đã chuẩn bị fact kind/payload và generic transaction append API cho producer tương lai, không giả lập giao dịch.
+- Focused Achievement/Lotto/Pet/combat/PostgreSQL/cache/RTMP/gameserver PASS; `go vet ./...`, Windows gameserver build và `git diff --check` PASS. `go test ./...` chỉ còn đúng baseline ngoài phạm vi: questaudit census 242, activity `BuySendCombine()=0` và hai chat stat HP expectation. Supabase CLI không có trong PATH nên migration lint/shadow chưa chạy.
+- Migration `20261026120000_pet_acquisition_achievement_facts.sql` chỉ là draft, chưa apply. Chưa restart/deploy, runtime smoke, backfill, claim hoặc mutate player; lỗi claim Wish Pet `ti=12` được ghi nhận nhưng tách khỏi slice này.
+
 ## FIX-2026-10-26-02 — Thành Tựu authority completion và fail-closed census
 
 - Code đã commit/push tại `e7bf72d feat: complete achievement authority coverage`; commit không chứa `AGENTS.md` hoặc backup dump/checksum ngoài phạm vi.

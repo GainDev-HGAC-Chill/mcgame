@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	appachievement "mcgame-server/internal/application/achievement"
 	appbuff "mcgame-server/internal/application/buff"
 	appchar "mcgame-server/internal/application/character"
 	appgroup "mcgame-server/internal/application/group"
@@ -100,6 +101,11 @@ type Handler struct {
 	mwSkillGranter          MWSkillGranter
 	mwSkillUpdatePusher     func(ctx context.Context, conn *rtmp.Connection, charID int64)
 	mysteryRecipeLearner    MysteryRecipeLearner
+	achievementService      *appachievement.Service
+}
+
+func (h *Handler) SetAchievementService(service *appachievement.Service) {
+	h.achievementService = service
 }
 
 const flyerEquipmentPosition = 14

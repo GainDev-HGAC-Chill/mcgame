@@ -438,18 +438,35 @@ func (h *Handler) NpcScript(ctx *rtmp.RPCContext, args []interface{}) (interface
 	case "gwc_reward_ranking_month":
 		ctx.Connection.SendCallback("onNpcMsg", 211, "Tính năng chiến trường đang phát triển")
 	case "startConstruction":
-		return guildBuildCallbackID(ctx.Connection, guildBuildConstructID), nil
+		if err := ctx.Connection.SendCallback("onShowNewBuildManager", guildBuildCallbackID(ctx.Connection, guildBuildConstructID)); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	case "buildInfo":
 		if err := ctx.Connection.SendCallback("onShowBuildInfo", guildBuildCallbackID(ctx.Connection, guildBuildInfoFallbackID)); err != nil {
 			return nil, err
 		}
 		return nil, nil
 	case "showGuildWarehouse":
+		available, err := h.guildBuildingFunctionAvailable(ctx, characterID, "showGuildWarehouse")
+		if err != nil {
+			return nil, err
+		}
+		if !available {
+			return nil, pkgerrors.ErrNotFound
+		}
 		if err := ctx.Connection.SendCallback("onShowGuildWarehouse", guildBuildWarehouseFallback); err != nil {
 			return nil, err
 		}
 		return nil, nil
 	case "showDonatePanel":
+		available, err := h.guildBuildingFunctionAvailable(ctx, characterID, "showDonatePanel")
+		if err != nil {
+			return nil, err
+		}
+		if !available {
+			return nil, pkgerrors.ErrNotFound
+		}
 		if err := ctx.Connection.SendCallback("onShowDonatePanel", guildBuildWarehouseFallback); err != nil {
 			return nil, err
 		}

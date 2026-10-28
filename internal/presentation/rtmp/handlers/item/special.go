@@ -8,16 +8,17 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"mcgame-server/internal/infrastructure/rtmp"
+	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
 
 	"go.uber.org/zap"
 )
 
 const (
-	renameCardTemplateID    = 2126
 	sexChangeCardTemplateID = 2844
 	goodCardTemplateID      = 122
 	largeRoseTemplateID     = 32
@@ -48,30 +49,27 @@ func (h *Handler) ChangeNameByCard(ctx *rtmp.RPCContext, args []interface{}) (in
 		return nil, pkgerrors.ErrUnauthorized
 	}
 
-	char, err := h.charService.GetByID(ctx.Context, characterID)
+	renamed, err := h.itemService.RenameCharacterWithCard(ctx.Context, characterID, newName)
 	if err != nil {
+		h.logger.Error("ChangeNameByCard: rename transaction failed", zap.Error(err))
 		return rtmp.ErrorToResponse(err), nil
 	}
-
-	consumed, err := h.itemService.ConsumeItemsByTemplateID(ctx.Context, characterID, renameCardTemplateID, 1)
-	if err != nil {
-		h.logger.Error("ChangeNameByCard: failed to consume card", zap.Error(err))
-		return rtmp.ErrorToResponse(err), nil
-	}
-	if !consumed {
+	if !renamed {
 		ctx.Connection.SendCallback("onSystemSay", "Bạn không có Thẻ Đổi Tên.")
 		return nil, nil
-	}
-
-	char.Name = newName
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		h.logger.Error("ChangeNameByCard: failed to update character", zap.Error(err))
-		return rtmp.ErrorToResponse(err), nil
 	}
 
 	ctx.Connection.SendCallback("onUPP", map[string]interface{}{
 		"name": newName,
 	})
+	if h.achievementService != nil {
+		update, progressErr := h.achievementService.ProcessPendingFacts(ctx.Context, characterID, time.Now().UTC())
+		if progressErr != nil {
+			h.logger.Warn("ChangeNameByCard: achievement fact processing failed", zap.Int64("character_id", characterID), zap.Error(progressErr))
+		} else {
+			rtmputils.SendAchievementProgressCallbacks(ctx.Connection, update)
+		}
+	}
 
 	h.logger.Info("ChangeNameByCard: name changed",
 		zap.Int64("character_id", characterID),

@@ -8,6 +8,7 @@ package cache
 import (
 	"context"
 	"go.uber.org/zap"
+	domainachievement "mcgame-server/internal/domain/achievement"
 	"mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/item"
 	pkgerrors "mcgame-server/pkg/errors"
@@ -21,6 +22,35 @@ type CachedItemRepository struct {
 
 func NewCachedItemRepository(cache *PlayerCache, delegate item.Repository) *CachedItemRepository {
 	return &CachedItemRepository{cache: cache, delegate: delegate}
+}
+
+func (r *CachedItemRepository) CommitCharacterRename(ctx context.Context, characterID int64, card *item.Item, newName string, fact domainachievement.Fact) (int, error) {
+	committer, ok := r.delegate.(interface {
+		CommitCharacterRename(context.Context, int64, *item.Item, string, domainachievement.Fact) (int, error)
+	})
+	if !ok {
+		return 0, pkgerrors.ErrSystemError
+	}
+	remaining := 0
+	err := r.cache.runPlayerCommand(ctx, characterID, func() error {
+		var commandErr error
+		remaining, commandErr = committer.CommitCharacterRename(ctx, characterID, card, newName, fact)
+		return commandErr
+	}, func(data *PlayerData) {
+		data.syncCommittedItemCount(card.ID, remaining)
+		data.setCharacterNameWithoutDirty(newName)
+	})
+	if err != nil {
+		return 0, err
+	}
+	if r.cache.warmLoader != nil {
+		itemID := card.ID
+		if remaining == 0 {
+			itemID = 0
+		}
+		_ = r.cache.warmLoader.UpdateItem(ctx, characterID, itemID, card.SlotType, card.SlotIndex)
+	}
+	return remaining, nil
 }
 
 func (r *CachedItemRepository) FindByID(ctx context.Context, id int64) (*item.Item, error) {
@@ -191,7 +221,9 @@ func (r *CachedItemRepository) Update(ctx context.Context, it *item.Item) error 
 		return err
 	}
 	if data := r.cache.GetPlayer(it.CharacterID); data != nil {
-		data.SetItem(it)
+		if !data.SetItemAtRevision(it) {
+			return errStaleCachedMutation
+		}
 		if r.cache.warmLoader != nil && shouldTrackWarmInventorySlot(it.SlotType, it.SlotIndex) {
 			_ = r.cache.warmLoader.UpdateItem(ctx, it.CharacterID, it.ID, it.SlotType, it.SlotIndex)
 		}
@@ -215,7 +247,10 @@ func (r *CachedItemRepository) Delete(ctx context.Context, id int64) error {
 	for _, data := range r.cache.activeSessions {
 		if it := data.GetItem(id); it != nil {
 			foundInCache = true
-			data.DeleteItem(id)
+			if !data.DeleteItemAtRevision(id, it.CacheRevision) {
+				r.cache.mu.RUnlock()
+				return errStaleCachedMutation
+			}
 			if r.cache.warmLoader != nil {
 				_ = r.cache.warmLoader.UpdateItem(ctx, it.CharacterID, 0, it.SlotType, it.SlotIndex)
 			}
@@ -247,7 +282,9 @@ func (r *CachedItemRepository) MoveItem(ctx context.Context, id int64, slotType 
 			r.cache.mu.RUnlock()
 			it.SlotType = slotType
 			it.SlotIndex = slotIndex
-			data.SetItem(it)
+			if !data.SetItemAtRevision(it) {
+				return errStaleCachedMutation
+			}
 
 			if r.cache.warmLoader != nil && shouldTrackWarmInventorySlot(slotType, slotIndex) {
 				_ = r.cache.warmLoader.UpdateItem(ctx, it.CharacterID, id, slotType, slotIndex)
@@ -279,7 +316,9 @@ func (r *CachedItemRepository) UpdateStack(ctx context.Context, id int64, stackC
 			if it.SlotType == item.SlotTypeEquipped {
 				return r.Update(ctx, it)
 			}
-			data.SetItem(it)
+			if !data.SetItemAtRevision(it) {
+				return errStaleCachedMutation
+			}
 			return nil
 		}
 	}

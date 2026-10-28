@@ -31,25 +31,15 @@ func (h *Handler) AddGuild(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		return nil, pkgerrors.ErrInvalidInput
 	}
 
-	char, err := h.charService.GetByID(ctx.Context, characterID)
-	if err != nil {
-		return nil, pkgerrors.ErrSystemError
-	}
-	if char == nil {
-		return nil, pkgerrors.ErrCharacterNotFound
-	}
-	if char.Level < 50 {
-		_ = ctx.Connection.SendCallback("a", msgGuildCreateInsufficientLevel)
-		return nil, nil
-	}
-	if char.Money < 1000000 && char.MoneyBind < 1000000 {
-		_ = ctx.Connection.SendCallback("a", msgGuildCreateInsufficientFunds)
-		return nil, nil
-	}
-
-	guildItem, err := h.guildService.CreateGuild(ctx.Context, characterID, guildName)
+	committed, err := h.guildService.CreateGuildAtomic(ctx.Context, characterID, guildName)
 	if err != nil {
 		switch guildError(err) {
+		case appguild.ErrInsufficientLevel:
+			_ = ctx.Connection.SendCallback("a", msgGuildCreateInsufficientLevel)
+			return nil, nil
+		case appguild.ErrInsufficientFunds:
+			_ = ctx.Connection.SendCallback("a", msgGuildCreateInsufficientFunds)
+			return nil, nil
 		case appguild.ErrGuildNameTaken:
 			_ = ctx.Connection.SendCallback("a", msgGuildNameTaken)
 			return nil, nil
@@ -60,35 +50,17 @@ func (h *Handler) AddGuild(ctx *rtmp.RPCContext, args []interface{}) (interface{
 			return nil, guildError(err)
 		}
 	}
-	h.syncCharacterGuildMembership(ctx.Context, characterID, int64Ptr(guildItem.ID))
 
-	char, err = h.charService.GetByID(ctx.Context, characterID)
-	if err != nil {
-		return nil, pkgerrors.ErrSystemError
-	}
-	if char == nil {
-		return nil, pkgerrors.ErrCharacterNotFound
-	}
-
-	if char.MoneyBind >= 1000000 {
-		char.MoneyBind -= 1000000
-	} else {
-		char.Money -= 1000000
-	}
-	char.GuildID = int64Ptr(guildItem.ID)
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		_ = h.guildService.DisbandGuild(ctx.Context, guildItem.ID, characterID)
-		h.syncCharacterGuildMembership(ctx.Context, characterID, nil)
-		return nil, pkgerrors.ErrSystemError
-	}
-
-	guildItem, _, err = h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
+	guildItem, _, err := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
 	if err != nil {
 		return nil, guildError(err)
 	}
 
 	response := h.guildDTO(guildItem)
-	if err := ctx.Connection.SendCallback("onUPP", map[string]interface{}{"money": char.Money, "moneyBind": char.MoneyBind, "guildContrib": char.GuildContrib, "donateContrib": char.DonateContrib}); err != nil {
+	if err := ctx.Connection.SendCallback("onUPP", map[string]interface{}{
+		"money": committed.Leader.Money, "moneyBind": committed.Leader.MoneyBind,
+		"guildContrib": committed.Leader.GuildContrib, "donateContrib": committed.Leader.DonateContrib,
+	}); err != nil {
 		h.logger.Warn("AddGuild: failed to send onUPP", zap.Error(err))
 	}
 	if h.rtmpServer != nil {
@@ -100,7 +72,7 @@ func (h *Handler) AddGuild(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		_ = ctx.Connection.SendCallback("onInitViewGuildP", panelResponse)
 	}
 	_ = ctx.Connection.SendCallback("a", msgGuildCreateGuide)
-	if char.GuildContrib > 0 || char.DonateContrib > 0 {
+	if committed.Leader.GuildContrib > 0 || committed.Leader.DonateContrib > 0 {
 		_ = ctx.Connection.SendCallback("a", msgGuildRestoreApplied)
 	}
 
@@ -162,18 +134,11 @@ func (h *Handler) QuitGuild(ctx *rtmp.RPCContext, args []interface{}) (interface
 		return nil, err
 	}
 
-	member, err := h.guildService.GetMemberByID(ctx.Context, memberID)
-	if err != nil {
-		return nil, guildError(err)
+	application, appGuild, appErr := h.guildService.GetPendingApplicationByCharacterID(ctx.Context, characterID)
+	if appErr != nil {
+		return nil, guildError(appErr)
 	}
-	if member == nil {
-		application, appGuild, appErr := h.guildService.GetPendingApplicationByCharacterID(ctx.Context, characterID)
-		if appErr != nil {
-			return nil, guildError(appErr)
-		}
-		if application == nil || application.ID != memberID {
-			return nil, pkgerrors.ErrNotFound
-		}
+	if application != nil && application.ID == memberID {
 		if _, err := h.guildService.CancelApplication(ctx.Context, application.ID, characterID); err != nil {
 			return nil, guildError(err)
 		}
@@ -190,6 +155,13 @@ func (h *Handler) QuitGuild(ctx *rtmp.RPCContext, args []interface{}) (interface
 		}
 		return payload, nil
 	}
+	member, err := h.guildService.GetMemberByID(ctx.Context, memberID)
+	if err != nil {
+		return nil, guildError(err)
+	}
+	if member == nil {
+		return nil, pkgerrors.ErrNotFound
+	}
 
 	if member.CharacterID != characterID {
 		return nil, pkgerrors.ErrUnauthorized
@@ -202,7 +174,6 @@ func (h *Handler) QuitGuild(ctx *rtmp.RPCContext, args []interface{}) (interface
 	if err := h.guildService.LeaveMember(ctx.Context, member.GuildID, member.CharacterID); err != nil {
 		return nil, guildError(err)
 	}
-	h.syncCharacterGuildMembership(ctx.Context, member.CharacterID, nil)
 
 	payload := map[string]interface{}{
 		"id":   member.ID,
@@ -245,21 +216,22 @@ func (h *Handler) ConfirmGuildApply(ctx *rtmp.RPCContext, args []interface{}) (i
 	if err != nil {
 		return nil, guildError(err)
 	}
-	h.syncCharacterGuildMembership(ctx.Context, application.CharacterID, int64Ptr(application.GuildID))
 
-	payload := map[string]interface{}{
-		"gid":     application.GuildID,
-		"tableId": application.ID,
-		"cid":     application.CharacterID,
-		"gData":   h.memberDTO(member),
-	}
+	payload := h.guildApprovalPayload(application, member)
 
 	guildItem, guildErr := h.guildService.GetGuildForClient(ctx.Context, application.GuildID)
 	if guildErr == nil {
-		h.broadcastGuild(guildItem, "onConfirmGuildApply", payload)
+		h.notifyGuildApproval(guildItem, application, member, payload)
+		panelResponse, _, _, panelErr := h.buildGuildPanelResponse(ctx.Context, characterID)
+		if panelErr != nil {
+			h.logger.Warn("ConfirmGuildApply: failed to rebuild approver panel", zap.Error(panelErr))
+		} else if sendErr := h.sendGuildPanelRefresh(ctx.Connection, panelResponse); sendErr != nil {
+			h.logger.Warn("ConfirmGuildApply: failed to refresh approver panel", zap.Error(sendErr))
+		}
+	} else {
+		h.sendGuildApprovalToApplicant(application.CharacterID, member, payload)
+		h.logger.Warn("ConfirmGuildApply: failed to load committed guild", zap.Error(guildErr))
 	}
-	h.sendToCharacter(application.CharacterID, "onConfirmGuildApply", payload)
-	h.sendContributionState(application.CharacterID, msgGuildRestoreApplied)
 
 	return payload, nil
 }
@@ -297,7 +269,6 @@ func (h *Handler) RefuseGuildMember(ctx *rtmp.RPCContext, args []interface{}) (i
 		h.broadcastGuild(guildItem, "onDelGuildMember", payload)
 	}
 	h.sendToCharacter(application.CharacterID, "onDelGuildMember", payload)
-	h.sendContributionState(application.CharacterID, msgGuildLeaveStateApplied)
 
 	return payload, nil
 }
@@ -328,7 +299,6 @@ func (h *Handler) KickGuildMember(ctx *rtmp.RPCContext, args []interface{}) (int
 	if err := h.guildService.KickMember(ctx.Context, member.GuildID, characterID, member.CharacterID); err != nil {
 		return nil, guildError(err)
 	}
-	h.syncCharacterGuildMembership(ctx.Context, member.CharacterID, nil)
 
 	payload := map[string]interface{}{
 		"id":   member.ID,
@@ -358,7 +328,7 @@ func (h *Handler) DemiseTo(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		return nil, pkgerrors.ErrInvalidArgs
 	}
 
-	newLeaderID, err := parseInt64Arg(args[0])
+	newLeaderMemberID, err := parseInt64Arg(args[0])
 	if err != nil {
 		return nil, err
 	}
@@ -371,6 +341,14 @@ func (h *Handler) DemiseTo(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		return nil, pkgerrors.ErrNotFound
 	}
 
+	newLeaderMember, err := h.guildService.GetMemberByID(ctx.Context, newLeaderMemberID)
+	if err != nil {
+		return nil, guildError(err)
+	}
+	if newLeaderMember == nil || newLeaderMember.GuildID != guildItem.ID {
+		return nil, pkgerrors.ErrNotFound
+	}
+	newLeaderID := newLeaderMember.CharacterID
 	updatedGuild, err := h.guildService.TransferLeadership(ctx.Context, guildItem.ID, characterID, newLeaderID)
 	if err != nil {
 		return nil, guildError(err)
@@ -392,9 +370,7 @@ func (h *Handler) DemiseTo(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	}
 
 	h.broadcastGuild(updatedGuild, "onDemise", payload)
-	if h.rtmpServer != nil {
-		h.rtmpServer.BroadcastToAll("updateGuildInfo", h.guildDTO(updatedGuild))
-	}
+	h.broadcastGuildInfo(updatedGuild, h.guildDTO(updatedGuild))
 
 	return payload, nil
 }

@@ -4,6 +4,8 @@
 
 Turn-based combat with action constants: ATTACK=-10, DEFENCE=-20, ESCAPE=-30, TIMEOUT=-40, SKILL=-50, ITEM=-60, CATCH=-70, POSITION=-80, RETURN=-90, PET=-100, AUTO=-110.
 
+Capture eligibility follows the shipped client/catalog rule `creature.catchable > 0`, not equality with 1. Quest-capture creatures can use value 2; template 179 (`Sơn Quái Hoang Mạc`) is the verified example. Requiring exactly 1 made valid catch actions return `catchF.rate=0`. After the correction, live callbacks reported 28% with the capture buff and 25% without it. The required Achievement append-fact function is now applied; natural capture live-created Pet385 and its durable processed `pet-captured` fact atomically, then guild-loop turn-in consumed the Pet successfully. Test data was subsequently cleaned back to baseline.
+
 Battle Position Grid (5x4, 20 positions across 4 rows):
 
 - Row 0 (Enemy Characters): positions 4, 2, 0, 1, 3

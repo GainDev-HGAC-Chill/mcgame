@@ -4,11 +4,16 @@ package activity
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	appactivity "mcgame-server/internal/application/activity"
 	appitem "mcgame-server/internal/application/item"
+	domainactivity "mcgame-server/internal/domain/activity"
 	domainchar "mcgame-server/internal/domain/character"
 	domainitem "mcgame-server/internal/domain/item"
+	"mcgame-server/internal/gamedata"
+	"mcgame-server/internal/gamedata/models"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -27,9 +32,11 @@ func TestBuySendCombine_SuccessUpdatesBuyCountAndGold(t *testing.T) {
 		},
 	}
 	itemRepo := newFakeSendCombineItemRepo()
-	itemService := appitem.NewService(itemRepo, zap.NewNop())
+	itemService := newSendCombineItemService(t, itemRepo)
 	handler := NewHandler(itemService, zap.NewNop())
 	handler.SetCharacterRepository(charRepo)
+	commandService := &fakeSendCombineService{gold: 100000, counts: make(map[string]int)}
+	handler.SetSendCombineService(commandService)
 
 	ctx := &rtmp.RPCContext{
 		Context:     context.Background(),
@@ -51,11 +58,11 @@ func TestBuySendCombine_SuccessUpdatesBuyCountAndGold(t *testing.T) {
 	}
 
 	expectedGold := int64(100000 - 6999)
-	if charRepo.character.Gold != expectedGold {
-		t.Fatalf("character.Gold = %d, want %d", charRepo.character.Gold, expectedGold)
+	if commandService.gold != expectedGold {
+		t.Fatalf("committed gold = %d, want %d", commandService.gold, expectedGold)
 	}
 
-	if len(itemRepo.items) == 0 {
+	if len(commandService.items) == 0 {
 		t.Fatal("expected reward items to be added")
 	}
 
@@ -86,9 +93,11 @@ func TestBuySendCombine_InsufficientGoldDoesNotConsumeOrGrant(t *testing.T) {
 		},
 	}
 	itemRepo := newFakeSendCombineItemRepo()
-	itemService := appitem.NewService(itemRepo, zap.NewNop())
+	itemService := newSendCombineItemService(t, itemRepo)
 	handler := NewHandler(itemService, zap.NewNop())
 	handler.SetCharacterRepository(charRepo)
+	commandService := &fakeSendCombineService{gold: 1000, counts: make(map[string]int)}
+	handler.SetSendCombineService(commandService)
 
 	result, err := handler.BuySendCombine(&rtmp.RPCContext{
 		Context:     context.Background(),
@@ -107,16 +116,65 @@ func TestBuySendCombine_InsufficientGoldDoesNotConsumeOrGrant(t *testing.T) {
 		t.Fatalf("BuySendCombine() = %d, want 0", buyNum)
 	}
 
-	if charRepo.character.Gold != 1000 {
-		t.Fatalf("character.Gold = %d, want 1000", charRepo.character.Gold)
+	if commandService.gold != 1000 {
+		t.Fatalf("committed gold = %d, want 1000", commandService.gold)
 	}
-	if len(itemRepo.items) != 0 {
-		t.Fatalf("len(itemRepo.items) = %d, want 0", len(itemRepo.items))
+	if len(commandService.items) != 0 {
+		t.Fatalf("len(committed items) = %d, want 0", len(commandService.items))
 	}
+}
+
+type fakeSendCombineService struct {
+	gold   int64
+	counts map[string]int
+	items  []*domainitem.Item
+}
+
+func (s *fakeSendCombineService) Purchase(ctx context.Context, command domainactivity.SendCombinePurchaseCommand) (*domainactivity.SendCombinePurchaseResult, error) {
+	if s.gold < command.Cost {
+		return nil, pkgerrors.ErrInsufficientFunds
+	}
+	if s.counts[command.ActivityID] >= command.Limit {
+		return nil, appactivity.ErrSendCombineLimitReached
+	}
+	s.gold -= command.Cost
+	s.counts[command.ActivityID]++
+	s.items = make([]*domainitem.Item, 0, len(command.Awards))
+	for index, award := range command.Awards {
+		s.items = append(s.items, &domainitem.Item{ID: int64(index + 1), CharacterID: command.CharacterID, TemplateID: award.TemplateID, ItemType: award.ItemType, SlotType: domainitem.SlotTypeBag, SlotIndex: index, StackCount: award.Count, IsBound: award.IsBound, Properties: map[string]interface{}{}})
+	}
+	return &domainactivity.SendCombinePurchaseResult{BuyCount: s.counts[command.ActivityID], Gold: s.gold, Items: s.items}, nil
+}
+
+func (s *fakeSendCombineService) BuyCounts(ctx context.Context, characterID int64, eventEndMs int64) (map[string]int, error) {
+	result := make(map[string]int, len(s.counts))
+	for activityID, count := range s.counts {
+		result[activityID] = count
+	}
+	return result, nil
 }
 
 type fakeSendCombineCharacterRepo struct {
 	character *domainchar.Character
+}
+
+func newSendCombineItemService(t *testing.T, repo *fakeSendCombineItemRepo) *appitem.Service {
+	t.Helper()
+	manager := gamedata.NewManager(nil, zap.NewNop())
+	rows := make([]json.RawMessage, 0, 3)
+	for _, templateID := range []int64{6861, 408, 5351} {
+		raw, err := json.Marshal(models.ItemTemplateTemplate{ID: templateID, Kind: 1, StackMax: 99})
+		if err != nil {
+			t.Fatalf("marshal item template %d: %v", templateID, err)
+		}
+		rows = append(rows, raw)
+	}
+	if err := manager.GetCache().LoadTable(models.TableItemTemplate, rows); err != nil {
+		t.Fatalf("load item templates: %v", err)
+	}
+	service := appitem.NewService(repo, zap.NewNop())
+	service.SetGameDataManager(manager)
+	return service
 }
 
 func (r *fakeSendCombineCharacterRepo) FindByID(ctx context.Context, id int64) (*domainchar.Character, error) {

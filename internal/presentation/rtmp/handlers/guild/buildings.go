@@ -6,7 +6,9 @@ import (
 	"sort"
 	"strconv"
 
+	"mcgame-server/internal/gamedata/models"
 	"mcgame-server/internal/infrastructure/rtmp"
+	pkgerrors "mcgame-server/pkg/errors"
 )
 
 const (
@@ -41,98 +43,63 @@ func (h *Handler) CreateGuildBuildings(ctx *rtmp.RPCContext, args []interface{})
 		return positions[i].ID < positions[j].ID
 	})
 
-	occupied := h.guildBuildingAssignments(guildItem.Level)
+	buildings, err := h.guildService.ListGuildBuildings(ctx.Context, guildItem.ID)
+	if err != nil {
+		return nil, guildError(err)
+	}
+	occupied := make(map[int]interface{}, len(buildings))
+	for _, building := range buildings {
+		if building == nil {
+			continue
+		}
+		position := h.guildBuildingPosition(building.ExtendID)
+		if position == nil {
+			return nil, pkgerrors.ErrSystemError
+		}
+		if building.Pending() {
+			occupied[building.ExtendID] = h.pendingGuildBuildingPayload(guildItem.ID, building, position)
+		} else {
+			occupied[building.ExtendID] = h.completedGuildBuildingPayload(guildItem.ID, building, position, guildItem.CreatedAt.Format("2006-01-02 15:04:05"))
+		}
+	}
 	result := make([]interface{}, 0, len(positions))
 	for _, pos := range positions {
 		if pos == nil {
 			continue
 		}
 
-		if tid, ok := occupied[int(pos.ID)]; ok {
-			result = append(result, map[string]interface{}{
-				"targetId":   nil,
-				"posX":       strconv.Itoa(int(pos.PosX)),
-				"layer":      "1",
-				"tid":        strconv.Itoa(tid),
-				"buildState": "",
-				"posY":       strconv.Itoa(int(pos.PosY)),
-				"posDir":     strconv.Itoa(int(pos.PosDir)),
-				"permission": "",
-				"cid":        nil,
-				"time":       guildItem.CreatedAt.Format("2006-01-02 15:04:05"),
-				"extendId":   strconv.Itoa(int(pos.ID)),
-				"id":         strconv.Itoa(160 + int(pos.ID)),
-				"mid":        strconv.Itoa(guildMapID),
-				"gid":        strconv.FormatInt(guildItem.ID, 10),
-			})
+		if payload, ok := occupied[int(pos.ID)]; ok {
+			result = append(result, payload)
 			continue
 		}
 
-		result = append(result, map[string]interface{}{
-			"posX":      strconv.Itoa(int(pos.PosX)),
-			"layer":     "0",
-			"tid":       strconv.Itoa(int(pos.Tid)),
-			"id":        strconv.Itoa(int(pos.ID)),
-			"mid":       strconv.Itoa(int(pos.Mid)),
-			"posY":      strconv.Itoa(int(pos.PosY)),
-			"posDir":    strconv.Itoa(int(pos.PosDir)),
-			"buildType": strconv.Itoa(int(pos.BuildType)),
-		})
+		result = append(result, emptyGuildBuildingPayload(pos))
 	}
 
 	if err := ctx.Connection.SendCallback("onCreateGuildBuildings", result); err != nil {
 		return nil, err
 	}
+	for _, building := range buildings {
+		if building == nil || !building.Pending() {
+			continue
+		}
+		if err := ctx.Connection.SendCallback("setBuildNpcState", map[string]interface{}{"state": 1, "eid": building.ExtendID}); err != nil {
+			return nil, err
+		}
+	}
 
 	return result, nil
 }
 
-func (h *Handler) guildBuildingAssignments(guildLevel int) map[int]int {
-	hallByLevel := map[int]int{
-		1: 2,
-		2: 6,
-		3: 7,
-		4: 11,
-		5: 12,
-	}
-	houseByLevel := map[int]int{
-		1: 3,
-		2: 8,
-		3: 9,
-		4: 13,
-		5: 14,
-	}
-
-	level := guildLevel
-	if level < 1 {
-		level = 1
-	}
-	if level > 6 {
-		level = 6
-	}
-
-	hallTid := 16
-	if value, ok := hallByLevel[level]; ok {
-		hallTid = value
-	}
-	houseTid := 17
-	if value, ok := houseByLevel[level]; ok {
-		houseTid = value
-	}
-	warehouseTid := 15
-	if level <= 1 {
-		warehouseTid = 5
-	}
-	academyTid := 18
-	if level <= 1 {
-		academyTid = 4
-	}
-
-	return map[int]int{
-		4:  houseTid,
-		5:  warehouseTid,
-		9:  houseTid,
-		10: hallTid,
-		11: academyTid,
+func emptyGuildBuildingPayload(position *models.ExtendPositionTemplate) map[string]interface{} {
+	return map[string]interface{}{
+		"posX":      strconv.Itoa(int(position.PosX)),
+		"layer":     "0",
+		"tid":       strconv.Itoa(int(position.Tid)),
+		"id":        strconv.Itoa(int(position.ID)),
+		"mid":       strconv.Itoa(int(position.Mid)),
+		"posY":      strconv.Itoa(int(position.PosY)),
+		"posDir":    strconv.Itoa(int(position.PosDir)),
+		"buildType": strconv.Itoa(int(position.BuildType)),
 	}
 }

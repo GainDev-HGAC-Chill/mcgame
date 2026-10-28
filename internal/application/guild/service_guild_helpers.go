@@ -7,64 +7,17 @@ import (
 	"fmt"
 
 	domainguild "mcgame-server/internal/domain/guild"
+
+	"go.uber.org/zap"
 )
 
-func (s *Service) applyGuildExitState(ctx context.Context, characterID int64) error {
-	char, err := s.charSvc.GetByID(ctx, characterID)
-	if err != nil {
-		return fmt.Errorf("failed to get character: %w", err)
+func (s *Service) cleanupGuildDeparture(ctx context.Context, characterID int64) {
+	if s.questSvc == nil {
+		return
 	}
-	if char == nil {
-		return nil
+	if _, err := s.questSvc.AbandonGuildQuests(ctx, characterID); err != nil {
+		s.logger.Error("failed post-commit guild quest cleanup", zap.Int64("character_id", characterID), zap.Error(err))
 	}
-
-	char.GuildRestoreContrib = char.GuildContrib * guildRestoreRateNumerator / guildRestoreRateDenominator
-	char.GuildRestoreDonate = char.DonateContrib * guildRestoreRateNumerator / guildRestoreRateDenominator
-	char.GuildContrib = 0
-	char.DonateContrib = 0
-
-	if err := s.charSvc.Update(ctx, char); err != nil {
-		return fmt.Errorf("failed to persist guild exit state: %w", err)
-	}
-
-	if s.questSvc != nil {
-		if _, err := s.questSvc.AbandonGuildQuests(ctx, characterID); err != nil {
-			return fmt.Errorf("failed to abandon guild quests: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (s *Service) consumeContributionRestore(ctx context.Context, guildID, characterID int64) error {
-	char, err := s.charSvc.GetByID(ctx, characterID)
-	if err != nil {
-		return fmt.Errorf("failed to get character: %w", err)
-	}
-	if char == nil {
-		return nil
-	}
-
-	restoreContrib := char.GuildRestoreContrib
-	restoreDonate := char.GuildRestoreDonate
-	if restoreContrib == 0 && restoreDonate == 0 {
-		return nil
-	}
-
-	char.GuildContrib += restoreContrib
-	char.DonateContrib += restoreDonate
-	char.GuildRestoreContrib = 0
-	char.GuildRestoreDonate = 0
-
-	if err := s.charSvc.Update(ctx, char); err != nil {
-		return fmt.Errorf("failed to persist guild restore state: %w", err)
-	}
-
-	if err := s.repo.SetMemberContribution(ctx, guildID, characterID, int64(char.GuildContrib), int64(char.DonateContrib), int64(char.GuildContrib+char.DonateContrib)); err != nil {
-		return fmt.Errorf("failed to apply restored guild contribution: %w", err)
-	}
-
-	return nil
 }
 
 func (s *Service) enrichGuild(ctx context.Context, guildItem *domainguild.Guild) (*domainguild.Guild, error) {
@@ -157,13 +110,13 @@ func (s *Service) loadApplicationAndAuthority(ctx context.Context, applicationID
 	return application, guildItem, approverMember, nil
 }
 
-func DefaultRankSettings() []map[string]interface{} {
-	return []map[string]interface{}{
-		{"rank": domainguild.RankLeader, "name": "Bang chủ", "canAdd": 1, "canQuest": 1, "canSlot": 1, "canInfo": 1, "canDel": 1, "canDuty": 1},
-		{"rank": domainguild.RankViceLeader, "name": "Phó bang", "canAdd": 1, "canQuest": 1, "canSlot": 1, "canInfo": 1, "canDel": 1, "canDuty": 1},
-		{"rank": domainguild.RankOfficer, "name": "Trưởng lão", "canAdd": 1, "canQuest": 1, "canSlot": 1, "canInfo": 1, "canDel": 0, "canDuty": 0},
-		{"rank": domainguild.RankElite, "name": "Tinh anh", "canAdd": 1, "canQuest": 1, "canSlot": 0, "canInfo": 1, "canDel": 0, "canDuty": 0},
-		{"rank": domainguild.RankVeteran, "name": "Thành viên cũ", "canAdd": 0, "canQuest": 1, "canSlot": 0, "canInfo": 0, "canDel": 0, "canDuty": 0},
-		{"rank": domainguild.RankMember, "name": "Thành viên", "canAdd": 0, "canQuest": 0, "canSlot": 0, "canInfo": 0, "canDel": 0, "canDuty": 0},
+func DefaultRankSettings() []domainguild.RankSetting {
+	return []domainguild.RankSetting{
+		{Rank: domainguild.RankLeader, Name: "Bang chủ", CanAdd: true, CanQuest: true, CanSlot: true, CanInfo: true, CanDel: true, CanDuty: true},
+		{Rank: domainguild.RankViceLeader, Name: "Phó bang", CanAdd: true, CanQuest: true, CanSlot: true, CanInfo: true, CanDel: true, CanDuty: true},
+		{Rank: domainguild.RankOfficer, Name: "Trưởng lão", CanAdd: true, CanQuest: true, CanSlot: true, CanInfo: true},
+		{Rank: domainguild.RankElite, Name: "Tinh anh", CanAdd: true, CanQuest: true, CanInfo: true},
+		{Rank: domainguild.RankVeteran, Name: "Thành viên cũ", CanQuest: true},
+		{Rank: domainguild.RankMember, Name: "Thành viên"},
 	}
 }

@@ -10,18 +10,26 @@ package lotto
 import (
 	"errors"
 	"strconv"
+	"time"
 
+	appachievement "mcgame-server/internal/application/achievement"
 	applotto "mcgame-server/internal/application/lotto"
 	domainitem "mcgame-server/internal/domain/item"
 	"mcgame-server/internal/infrastructure/rtmp"
+	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 
 	"go.uber.org/zap"
 )
 
 type Handler struct {
 	service        *applotto.Service
+	achievements   *appachievement.Service
 	itemDTOBuilder itemDTOBuilder
 	logger         *zap.Logger
+}
+
+func (h *Handler) SetAchievementService(service *appachievement.Service) {
+	h.achievements = service
 }
 
 type itemDTOBuilder interface {
@@ -121,6 +129,14 @@ func (h *Handler) lottoByClient(ctx *rtmp.RPCContext, args []interface{}) (inter
 
 	// Cập nhật Kho Ước Nguyện.
 	_ = ctx.Connection.SendCallback("updateLottoBag", bag)
+	if h.achievements != nil {
+		update, progressErr := h.achievements.ProcessPendingFacts(ctx.Context, charID, time.Now().UTC())
+		if progressErr != nil {
+			h.logger.Warn("lotto: achievement fact processing failed", zap.Int64("character_id", charID), zap.Error(progressErr))
+		} else {
+			rtmputils.SendAchievementProgressCallbacks(ctx.Connection, update)
+		}
+	}
 
 	return true, nil
 }

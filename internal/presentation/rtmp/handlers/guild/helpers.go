@@ -117,7 +117,7 @@ func (h *Handler) buildGuildPanelResponse(ctx context.Context, characterID int64
 		application.Online = h.isCharacterOnline(application.CharacterID)
 		response["myGuild"] = h.guildDTO(pendingGuild)
 		response["memberList"] = []interface{}{application.ToDTO()}
-		response["guildRank"] = pendingGuild.RankSettings
+		response["guildRank"] = domainguild.RankSettingsDTO(pendingGuild.RankSettings)
 		response["applyList"] = []interface{}{}
 		response["skillDevData"] = h.filteredSkillDevData(pendingGuild.SkillDevData)
 		return response, pendingGuild, nil, nil
@@ -125,7 +125,7 @@ func (h *Handler) buildGuildPanelResponse(ctx context.Context, characterID int64
 
 	response["myGuild"] = h.guildDTO(guildItem)
 	response["memberList"] = h.memberListDTO(guildItem.Members)
-	response["guildRank"] = guildItem.RankSettings
+	response["guildRank"] = domainguild.RankSettingsDTO(guildItem.RankSettings)
 	response["applyList"] = h.applicationListDTO(guildItem.Applications)
 	response["skillDevData"] = h.filteredSkillDevData(guildItem.SkillDevData)
 
@@ -203,6 +203,40 @@ func (h *Handler) memberDTO(member *domainguild.GuildMember) map[string]interfac
 	}
 	member.Online = h.isCharacterOnline(member.CharacterID)
 	return member.ToDTO()
+}
+
+func (h *Handler) guildApprovalPayload(application *domainguild.GuildApplication, member *domainguild.GuildMember) map[string]interface{} {
+	return map[string]interface{}{
+		"gid":     application.GuildID,
+		"tableId": application.ID,
+		"cid":     application.CharacterID,
+		"gData":   h.memberDTO(member),
+	}
+}
+
+func (h *Handler) notifyGuildApproval(guildItem *domainguild.Guild, application *domainguild.GuildApplication, member *domainguild.GuildMember, payload map[string]interface{}) {
+	h.broadcastGuild(guildItem, "onConfirmGuildApply", payload)
+	h.sendGuildApprovalState(application.CharacterID, member)
+}
+
+func (h *Handler) sendGuildApprovalToApplicant(characterID int64, member *domainguild.GuildMember, payload map[string]interface{}) {
+	h.sendToCharacter(characterID, "onConfirmGuildApply", payload)
+	h.sendGuildApprovalState(characterID, member)
+}
+
+func (h *Handler) sendGuildPanelRefresh(conn *rtmp.Connection, panelResponse map[string]interface{}) error {
+	return conn.SendCallback("onInitViewGuildP", panelResponse)
+}
+
+func (h *Handler) sendGuildApprovalState(characterID int64, member *domainguild.GuildMember) {
+	if member == nil {
+		return
+	}
+	h.sendToCharacter(characterID, "onUPP", map[string]interface{}{
+		"guildContrib":  member.ContributionNormal,
+		"donateContrib": member.ContributionDonate,
+	})
+	h.sendToCharacter(characterID, "a", msgGuildRestoreApplied)
 }
 
 func (h *Handler) applicationDTO(application *domainguild.GuildApplication) map[string]interface{} {
@@ -349,6 +383,28 @@ func (h *Handler) broadcastGuild(guildItem *domainguild.Guild, method string, ar
 	}
 }
 
+func (h *Handler) broadcastGuildRank(guildItem *domainguild.Guild, rankData map[string]interface{}) {
+	if guildItem == nil {
+		return
+	}
+	h.broadcastGuild(guildItem, "onUpdateGuildRank", map[string]interface{}{
+		"gid":      guildItem.ID,
+		"rankData": rankData,
+	})
+}
+
+func (h *Handler) broadcastGuildProperty(guildItem *domainguild.Guild, payload map[string]interface{}) {
+	h.broadcastGuild(guildItem, "onGuildPropertyRefresh", payload)
+}
+
+func (h *Handler) broadcastGuildNumber(guildItem *domainguild.Guild, payload map[string]interface{}) {
+	h.broadcastGuild(guildItem, "onUpdateGuildNumProp", payload)
+}
+
+func (h *Handler) broadcastGuildInfo(guildItem *domainguild.Guild, payload map[string]interface{}) {
+	h.broadcastGuild(guildItem, "updateGuildInfo", payload)
+}
+
 func guildError(err error) error {
 	if err == nil {
 		return nil
@@ -362,6 +418,9 @@ func guildError(err error) error {
 		appguild.ErrCannotKickLeader,
 		appguild.ErrGuildFull,
 		appguild.ErrInsufficientFunds,
+		appguild.ErrInsufficientLevel,
+		appguild.ErrUnsupportedAction,
+		appguild.ErrInvalidContribution,
 	} {
 		if errors.Is(err, target) {
 			return target

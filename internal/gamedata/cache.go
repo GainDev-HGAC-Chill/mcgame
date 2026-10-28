@@ -1069,6 +1069,16 @@ func (c *Cache) GetBuilding(id int) *models.BuildingTemplate {
 	return c.buildings[id]
 }
 
+func (c *Cache) GetAllBuildings() []*models.BuildingTemplate {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	result := make([]*models.BuildingTemplate, 0, len(c.buildings))
+	for _, building := range c.buildings {
+		result = append(result, building)
+	}
+	return result
+}
+
 func (c *Cache) GetDiary(id int) *models.DiaryTemplate {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

@@ -53,10 +53,18 @@ func (r *CachedCharacterRepository) Create(ctx context.Context, char *character.
 
 func (r *CachedCharacterRepository) Update(ctx context.Context, char *character.Character) error {
 	if data := r.cache.GetPlayer(char.ID); data != nil {
-		data.SetCharacter(char)
+		if !data.SetCharacterAtRevision(char) {
+			return errStaleCachedMutation
+		}
 		return nil
 	}
 	return r.delegate.Update(ctx, char)
+}
+
+func (r *CachedCharacterRepository) SyncPersistedGold(charID, gold int64) {
+	if data := r.cache.GetPlayer(charID); data != nil {
+		data.SetCharacterGoldWithoutDirty(gold)
+	}
 }
 
 func (r *CachedCharacterRepository) Delete(ctx context.Context, id int64) error {

@@ -153,21 +153,56 @@ func (r *GuildRepository) DeleteApplication(ctx context.Context, applicationID i
 	return nil
 }
 
-func (r *GuildRepository) SaveRankSettings(ctx context.Context, guildID, actorID int64, settings []map[string]interface{}) error {
-	return r.insertGuildLog(ctx, guildID, guildRankSettingsAction, actorID, 0, settings)
+func (r *GuildRepository) SaveRankSettings(ctx context.Context, guildID, actorID int64, settings []guild.RankSetting) error {
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("failed to encode guild rank settings: %w", err)
+	}
+	var updated bool
+	if err := r.db.pool.QueryRow(ctx, "select player.replace_guild_rank_settings_authorized($1, $2, $3::jsonb)", guildID, actorID, raw).Scan(&updated); err != nil {
+		return fmt.Errorf("failed to replace guild rank settings: %w", err)
+	}
+	if !updated {
+		return fmt.Errorf("failed to replace guild rank settings")
+	}
+	return nil
 }
 
-func (r *GuildRepository) LoadRankSettings(ctx context.Context, guildID int64) ([]map[string]interface{}, error) {
+func (r *GuildRepository) LoadRankSettings(ctx context.Context, guildID int64) ([]guild.RankSetting, error) {
+	rows, err := r.db.pool.Query(ctx, "select * from player.list_guild_rank_settings($1)", guildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list guild rank settings: %w", err)
+	}
+	defer rows.Close()
+	settings := make([]guild.RankSetting, 0, guild.RankMember)
+	for rows.Next() {
+		setting := guild.RankSetting{}
+		if err := rows.Scan(&setting.Rank, &setting.Name, &setting.CanAdd, &setting.CanQuest, &setting.CanSlot, &setting.CanInfo, &setting.CanDel, &setting.CanDuty); err != nil {
+			return nil, fmt.Errorf("failed to scan guild rank settings: %w", err)
+		}
+		settings = append(settings, setting)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(settings) > 0 {
+		if err := guild.ValidateRankSettings(settings); err != nil {
+			return nil, fmt.Errorf("invalid guild rank settings: %w", err)
+		}
+		return settings, nil
+	}
 	raw, err := r.loadGuildLogDetails(ctx, guildID, guildRankSettingsAction)
 	if err != nil || len(raw) == 0 {
 		return nil, err
 	}
-
-	var settings []map[string]interface{}
-	if err := json.Unmarshal(raw, &settings); err != nil {
-		return nil, fmt.Errorf("failed to decode guild rank settings: %w", err)
+	var values []map[string]interface{}
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return nil, fmt.Errorf("failed to decode legacy guild rank settings: %w", err)
 	}
-
+	settings, err = guild.RankSettingsFromDTO(values)
+	if err != nil {
+		return nil, fmt.Errorf("invalid legacy guild rank settings: %w", err)
+	}
 	return settings, nil
 }
 
@@ -209,20 +244,6 @@ func (r *GuildRepository) ListWarehouseSlots(ctx context.Context, guildID int64)
 	}
 
 	return slots, rows.Err()
-}
-
-func (r *GuildRepository) UpsertWarehouseMaterial(ctx context.Context, guildID int64, templateID int, count int) (*guild.GuildWarehouseSlot, error) {
-	if count <= 0 {
-		return nil, fmt.Errorf("invalid warehouse material count: %d", count)
-	}
-
-	slot := &guild.GuildWarehouseSlot{}
-	if err := r.db.pool.QueryRow(ctx, "select * from player.upsert_guild_warehouse_material($1, $2, $3)", guildID, templateID, count).Scan(
-		&slot.ID, &slot.GuildID, &slot.SlotIndex, &slot.TemplateID, &slot.StackCount,
-	); err != nil {
-		return nil, fmt.Errorf("failed to upsert guild warehouse material: %w", err)
-	}
-	return slot, nil
 }
 
 func (r *GuildRepository) UpdateWarehouseSlot(ctx context.Context, guildID, slotID int64, slotIndex int, stackCount int) error {

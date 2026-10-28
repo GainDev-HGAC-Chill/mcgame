@@ -46,8 +46,8 @@ func TestRequirementRegistryMatchesAuditedCatalog(t *testing.T) {
 	if registry.Len() != 697 {
 		t.Fatalf("registry length = %d, want 697", registry.Len())
 	}
-	if stats.StateRequirements != 472 || stats.EventRequirements != 74 || stats.UnsupportedRequirements != 151 {
-		t.Fatalf("authority stats = %d/%d/%d, want 472/74/151", stats.StateRequirements, stats.EventRequirements, stats.UnsupportedRequirements)
+	if stats.StateRequirements != 475 || stats.EventRequirements != 81 || stats.UnsupportedRequirements != 141 {
+		t.Fatalf("authority stats = %d/%d/%d, want 475/81/141", stats.StateRequirements, stats.EventRequirements, stats.UnsupportedRequirements)
 	}
 	if stats.EnabledAchievements != 566 || stats.EnabledRequirements != 697 || stats.AllRequirementTypes != 60 {
 		t.Fatalf("catalog stats = %#v", stats)
@@ -83,11 +83,13 @@ func TestEventAuthorityMatchesImplementedProducerCoverage(t *testing.T) {
 	add(arenaRequirements)
 	add(arenaParticipationRequirements)
 	add([]requirementTarget{{RequirementID: 226}, {RequirementID: 254}})
+	add([]requirementTarget{{RequirementID: 83}, {RequirementID: 84}, {RequirementID: 106}, {RequirementID: 107}, {RequirementID: 108}, {RequirementID: 109}})
+	add([]requirementTarget{{RequirementID: 150}})
 	for _, requirement := range battleCreatureRequirements {
 		add([]requirementTarget{{RequirementID: requirement.requirementID}})
 	}
-	if len(implemented) != 74 {
-		t.Fatalf("implemented event coverage = %d, want 74", len(implemented))
+	if len(implemented) != 81 {
+		t.Fatalf("implemented event coverage = %d, want 81", len(implemented))
 	}
 	for requirementID, definition := range registry.definitions {
 		_, hasProducer := implemented[requirementID]

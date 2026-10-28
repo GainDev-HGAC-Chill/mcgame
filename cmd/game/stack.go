@@ -161,19 +161,35 @@ func (s *stack) up() error {
 	if err := s.migrate(); err != nil {
 		return err
 	}
+	if err := pruneBuildCache(); err != nil {
+		return fmt.Errorf("clear old Docker build cache: %w", err)
+	}
 	fmt.Println("===> Starting every service...")
-	if err := s.compose("up", "-d", "--build", "--remove-orphans"); err != nil {
-		return err
+	buildErr := s.compose("up", "-d", "--build", "--remove-orphans")
+	pruneErr := pruneBuildCache()
+	if buildErr != nil {
+		if pruneErr != nil {
+			return fmt.Errorf("compose build failed: %v; clear failed-build cache: %w", buildErr, pruneErr)
+		}
+		return buildErr
+	}
+	if pruneErr != nil {
+		return fmt.Errorf("clear current Docker build cache: %w", pruneErr)
 	}
 	imagePrune := exec.Command("docker", "image", "prune", "-f", "--filter", "label=com.docker.compose.project=mcgame")
 	if err := attach(imagePrune).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "warning: docker image prune failed:", err)
 	}
-	buildPrune := exec.Command("docker", "builder", "prune", "-af", "--max-used-space", "10GB")
-	if err := attach(buildPrune).Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "warning: docker build cache prune failed:", err)
-	}
 	return nil
+}
+
+func pruneBuildCache() error {
+	fmt.Println("===> Clearing Docker build cache...")
+	return attach(exec.Command("docker", buildCachePruneArgs()...)).Run()
+}
+
+func buildCachePruneArgs() []string {
+	return []string{"builder", "prune", "--all", "--force"}
 }
 
 func (s *stack) psql(db, query string) (string, error) {

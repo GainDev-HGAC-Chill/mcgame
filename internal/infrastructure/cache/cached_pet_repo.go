@@ -34,12 +34,29 @@ func (r *CachedPetRepository) Save(ctx context.Context, p *pet.Pet) error {
 		return nil
 	}
 	if data := r.cache.GetPlayer(p.CharacterID); data != nil {
-		data.SetPet(p)
+		if !data.SetPetAtRevision(p) {
+			return errStaleCachedMutation
+		}
 		r.upsertColdPet(ctx, p)
 		return nil
 	}
 	if err := r.delegate.Save(ctx, p); err != nil {
 		return err
+	}
+	r.upsertColdPet(ctx, p)
+	return nil
+}
+
+func (r *CachedPetRepository) SaveCaptured(ctx context.Context, p *pet.Pet) error {
+	repo, ok := r.delegate.(pet.CaptureRepository)
+	if !ok {
+		return pkgerrors.ErrSystemError
+	}
+	if err := repo.SaveCaptured(ctx, p); err != nil {
+		return err
+	}
+	if data := r.cache.GetPlayer(p.CharacterID); data != nil {
+		data.AddPetWithoutDirty(p)
 	}
 	r.upsertColdPet(ctx, p)
 	return nil
@@ -105,7 +122,9 @@ func (r *CachedPetRepository) Delete(ctx context.Context, id int64) error {
 	for _, data := range r.cache.activeSessions {
 		if p := data.GetPet(id); p != nil {
 			r.cache.mu.RUnlock()
-			data.DeletePet(id)
+			if !data.DeletePetAtRevision(id, p.CacheRevision) {
+				return errStaleCachedMutation
+			}
 			r.deleteColdPet(ctx, p.CharacterID, id)
 			return nil
 		}
@@ -135,11 +154,13 @@ func (r *CachedPetRepository) ApplyFusion(ctx context.Context, mainPet *pet.Pet,
 	if !ok {
 		return r.applyFusionFallback(ctx, mainPet, consumedPetIDs)
 	}
-	if err := fusionRepo.ApplyFusion(ctx, mainPet, consumedPetIDs); err != nil {
+	err := r.cache.runPlayerCommand(ctx, characterID, func() error {
+		return fusionRepo.ApplyFusion(ctx, mainPet, consumedPetIDs)
+	}, func(data *PlayerData) {
+		data.applyPersistedPetFusion(mainPet, consumedPetIDs)
+	})
+	if err != nil {
 		return err
-	}
-	if data := r.cache.GetPlayer(characterID); data != nil {
-		data.ApplyPersistedPetFusion(mainPet, consumedPetIDs)
 	}
 	if mainPet != nil {
 		r.upsertColdPet(ctx, mainPet)
@@ -152,18 +173,19 @@ func (r *CachedPetRepository) ApplyFusion(ctx context.Context, mainPet *pet.Pet,
 
 func (r *CachedPetRepository) ApplyIllusion(ctx context.Context, mainPet *pet.Pet, consumedPetID, luckItemID int64, luckItemCount int, updateMain bool) (int, error) {
 	illusionRepo, ok := r.delegate.(pet.IllusionRepository)
-	if !ok {
+	if !ok || mainPet == nil {
 		return 0, pkgerrors.ErrInvalidInput
 	}
-	if err := r.cache.SavePlayer(ctx, mainPet.CharacterID); err != nil {
-		return 0, err
-	}
-	remainingLuck, err := illusionRepo.ApplyIllusion(ctx, mainPet, consumedPetID, luckItemID, luckItemCount, updateMain)
+	remainingLuck := 0
+	err := r.cache.runPlayerCommand(ctx, mainPet.CharacterID, func() error {
+		var commandErr error
+		remainingLuck, commandErr = illusionRepo.ApplyIllusion(ctx, mainPet, consumedPetID, luckItemID, luckItemCount, updateMain)
+		return commandErr
+	}, func(data *PlayerData) {
+		data.applyPersistedPetIllusion(mainPet, consumedPetID, luckItemID, remainingLuck, updateMain)
+	})
 	if err != nil {
 		return 0, err
-	}
-	if data := r.cache.GetPlayer(mainPet.CharacterID); data != nil {
-		data.ApplyPersistedPetIllusion(mainPet, consumedPetID, luckItemID, remainingLuck, updateMain)
 	}
 	if updateMain {
 		r.upsertColdPet(ctx, mainPet)
@@ -186,25 +208,26 @@ func (r *CachedPetRepository) ApplySkillBook(ctx context.Context, mutation pet.S
 	if !ok || mutation.Pet == nil {
 		return 0, pkgerrors.ErrInvalidInput
 	}
-	if err := r.cache.SavePlayer(ctx, mutation.Pet.CharacterID); err != nil {
-		return 0, err
-	}
 	var bookSlotType int
 	var bookSlotIndex int
 	bookFound := false
-	if data := r.cache.GetPlayer(mutation.Pet.CharacterID); data != nil {
-		if book := data.GetItem(mutation.BookItemID); book != nil {
-			bookSlotType = int(book.SlotType)
-			bookSlotIndex = book.SlotIndex
-			bookFound = true
+	remaining := 0
+	err := r.cache.runPlayerCommand(ctx, mutation.Pet.CharacterID, func() error {
+		if data := r.cache.GetPlayer(mutation.Pet.CharacterID); data != nil {
+			if book := data.GetItem(mutation.BookItemID); book != nil {
+				bookSlotType = int(book.SlotType)
+				bookSlotIndex = book.SlotIndex
+				bookFound = true
+			}
 		}
-	}
-	remaining, err := repo.ApplySkillBook(ctx, mutation)
+		var commandErr error
+		remaining, commandErr = repo.ApplySkillBook(ctx, mutation)
+		return commandErr
+	}, func(data *PlayerData) {
+		data.applyPersistedPetSkillBook(mutation.Pet, mutation.BookItemID, remaining)
+	})
 	if err != nil {
 		return 0, err
-	}
-	if data := r.cache.GetPlayer(mutation.Pet.CharacterID); data != nil {
-		data.ApplyPersistedPetSkillBook(mutation.Pet, mutation.BookItemID, remaining)
 	}
 	r.upsertColdPet(ctx, mutation.Pet)
 	if r.cache.warmLoader != nil {
@@ -257,7 +280,10 @@ func (r *CachedPetRepository) UpdateFollowState(ctx context.Context, petID int64
 			charID = p.CharacterID
 			foundInCache = true
 			p.IsFollowing = isFollowing
-			data.SetPet(p)
+			if !data.SetPetAtRevision(p) {
+				r.cache.mu.RUnlock()
+				return errStaleCachedMutation
+			}
 			break
 		}
 	}
@@ -285,7 +311,9 @@ func (r *CachedPetRepository) ClearFollowing(ctx context.Context, characterID in
 		for _, p := range pets {
 			if p.IsFollowing {
 				p.IsFollowing = false
-				data.SetPet(p)
+				if !data.SetPetAtRevision(p) {
+					return errStaleCachedMutation
+				}
 			}
 		}
 

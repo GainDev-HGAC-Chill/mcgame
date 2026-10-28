@@ -3,8 +3,6 @@
 package guild
 
 import (
-	"sync"
-
 	appchar "mcgame-server/internal/application/character"
 	appguild "mcgame-server/internal/application/guild"
 	appitem "mcgame-server/internal/application/item"
@@ -21,15 +19,10 @@ type Handler struct {
 	itemService  *appitem.Service
 	rtmpServer   *rtmp.Server
 	gameData     *gamedata.Manager
-	buildMu      sync.RWMutex
-	buildStates  map[int]*constructionState
 }
 
 func NewHandler(logger *zap.Logger) *Handler {
-	return &Handler{
-		logger:      logger,
-		buildStates: make(map[int]*constructionState),
-	}
+	return &Handler{logger: logger}
 }
 
 func (h *Handler) SetCharacterService(charService *appchar.Service) {

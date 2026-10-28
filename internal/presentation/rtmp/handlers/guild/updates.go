@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	appguild "mcgame-server/internal/application/guild"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
 )
@@ -98,46 +97,21 @@ func (h *Handler) UpdateGuildRank(ctx *rtmp.RPCContext, args []interface{}) (int
 		return nil, pkgerrors.ErrNotFound
 	}
 
-	settings := appguild.DefaultRankSettings()
-	for _, setting := range settings {
-		rankValue, ok := setting["rank"]
-		if !ok {
-			continue
-		}
-		rankID, rankErr := parseIntArg(rankValue)
-		if rankErr != nil {
-			continue
-		}
-		if _, exists := rankDataMap["name"+strconv.Itoa(rankID)]; exists {
-			setting["name"] = rankDataMap["name"+strconv.Itoa(rankID)]
-		}
-		if rankID == 1 {
-			continue
-		}
-		for _, key := range []string{"canAdd", "canQuest", "canSlot", "canInfo", "canDel", "canDuty"} {
-			if value, exists := rankDataMap[key+strconv.Itoa(rankID)]; exists {
-				if parsed, parseErr := parseIntArg(value); parseErr == nil {
-					setting[key] = parsed
-				}
-			}
-		}
+	settings, err := parseGuildRankSettings(rankDataMap)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := h.guildService.UpdateGuildRankSettings(ctx.Context, guildItem.ID, characterID, settings); err != nil {
 		return nil, guildError(err)
 	}
 
-	payload := map[string]interface{}{
-		"gid":      guildItem.ID,
-		"rankData": rankDataMap,
-	}
-
 	updatedGuild, _, guildErr := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
 	if guildErr == nil {
-		h.broadcastGuild(updatedGuild, "onUpdateGuildRank", payload)
+		h.broadcastGuildRank(updatedGuild, rankDataMap)
 	}
 
-	return payload, nil
+	return map[string]interface{}{"gid": guildItem.ID, "rankData": rankDataMap}, nil
 }
 
 func (h *Handler) UpdateGuildNotice(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -165,7 +139,7 @@ func (h *Handler) UpdateGuildNotice(ctx *rtmp.RPCContext, args []interface{}) (i
 	}
 
 	payload := h.guildInfoUpdateDTO(updatedGuild, 3)
-	h.broadcastGuild(updatedGuild, "updateGuildInfo", payload)
+	h.broadcastGuildInfo(updatedGuild, payload)
 
 	return payload, nil
 }
@@ -263,7 +237,7 @@ func (h *Handler) GuildLevelUp(ctx *rtmp.RPCContext, args []interface{}) (interf
 	}
 
 	payload := map[string]interface{}{"level": updatedGuild.Level}
-	h.broadcastGuild(updatedGuild, "onGuildPropertyRefresh", payload)
+	h.broadcastGuildProperty(updatedGuild, payload)
 
 	return payload, nil
 }
@@ -290,7 +264,7 @@ func (h *Handler) AddGuildBankSlotNum(ctx *rtmp.RPCContext, args []interface{}) 
 	updatedGuild, _, guildErr := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
 	if guildErr == nil && updatedGuild != nil {
 		payload := map[string]interface{}{"bagSlotNum": pageCount}
-		h.broadcastGuild(updatedGuild, "onGuildPropertyRefresh", payload)
+		h.broadcastGuildProperty(updatedGuild, payload)
 		return payload, nil
 	}
 
@@ -317,7 +291,7 @@ func (h *Handler) AddMaxGuildMemberNum(ctx *rtmp.RPCContext, args []interface{})
 	}
 
 	payload := map[string]interface{}{"memLimit": updatedGuild.MaxPopulation}
-	h.broadcastGuild(updatedGuild, "onGuildPropertyRefresh", payload)
+	h.broadcastGuildProperty(updatedGuild, payload)
 
 	return payload, nil
 }
@@ -339,18 +313,16 @@ func (h *Handler) ContribMoney(ctx *rtmp.RPCContext, args []interface{}) (interf
 
 	silverValue, _ := request["s"]
 	goldValue, _ := request["g"]
-	silver, _ := parseInt64Arg(silverValue)
-	gold, _ := parseInt64Arg(goldValue)
-
-	char, err := h.charService.GetByID(ctx.Context, characterID)
+	silver, err := parseInt64Arg(silverValue)
 	if err != nil {
-		return nil, pkgerrors.ErrSystemError
+		return nil, err
 	}
-	if char == nil {
-		return nil, pkgerrors.ErrCharacterNotFound
+	gold, err := parseInt64Arg(goldValue)
+	if err != nil {
+		return nil, err
 	}
-	if char.Money < silver || char.Gold < gold {
-		return nil, pkgerrors.ErrInsufficientFunds
+	if silver < 0 || gold < 0 || (silver == 0 && gold == 0) {
+		return nil, pkgerrors.ErrInvalidInput
 	}
 
 	guildItem, _, err := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
@@ -360,45 +332,28 @@ func (h *Handler) ContribMoney(ctx *rtmp.RPCContext, args []interface{}) (interf
 	if guildItem == nil {
 		return nil, pkgerrors.ErrNotFound
 	}
-
-	char.Money -= silver
-	char.Gold -= gold
-	guildMoneyGain := silver + (gold * 2000)
-	donateContribGain := guildMoneyGain / 8
-	char.DonateContrib += int(donateContribGain)
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		return nil, pkgerrors.ErrSystemError
+	if err := h.requireGuildBuildingFunction(ctx, guildItem.ID, "showDonatePanel"); err != nil {
+		return nil, err
 	}
 
-	updatedGuild, err := h.guildService.AddContribution(ctx.Context, guildItem.ID, characterID, guildMoneyGain, 0, donateContribGain)
+	committed, err := h.guildService.ContributeMoneyAtomic(ctx.Context, guildItem.ID, characterID, silver, gold)
 	if err != nil {
 		return nil, guildError(err)
 	}
-
 	if silver > 0 {
-		_ = ctx.Connection.SendCallback("onMinusMoney", characterID, "money", silver, char.Money)
+		_ = ctx.Connection.SendCallback("onMinusMoney", characterID, "money", silver, committed.Character.Money)
 	}
 	if gold > 0 {
-		_ = ctx.Connection.SendCallback("onMinusMoney", characterID, "gold", gold, char.Gold)
+		_ = ctx.Connection.SendCallback("onMinusMoney", characterID, "gold", gold, committed.Character.Gold)
 	}
-	if guildMoneyGain > 0 {
-		h.broadcastGuild(updatedGuild, "onUpdateGuildNumProp", map[string]interface{}{"type": 3, "num": guildMoneyGain})
-	}
-	if donateContribGain > 0 {
-		_ = ctx.Connection.SendCallback("onUpdatePerNumProp", map[string]interface{}{
-			"name": char.Name,
-			"type": 1,
-			"cid":  characterID,
-			"num":  donateContribGain,
-		})
-	}
+	h.sendContributionState(characterID, "")
 	switch {
 	case silver > 0 && gold > 0:
-		_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("%s đã quyên góp %d bạc và %d vàng.", char.Name, silver, gold))
+		_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("%s đã quyên góp %d bạc và %d vàng.", committed.CharacterName, silver, gold))
 	case silver > 0:
-		_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("%s đã quyên góp %d bạc.", char.Name, silver))
+		_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("%s đã quyên góp %d bạc.", committed.CharacterName, silver))
 	case gold > 0:
-		_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("%s đã quyên góp %d vàng.", char.Name, gold))
+		_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("%s đã quyên góp %d vàng.", committed.CharacterName, gold))
 	}
 
 	return map[string]interface{}{"ok": true}, nil
@@ -433,6 +388,9 @@ func (h *Handler) DevelopSkill(ctx *rtmp.RPCContext, args []interface{}) (interf
 	skill := h.gameData.GetSkill(skillID)
 	if skill == nil {
 		return nil, pkgerrors.ErrInvalidInput
+	}
+	if err := h.requireGuildBuildingFunction(ctx, guildID, "showGuildSkillPanel"); err != nil {
+		return nil, err
 	}
 
 	if err := h.guildService.DevelopSkill(ctx.Context, guildID, characterID, skillID); err != nil {

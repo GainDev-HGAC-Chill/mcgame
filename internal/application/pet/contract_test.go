@@ -17,8 +17,14 @@ import (
 )
 
 type contractTestPetRepo struct {
-	nextID int64
-	pets   map[int64]*domainpet.Pet
+	nextID   int64
+	pets     map[int64]*domainpet.Pet
+	captured int
+}
+
+func (r *contractTestPetRepo) SaveCaptured(ctx context.Context, pet *domainpet.Pet) error {
+	r.captured++
+	return r.Save(ctx, pet)
 }
 
 func (r *contractTestPetRepo) Save(ctx context.Context, pet *domainpet.Pet) error {
@@ -132,6 +138,22 @@ func TestContractPetsCreatesAllPetsWhenCapacityAllows(t *testing.T) {
 	}
 	if len(repo.pets) != 2 {
 		t.Fatalf("stored pets = %d, want 2", len(repo.pets))
+	}
+}
+
+func TestContractCapturedPetUsesCaptureRepository(t *testing.T) {
+	repo := &contractTestPetRepo{pets: map[int64]*domainpet.Pet{}}
+	service := NewService(repo, zap.NewNop())
+	service.SetCharacterRepository(&openSlotCharacterRepo{characters: map[int64]*character.Character{
+		77: {ID: 77, PetMaxNum: 4},
+	}})
+	service.SetGameDataManager(newContractPetGameData(t, models.CreatureTemplate{ID: 1201, Name: "Jery"}))
+	created, err := service.ContractCapturedPet(context.Background(), 77, 1201)
+	if err != nil {
+		t.Fatalf("ContractCapturedPet() error = %v", err)
+	}
+	if created.ID <= 0 || repo.captured != 1 || len(repo.pets) != 1 {
+		t.Fatalf("captured pet = %#v, capture saves=%d stored=%d", created, repo.captured, len(repo.pets))
 	}
 }
 

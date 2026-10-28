@@ -4,6 +4,7 @@
 package activity
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	appitem "mcgame-server/internal/application/item"
 	apppet "mcgame-server/internal/application/pet"
 	appspecialtraining "mcgame-server/internal/application/specialtraining"
+	domainactivity "mcgame-server/internal/domain/activity"
 	domainchar "mcgame-server/internal/domain/character"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata"
@@ -68,20 +70,28 @@ type Handler struct {
 	ppveService        *apppet.PPVEService
 	logger             *zap.Logger
 	rewardStates       sync.Map
-	sendCombineMu      sync.Mutex
-	sendCombineBuy     map[int64]map[string]int
-	rtmpServer         *rtmp.Server
-	startedActSvc      *appactivity.StartedActivityService
-	eventBus           *appevents.Bus
+	sendCombineService interface {
+		Purchase(context.Context, domainactivity.SendCombinePurchaseCommand) (*domainactivity.SendCombinePurchaseResult, error)
+		BuyCounts(context.Context, int64, int64) (map[string]int, error)
+	}
+	rtmpServer    *rtmp.Server
+	startedActSvc *appactivity.StartedActivityService
+	eventBus      *appevents.Bus
 }
 
 func NewHandler(itemService *appitem.Service, logger *zap.Logger) *Handler {
 	return &Handler{
-		itemService:    itemService,
-		logger:         logger,
-		rewardStates:   sync.Map{},
-		sendCombineBuy: make(map[int64]map[string]int),
+		itemService:  itemService,
+		logger:       logger,
+		rewardStates: sync.Map{},
 	}
+}
+
+func (h *Handler) SetSendCombineService(service interface {
+	Purchase(context.Context, domainactivity.SendCombinePurchaseCommand) (*domainactivity.SendCombinePurchaseResult, error)
+	BuyCounts(context.Context, int64, int64) (map[string]int, error)
+}) {
+	h.sendCombineService = service
 }
 
 func (h *Handler) SetRTMPServer(server *rtmp.Server) {

@@ -30,6 +30,7 @@ func TestCharacterStateReaderBuildsPersistedProofs(t *testing.T) {
 		TempBagSlots: 5,
 		PetMaxNum:    60,
 		ArenaPoints:  200000,
+		Honor:        200,
 		Pop:          10000,
 		Reputation:   10000,
 		AwakenLevel:  77,
@@ -39,14 +40,14 @@ func TestCharacterStateReaderBuildsPersistedProofs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadStateProofs() error = %v", err)
 	}
-	if len(proofs) != 39 {
-		t.Fatalf("proof count = %d, want 39", len(proofs))
+	if len(proofs) != 43 {
+		t.Fatalf("proof count = %d, want 43", len(proofs))
 	}
 	byID := make(map[int64]StateProof, len(proofs))
 	for _, proof := range proofs {
 		byID[proof.RequirementID] = proof
 	}
-	for _, requirementID := range []int64{1, 4, 17, 20, 57, 58, 100, 101, 134, 137, 142, 149, 386, 387, 395, 510, 535, 652, 658} {
+	for _, requirementID := range []int64{1, 4, 17, 20, 57, 58, 100, 101, 134, 137, 138, 139, 140, 141, 142, 149, 386, 387, 395, 510, 535, 652, 658} {
 		proof, ok := byID[requirementID]
 		if !ok || !proof.Done {
 			t.Fatalf("requirement %d proof = %#v, found=%t", requirementID, proof, ok)
@@ -69,6 +70,21 @@ func TestCharacterStateReaderProvesNegativePopularityMilestones(t *testing.T) {
 	}
 	if !byID[392].Done || !byID[393].Done || byID[394].Done {
 		t.Fatalf("negative popularity proofs = %#v/%#v/%#v", byID[392], byID[393], byID[394])
+	}
+}
+
+func TestCharacterStateReaderProvesPKPointMilestones(t *testing.T) {
+	character := &domaincharacter.Character{ID: 99, Honor: 25}
+	proofs, err := NewCharacterStateReader(characterStateRepositoryFixture{character: character}).ReadStateProofs(context.Background(), 99)
+	if err != nil {
+		t.Fatalf("ReadStateProofs() error = %v", err)
+	}
+	byID := make(map[int64]StateProof, len(proofs))
+	for _, proof := range proofs {
+		byID[proof.RequirementID] = proof
+	}
+	if !byID[138].Done || !byID[139].Done || byID[140].Done || byID[141].Done {
+		t.Fatalf("PK proofs = %#v/%#v/%#v/%#v", byID[138], byID[139], byID[140], byID[141])
 	}
 }
 

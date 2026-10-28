@@ -92,21 +92,20 @@ Server behavior:
   - indexes `1..3` included by checkbox when `checkable == "false"`
   - non-checkable awards (`checkable == "true"`) always included
 - deducts total by `discount` sum of selected awards
-- supports configured currencies:
-  - `gold` -> character `gold`
-  - `point` -> character `honor`
-  - `integral` -> character `shopGold`
+- accepts the currently configured currency `gold`; any future unverified currency fails closed
 - grants each selected award item with `binded` flag
 - returns latest `buyNum` as RPC result for `onBuyCombine`
 
 Buy count state:
 
-- tracked per character and package in activity handler memory map
-- `getSendCombineAct` now injects this per-character `buyNum` into panel payload
+- persisted in `player.character_send_combine_purchases`, keyed by character/package/event-end version
+- `getSendCombineAct` reads durable per-character `buyNum` into the panel payload
+- purchase is one PostgreSQL command under the shared player mutation barrier: expiry/limit/gold/template/stack/bag validation, all item grants, debit and quota increment commit or roll back together
+- callbacks and cache updates are emitted only from committed state
 
 Operational note:
 
-- buy count is in-memory state in this scope and resets on process restart.
+- migration `20261028174942_send_combine_atomic_purchase.sql` is applied with service-role-only table/function access. Rollback rejection tests and simultaneous final-slot purchases prove no partial grant and one-winner quota serialization. The configured event end is already past as of 2026-10-29, so live purchases correctly reject as expired.
 
 ## Database-Backed Main Activity List
 

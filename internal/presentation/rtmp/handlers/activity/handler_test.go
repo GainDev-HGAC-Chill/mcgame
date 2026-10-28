@@ -84,6 +84,7 @@ func TestGetDailyPanelAwardState_EnablesGameIntroBadge(t *testing.T) {
 
 func TestGetSendCombineAct_ReturnsRealPayloadShape(t *testing.T) {
 	handler := NewHandler(nil, zap.NewNop())
+	handler.SetSendCombineService(&fakeSendCombineService{counts: make(map[string]int)})
 
 	result, err := handler.GetSendCombineAct(&rtmp.RPCContext{ConnID: 10, CharacterID: "3"}, nil)
 	if err != nil {

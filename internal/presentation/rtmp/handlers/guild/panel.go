@@ -114,6 +114,9 @@ func (h *Handler) GetInitGuildSlot(ctx *rtmp.RPCContext, args []interface{}) (in
 	if guildItem == nil {
 		return map[string]interface{}{}, nil
 	}
+	if err := h.requireGuildBuildingFunction(ctx, guildItem.ID, "showGuildWarehouse"); err != nil {
+		return nil, err
+	}
 
 	return guildItem.Warehouse, nil
 }
@@ -134,6 +137,9 @@ func (h *Handler) GetGuildPrivateSkillData(ctx *rtmp.RPCContext, args []interfac
 	}
 	if guildItem == nil {
 		return map[string]interface{}{}, nil
+	}
+	if err := h.requireGuildBuildingFunction(ctx, guildItem.ID, "showGuildSkillPanel"); err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{

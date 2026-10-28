@@ -384,14 +384,14 @@ func TestSay_StatExp_AppliesExperienceAndPersists(t *testing.T) {
 	if uppMap["level"] != 2 {
 		t.Fatalf("expected onUPP level=2, got %#v", uppMap["level"])
 	}
-	if uppMap["finalHp"] != 148 {
-		t.Fatalf("expected onUPP finalHp=148, got %#v", uppMap["finalHp"])
+	if uppMap["finalHp"] != char.MaxHP {
+		t.Fatalf("expected onUPP finalHp=%d, got %#v", char.MaxHP, uppMap["finalHp"])
 	}
-	if uppMap["finalMp"] != 79 {
-		t.Fatalf("expected onUPP finalMp=79, got %#v", uppMap["finalMp"])
+	if uppMap["finalMp"] != char.MaxMP {
+		t.Fatalf("expected onUPP finalMp=%d, got %#v", char.MaxMP, uppMap["finalMp"])
 	}
-	if uppMap["hpMax"] != 148 {
-		t.Fatalf("expected onUPP hpMax=148, got %#v", uppMap["hpMax"])
+	if uppMap["hpMax"] != char.MaxHP {
+		t.Fatalf("expected onUPP hpMax=%d, got %#v", char.MaxHP, uppMap["hpMax"])
 	}
 	if uppMap["attLastPoint"] != 5 {
 		t.Fatalf("expected onUPP attLastPoint=5, got %#v", uppMap["attLastPoint"])
@@ -403,11 +403,11 @@ func TestSay_StatExp_AppliesExperienceAndPersists(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected onUPP property payload map, got %T", uppMap["property"])
 	}
-	if propMap["finalHp"] != 148 {
-		t.Fatalf("expected onUPP property.finalHp=148, got %#v", propMap["finalHp"])
+	if propMap["finalHp"] != char.MaxHP {
+		t.Fatalf("expected onUPP property.finalHp=%d, got %#v", char.MaxHP, propMap["finalHp"])
 	}
-	if propMap["finalMp"] != 79 {
-		t.Fatalf("expected onUPP property.finalMp=79, got %#v", propMap["finalMp"])
+	if propMap["finalMp"] != char.MaxMP {
+		t.Fatalf("expected onUPP property.finalMp=%d, got %#v", char.MaxMP, propMap["finalMp"])
 	}
 	if propMap["lastPoint"] != "5" {
 		t.Fatalf("expected onUPP property.lastPoint=5, got %#v", propMap["lastPoint"])
@@ -524,8 +524,8 @@ func TestSay_StatLevel_RaisesTargetLevelAndPersists(t *testing.T) {
 	if uppMap["level"] != 5 {
 		t.Fatalf("expected onUPP level=5, got %#v", uppMap["level"])
 	}
-	if uppMap["hpMax"] != 319 {
-		t.Fatalf("expected onUPP hpMax=319, got %#v", uppMap["hpMax"])
+	if uppMap["hpMax"] != char.MaxHP {
+		t.Fatalf("expected onUPP hpMax=%d, got %#v", char.MaxHP, uppMap["hpMax"])
 	}
 	if uppMap["attLastPoint"] != 20 {
 		t.Fatalf("expected onUPP attLastPoint=20, got %#v", uppMap["attLastPoint"])

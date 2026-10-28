@@ -32,7 +32,6 @@ type LottoGameData interface {
 
 type LottoCharProvider interface {
 	FindByID(ctx context.Context, id int64) (*domainchar.Character, error)
-	Update(ctx context.Context, c *domainchar.Character) error
 }
 
 type Service struct {

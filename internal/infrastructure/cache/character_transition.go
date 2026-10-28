@@ -17,6 +17,8 @@ func (c *PlayerCache) UpdateCachedCharacterConditional(
 	if data == nil {
 		return nil, false, nil
 	}
+	data.mutationMu.Lock()
+	defer data.mutationMu.Unlock()
 	data.mu.Lock()
 	defer data.mu.Unlock()
 	if data.Character == nil {
@@ -32,6 +34,8 @@ func (c *PlayerCache) UpdateCachedCharacterConditional(
 		return cloneCharacter(data.Character), false, err
 	}
 	data.Character = cloneCharacter(updated)
+	data.characterRevision++
+	data.Character.CacheRevision = data.characterRevision
 	data.revision++
 	data.dirtyChar = true
 	return updated, true, nil

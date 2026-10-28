@@ -29,14 +29,16 @@ import (
 )
 
 const (
-	redisKeyPrefix = "player_data:"
-	redisTTL       = 2 * time.Hour
+	redisKeyPrefix     = "player_data:"
+	redisTTL           = 2 * time.Hour
+	mutationShardCount = 256
 )
 
 type PlayerCache struct {
 	activeSessions map[int64]*PlayerData
 	hotStates      map[int64]*HotStateBuffer
 	mu             sync.RWMutex
+	mutationShards [mutationShardCount]sync.Mutex
 
 	charRepo  character.Repository
 	itemRepo  item.Repository
@@ -182,6 +184,9 @@ func (c *PlayerCache) debugLoggerLoop() {
 }
 
 func (c *PlayerCache) LoadPlayer(ctx context.Context, charID int64) (*PlayerData, error) {
+	commandLock := c.playerCommandLock(charID)
+	commandLock.Lock()
+	defer commandLock.Unlock()
 	c.mu.Lock()
 	if existing, ok := c.activeSessions[charID]; ok {
 		c.mu.Unlock()
@@ -280,6 +285,9 @@ func (c *PlayerCache) HasPlayer(charID int64) bool {
 }
 
 func (c *PlayerCache) SavePlayer(ctx context.Context, charID int64) error {
+	commandLock := c.playerCommandLock(charID)
+	commandLock.Lock()
+	defer commandLock.Unlock()
 	c.mu.RLock()
 	data, ok := c.activeSessions[charID]
 	c.mu.RUnlock()
@@ -296,6 +304,9 @@ func (c *PlayerCache) SavePlayer(ctx context.Context, charID int64) error {
 }
 
 func (c *PlayerCache) SaveAndEvict(ctx context.Context, charID int64) error {
+	commandLock := c.playerCommandLock(charID)
+	commandLock.Lock()
+	defer commandLock.Unlock()
 	c.mu.Lock()
 	data, ok := c.activeSessions[charID]
 	if !ok {
@@ -323,6 +334,10 @@ func (c *PlayerCache) SaveAndEvict(ctx context.Context, charID int64) error {
 	c.logger.Info("Player data saved and evicted from cache",
 		zap.Int64("character_id", charID))
 	return nil
+}
+
+func (c *PlayerCache) playerCommandLock(charID int64) *sync.Mutex {
+	return &c.mutationShards[uint64(charID)%mutationShardCount]
 }
 
 func (c *PlayerCache) SaveAllDirty(ctx context.Context) (*center.SaveStats, error) {
@@ -372,6 +387,12 @@ func (c *PlayerCache) SaveAllDirty(ctx context.Context) (*center.SaveStats, erro
 }
 
 func (c *PlayerCache) persistPlayerData(ctx context.Context, data *PlayerData) error {
+	data.mutationMu.Lock()
+	defer data.mutationMu.Unlock()
+	return c.persistPlayerDataExclusive(ctx, data)
+}
+
+func (c *PlayerCache) persistPlayerDataExclusive(ctx context.Context, data *PlayerData) error {
 	data.persistMu.Lock()
 	defer data.persistMu.Unlock()
 	snapshot := data.GetDirtySnapshot()
@@ -731,6 +752,8 @@ func (c *PlayerCache) UpdateCachedCharacter(charID int64, fn func(*character.Cha
 		return nil
 	}
 
+	data.mutationMu.Lock()
+	defer data.mutationMu.Unlock()
 	data.mu.Lock()
 	defer data.mu.Unlock()
 	if data.Character == nil {
@@ -739,6 +762,8 @@ func (c *PlayerCache) UpdateCachedCharacter(charID int64, fn func(*character.Cha
 	updated := cloneCharacter(data.Character)
 	fn(updated)
 	data.Character = cloneCharacter(updated)
+	data.characterRevision++
+	data.Character.CacheRevision = data.characterRevision
 	data.revision++
 	data.dirtyChar = true
 	return updated

@@ -8,6 +8,7 @@ package item
 import (
 	"context"
 	crand "crypto/rand"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"sort"
@@ -18,6 +19,7 @@ import (
 	appbloodbag "mcgame-server/internal/application/bloodbag"
 	appbuff "mcgame-server/internal/application/buff"
 	apptitle "mcgame-server/internal/application/title"
+	domainachievement "mcgame-server/internal/domain/achievement"
 	domainbuff "mcgame-server/internal/domain/buff"
 	"mcgame-server/internal/domain/character"
 	domainelement "mcgame-server/internal/domain/element"
@@ -29,6 +31,7 @@ import (
 	"mcgame-server/internal/gamedata/models"
 	pkgerrors "mcgame-server/pkg/errors"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -57,6 +60,12 @@ type SkillAwardService interface {
 type BuffAwardService interface {
 	AddOrRefresh(ctx context.Context, characterID int64, req appbuff.AddRequest) (*domainbuff.Buff, error)
 }
+
+type characterRenameCommitter interface {
+	CommitCharacterRename(ctx context.Context, characterID int64, card *item.Item, newName string, fact domainachievement.Fact) (int, error)
+}
+
+const renameCardTemplateID = 2126
 
 type MountRewardGranter interface {
 	GrantDress(ctx context.Context, charID int64, dressID int, expiryMs int64) error
@@ -438,6 +447,40 @@ func (s *Service) CountCarriedItemsByTemplate(ctx context.Context, charID int64,
 
 func (s *Service) ConsumeCarriedItemsByTemplateID(ctx context.Context, charID int64, templateID int, count int) ([]InventoryChange, error) {
 	return s.ConsumeCarriedItemsByTemplate(ctx, charID, templateID, count, 0, -1)
+}
+
+type PlannedConsumption struct {
+	Item      *item.Item
+	Count     int
+	Remaining int
+}
+
+func (s *Service) PlanCarriedItemConsumption(ctx context.Context, charID int64, templateID int, count int, tableType int, colorCode int) ([]PlannedConsumption, error) {
+	if count <= 0 {
+		return nil, pkgerrors.ErrInvalidInput
+	}
+	items, err := s.findCarriedItemsByTemplate(ctx, charID, templateID, tableType, colorCode)
+	if err != nil {
+		return nil, err
+	}
+	available := 0
+	for _, it := range items {
+		available += it.StackCount
+	}
+	if available < count {
+		return nil, pkgerrors.ErrInsufficientFunds
+	}
+	remaining := count
+	plan := make([]PlannedConsumption, 0)
+	for _, it := range items {
+		if remaining == 0 {
+			break
+		}
+		consume := min(it.StackCount, remaining)
+		plan = append(plan, PlannedConsumption{Item: it, Count: consume, Remaining: it.StackCount - consume})
+		remaining -= consume
+	}
+	return plan, nil
 }
 
 // ConsumeCarriedItemsByTemplate consumes `count` units of items matching the
@@ -2988,6 +3031,47 @@ func (s *Service) ConsumeItemsByTemplateID(ctx context.Context, charID int64, te
 		}
 	}
 	return false, nil
+}
+
+func (s *Service) RenameCharacterWithCard(ctx context.Context, charID int64, newName string) (bool, error) {
+	items, err := s.itemRepo.FindByCharacterAndSlotType(ctx, charID, item.SlotTypeBag)
+	if err != nil {
+		return false, err
+	}
+	var card *item.Item
+	for _, candidate := range items {
+		if candidate != nil && candidate.TemplateID == renameCardTemplateID && candidate.StackCount > 0 {
+			card = candidate
+			break
+		}
+	}
+	if card == nil {
+		return false, nil
+	}
+	committer, ok := s.itemRepo.(characterRenameCommitter)
+	if !ok {
+		return false, pkgerrors.ErrSystemError
+	}
+	operationID := uuid.NewString()
+	payload, err := json.Marshal(domainachievement.CharacterRenamedFactPayload{
+		OperationID: operationID,
+		CardItemID:  card.ID,
+		NewName:     newName,
+	})
+	if err != nil {
+		return false, err
+	}
+	fact := domainachievement.Fact{
+		FactID:      "character-renamed:v1:" + operationID,
+		CharacterID: charID,
+		Kind:        domainachievement.FactKindCharacterRenamed,
+		Payload:     payload,
+		OccurredAt:  time.Now().UTC(),
+	}
+	if _, err := committer.CommitCharacterRename(ctx, charID, card, newName, fact); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // This is used for quest items that need to be removed after quest completion.

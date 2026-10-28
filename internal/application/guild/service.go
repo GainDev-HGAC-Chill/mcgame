@@ -15,14 +15,17 @@ import (
 )
 
 var (
-	ErrGuildNotFound     = errors.New("guild not found")
-	ErrGuildNameTaken    = errors.New("guild name already taken")
-	ErrAlreadyInGuild    = errors.New("character already in a guild")
-	ErrNotInGuild        = errors.New("character not in a guild")
-	ErrNotGuildLeader    = errors.New("not the guild leader")
-	ErrCannotKickLeader  = errors.New("cannot kick the guild leader")
-	ErrGuildFull         = errors.New("guild is full")
-	ErrInsufficientFunds = errors.New("insufficient guild funds")
+	ErrGuildNotFound       = errors.New("guild not found")
+	ErrGuildNameTaken      = errors.New("guild name already taken")
+	ErrAlreadyInGuild      = errors.New("character already in a guild")
+	ErrNotInGuild          = errors.New("character not in a guild")
+	ErrNotGuildLeader      = errors.New("not the guild leader")
+	ErrCannotKickLeader    = errors.New("cannot kick the guild leader")
+	ErrGuildFull           = errors.New("guild is full")
+	ErrInsufficientFunds   = errors.New("insufficient guild funds")
+	ErrInsufficientLevel   = errors.New("insufficient character level")
+	ErrUnsupportedAction   = errors.New("guild action has no authoritative cost")
+	ErrInvalidContribution = errors.New("invalid guild contribution")
 )
 
 type Repository interface {
@@ -44,12 +47,11 @@ type Repository interface {
 	GetApplicationByCharacterID(ctx context.Context, characterID int64) (*guild.GuildApplication, error)
 	ListApplications(ctx context.Context, guildID int64) ([]*guild.GuildApplication, error)
 	DeleteApplication(ctx context.Context, applicationID int64) error
-	SaveRankSettings(ctx context.Context, guildID, actorID int64, settings []map[string]interface{}) error
-	LoadRankSettings(ctx context.Context, guildID int64) ([]map[string]interface{}, error)
+	SaveRankSettings(ctx context.Context, guildID, actorID int64, settings []guild.RankSetting) error
+	LoadRankSettings(ctx context.Context, guildID int64) ([]guild.RankSetting, error)
 	SaveBankPageCount(ctx context.Context, guildID, actorID int64, pageCount int) error
 	LoadBankPageCount(ctx context.Context, guildID int64) (int, error)
 	ListWarehouseSlots(ctx context.Context, guildID int64) ([]*guild.GuildWarehouseSlot, error)
-	UpsertWarehouseMaterial(ctx context.Context, guildID int64, templateID int, count int) (*guild.GuildWarehouseSlot, error)
 	UpdateWarehouseSlot(ctx context.Context, guildID, slotID int64, slotIndex int, stackCount int) error
 	DeleteWarehouseSlot(ctx context.Context, guildID int64, slotID int64) error
 	GetGuildSkillIDs(ctx context.Context, guildID int64) ([]int, error)
@@ -69,10 +71,12 @@ type QuestService interface {
 }
 
 type Service struct {
-	repo     Repository
-	charSvc  CharacterService
-	questSvc QuestService
-	logger   *zap.Logger
+	repo            Repository
+	charSvc         CharacterService
+	questSvc        QuestService
+	logger          *zap.Logger
+	skillCatalog    GuildSkillLookup
+	buildingCatalog GuildBuildingCatalog
 }
 
 func NewService(repo Repository, charSvc CharacterService, logger *zap.Logger) *Service {
@@ -87,64 +91,17 @@ func (s *Service) SetQuestService(questSvc QuestService) {
 	s.questSvc = questSvc
 }
 
+func (s *Service) SetSkillCatalog(catalog GuildSkillLookup) {
+	s.skillCatalog = catalog
+}
+
+func (s *Service) SetBuildingCatalog(catalog GuildBuildingCatalog) {
+	s.buildingCatalog = catalog
+}
+
 // CreateGuild creates a new guild with the character as leader
 func (s *Service) CreateGuild(ctx context.Context, leaderID int64, name string) (*guild.Guild, error) {
-	// Check if name is taken
-	existing, err := s.repo.GetByName(ctx, name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check guild name: %w", err)
-	}
-	if existing != nil {
-		return nil, ErrGuildNameTaken
-	}
-
-	// Check if character is already in a guild
-	existingGuild, err := s.repo.GetByMemberID(ctx, leaderID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing guild: %w", err)
-	}
-	if existingGuild != nil {
-		return nil, ErrAlreadyInGuild
-	}
-
-	// Create guild
-	g := &guild.Guild{
-		Name:                 name,
-		LeaderID:             leaderID,
-		Level:                1,
-		Experience:           0,
-		Population:           0,
-		MaxPopulation:        50,
-		Icon:                 0,
-		Funds:                0,
-		ContributionTotal:    0,
-		Announcement:         "",
-		Description:          "",
-		JoinLevelReq:         1,
-		JoinApprovalRequired: true,
-		ActivityPoints:       0,
-	}
-
-	err = s.repo.Create(ctx, g)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create guild: %w", err)
-	}
-
-	// Add leader as member
-	err = s.repo.AddMember(ctx, g.ID, leaderID, guild.RankLeader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to add leader as member: %w", err)
-	}
-	if err := s.consumeContributionRestore(ctx, g.ID, leaderID); err != nil {
-		return nil, err
-	}
-
-	s.logger.Info("Guild created",
-		zap.Int64("guild_id", g.ID),
-		zap.String("name", name),
-		zap.Int64("leader_id", leaderID))
-
-	return g, nil
+	return nil, ErrUnsupportedAction
 }
 
 // GetGuild retrieves a guild by ID with members
@@ -189,195 +146,70 @@ func (s *Service) GetGuildByMember(ctx context.Context, characterID int64) (*gui
 
 // InviteMember adds a character to the guild
 func (s *Service) InviteMember(ctx context.Context, guildID, inviterID, inviteeID int64) error {
-	// Get guild
-	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil {
-		return fmt.Errorf("failed to get guild: %w", err)
-	}
-	if g == nil {
-		return ErrGuildNotFound
-	}
-
-	// Check if guild is full
-	if g.Population >= g.MaxPopulation {
-		return ErrGuildFull
-	}
-
-	// Check if invitee is already in a guild
-	existingGuild, err := s.repo.GetByMemberID(ctx, inviteeID)
-	if err != nil {
-		return fmt.Errorf("failed to check existing guild: %w", err)
-	}
-	if existingGuild != nil {
-		return ErrAlreadyInGuild
-	}
-
-	// Add member
-	err = s.repo.AddMember(ctx, guildID, inviteeID, guild.RankMember)
-	if err != nil {
-		return fmt.Errorf("failed to add member: %w", err)
-	}
-
-	s.logger.Info("Member added to guild",
-		zap.Int64("guild_id", guildID),
-		zap.Int64("inviter_id", inviterID),
-		zap.Int64("invitee_id", inviteeID))
-
-	return nil
+	return ErrUnsupportedAction
 }
 
 // KickMember removes a character from the guild
 func (s *Service) KickMember(ctx context.Context, guildID, kickerID, targetID int64) error {
-	// Get guild
-	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil {
-		return fmt.Errorf("failed to get guild: %w", err)
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return ErrUnsupportedAction
 	}
-	if g == nil {
-		return ErrGuildNotFound
+	_, err := commands.KickGuildMemberAtomic(ctx, guildID, kickerID, targetID)
+	if err == nil {
+		s.cleanupGuildDeparture(ctx, targetID)
 	}
-
-	members, err := s.repo.GetMembers(ctx, guildID)
-	if err != nil {
-		return fmt.Errorf("failed to get guild members: %w", err)
-	}
-	var kicker *guild.GuildMember
-	for _, member := range members {
-		if member != nil && member.CharacterID == kickerID {
-			kicker = member
-			break
-		}
-	}
-	if kicker == nil || !(kicker.IsLeader() || kicker.CanKick) {
-		return ErrNotGuildLeader
-	}
-
-	// Cannot kick the leader
-	if targetID == g.LeaderID {
-		return ErrCannotKickLeader
-	}
-
-	// Remove member
-	if err := s.applyGuildExitState(ctx, targetID); err != nil {
-		return err
-	}
-	err = s.repo.RemoveMember(ctx, guildID, targetID)
-	if err != nil {
-		return fmt.Errorf("failed to remove member: %w", err)
-	}
-
-	s.logger.Info("Member kicked from guild",
-		zap.Int64("guild_id", guildID),
-		zap.Int64("kicker_id", kickerID),
-		zap.Int64("target_id", targetID))
-
-	return nil
+	return err
 }
 
 // LeaveMember allows a member to leave the guild
 func (s *Service) LeaveMember(ctx context.Context, guildID, characterID int64) error {
-	// Get guild
-	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil {
-		return fmt.Errorf("failed to get guild: %w", err)
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return ErrUnsupportedAction
 	}
-	if g == nil {
-		return ErrGuildNotFound
+	_, err := commands.LeaveGuildAtomic(ctx, guildID, characterID)
+	if err == nil {
+		s.cleanupGuildDeparture(ctx, characterID)
 	}
-
-	// Leader cannot leave (must disband or transfer leadership first)
-	if characterID == g.LeaderID {
-		return errors.New("leader must disband guild or transfer leadership before leaving")
-	}
-
-	// Remove member
-	if err := s.applyGuildExitState(ctx, characterID); err != nil {
-		return err
-	}
-	err = s.repo.RemoveMember(ctx, guildID, characterID)
-	if err != nil {
-		return fmt.Errorf("failed to remove member: %w", err)
-	}
-
-	s.logger.Info("Member left guild",
-		zap.Int64("guild_id", guildID),
-		zap.Int64("character_id", characterID))
-
-	return nil
+	return err
 }
 
 // PromoteMember promotes a member to a higher rank
 func (s *Service) PromoteMember(ctx context.Context, guildID, promoterID, targetID int64, newRank int) error {
-	// Get guild
-	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil {
-		return fmt.Errorf("failed to get guild: %w", err)
-	}
-	if g == nil {
-		return ErrGuildNotFound
-	}
-
-	// Only leader can promote
-	if promoterID != g.LeaderID {
-		return ErrNotGuildLeader
-	}
 	if newRank < guild.RankViceLeader || newRank > guild.RankMember {
 		return fmt.Errorf("invalid guild rank: %d", newRank)
 	}
-
-	// Update rank
-	err = s.repo.UpdateMemberRank(ctx, guildID, targetID, newRank)
-	if err != nil {
-		return fmt.Errorf("failed to update rank: %w", err)
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return ErrUnsupportedAction
 	}
-
-	s.logger.Info("Member promoted",
-		zap.Int64("guild_id", guildID),
-		zap.Int64("promoter_id", promoterID),
-		zap.Int64("target_id", targetID),
-		zap.Int("new_rank", newRank))
-
-	return nil
+	return commands.SetGuildMemberRankAtomic(ctx, guildID, promoterID, targetID, newRank)
 }
 
 // DisbandGuild deletes the guild
 func (s *Service) DisbandGuild(ctx context.Context, guildID, characterID int64) error {
-	// Get guild
-	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil {
-		return fmt.Errorf("failed to get guild: %w", err)
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return ErrUnsupportedAction
 	}
-	if g == nil {
-		return ErrGuildNotFound
-	}
-
-	// Only leader can disband
-	if characterID != g.LeaderID {
-		return ErrNotGuildLeader
-	}
-
-	// Delete guild
 	members, err := s.repo.GetMembers(ctx, guildID)
 	if err != nil {
-		return fmt.Errorf("failed to get guild members: %w", err)
+		return err
 	}
+	memberIDs := make([]int64, 0, len(members))
 	for _, member := range members {
-		if member == nil {
-			continue
-		}
-		if err := s.applyGuildExitState(ctx, member.CharacterID); err != nil {
-			return err
+		if member != nil && member.CharacterID > 0 {
+			memberIDs = append(memberIDs, member.CharacterID)
 		}
 	}
-	err = s.repo.Delete(ctx, guildID)
+	result, err := commands.DisbandGuildAtomic(ctx, DisbandGuildCommand{GuildID: guildID, LeaderID: characterID, ExpectedMemberIDs: memberIDs})
 	if err != nil {
-		return fmt.Errorf("failed to delete guild: %w", err)
+		return err
 	}
-
-	s.logger.Info("Guild disbanded",
-		zap.Int64("guild_id", guildID),
-		zap.Int64("leader_id", characterID))
-
+	for _, committed := range result.Characters {
+		s.cleanupGuildDeparture(ctx, committed.CharacterID)
+	}
 	return nil
 }
 
@@ -403,8 +235,8 @@ func (s *Service) UpdateGuildInfo(ctx context.Context, guildID, updaterID int64,
 			break
 		}
 	}
-	if updater == nil || !(updater.IsLeader() || updater.CanEditAnnouncement) {
-		return ErrNotGuildLeader
+	if err := s.authorizeMember(ctx, g, updater, guild.PermissionInfo, false); err != nil {
+		return err
 	}
 
 	// Update fields
@@ -415,9 +247,11 @@ func (s *Service) UpdateGuildInfo(ctx context.Context, guildID, updaterID int64,
 		g.Description = announcement
 	}
 
-	// Save
-	err = s.repo.Update(ctx, g)
-	if err != nil {
+	commands, ok := s.repo.(GuildMetadataRepository)
+	if !ok {
+		return ErrUnsupportedAction
+	}
+	if err := commands.SetGuildNotice(ctx, guildID, updaterID, g.Announcement, g.Description); err != nil {
 		return fmt.Errorf("failed to update guild: %w", err)
 	}
 

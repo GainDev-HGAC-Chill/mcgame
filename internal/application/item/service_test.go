@@ -5,9 +5,11 @@ package item
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	domainachievement "mcgame-server/internal/domain/achievement"
 	domainchar "mcgame-server/internal/domain/character"
 	domaindress "mcgame-server/internal/domain/dress"
 	domainitem "mcgame-server/internal/domain/item"
@@ -19,12 +21,69 @@ import (
 )
 
 type itemServiceTestRepo struct {
-	nextID int64
-	items  map[int64]*domainitem.Item
+	nextID          int64
+	items           map[int64]*domainitem.Item
+	renameFact      domainachievement.Fact
+	renamedTo       string
+	renameCommitErr error
+}
+
+func (r *itemServiceTestRepo) CommitCharacterRename(ctx context.Context, characterID int64, card *domainitem.Item, newName string, fact domainachievement.Fact) (int, error) {
+	if r.renameCommitErr != nil {
+		return 0, r.renameCommitErr
+	}
+	stored, ok := r.items[card.ID]
+	if !ok || stored.CharacterID != characterID || stored.TemplateID != 2126 || stored.StackCount <= 0 {
+		return 0, pkgerrors.ErrItemNotFound
+	}
+	stored.StackCount--
+	remaining := stored.StackCount
+	if remaining == 0 {
+		delete(r.items, card.ID)
+	}
+	r.renameFact = fact
+	r.renamedTo = newName
+	return remaining, nil
 }
 
 func newItemServiceTestRepo() *itemServiceTestRepo {
 	return &itemServiceTestRepo{nextID: 1, items: make(map[int64]*domainitem.Item)}
+}
+
+func TestRenameCharacterWithCardCommitsCardNameAndFact(t *testing.T) {
+	repo := newItemServiceTestRepo()
+	repo.items[71] = &domainitem.Item{ID: 71, CharacterID: 99, TemplateID: 2126, SlotType: domainitem.SlotTypeBag, StackCount: 2}
+	service := NewService(repo, zap.NewNop())
+	renamed, err := service.RenameCharacterWithCard(context.Background(), 99, "Tên Mới")
+	if err != nil {
+		t.Fatalf("RenameCharacterWithCard() error = %v", err)
+	}
+	if !renamed || repo.renamedTo != "Tên Mới" || repo.items[71].StackCount != 1 {
+		t.Fatalf("rename result=%t name=%q card=%#v", renamed, repo.renamedTo, repo.items[71])
+	}
+	if repo.renameFact.Kind != domainachievement.FactKindCharacterRenamed || repo.renameFact.CharacterID != 99 {
+		t.Fatalf("rename fact = %#v", repo.renameFact)
+	}
+	var payload domainachievement.CharacterRenamedFactPayload
+	if err := json.Unmarshal(repo.renameFact.Payload, &payload); err != nil {
+		t.Fatalf("decode rename payload: %v", err)
+	}
+	if payload.CardItemID != 71 || payload.NewName != "Tên Mới" || payload.OperationID == "" {
+		t.Fatalf("rename payload = %#v", payload)
+	}
+}
+
+func TestRenameCharacterWithCardCommitFailureKeepsCard(t *testing.T) {
+	repo := newItemServiceTestRepo()
+	repo.items[71] = &domainitem.Item{ID: 71, CharacterID: 99, TemplateID: 2126, SlotType: domainitem.SlotTypeBag, StackCount: 1}
+	repo.renameCommitErr = errors.New("injected rename failure")
+	service := NewService(repo, zap.NewNop())
+	if renamed, err := service.RenameCharacterWithCard(context.Background(), 99, "Tên Mới"); err == nil || renamed {
+		t.Fatalf("RenameCharacterWithCard() = %t, %v", renamed, err)
+	}
+	if repo.items[71].StackCount != 1 || repo.renamedTo != "" || repo.renameFact.FactID != "" {
+		t.Fatalf("failed rename mutated state: card=%#v name=%q fact=%#v", repo.items[71], repo.renamedTo, repo.renameFact)
+	}
 }
 
 func (r *itemServiceTestRepo) FindByID(ctx context.Context, id int64) (*domainitem.Item, error) {

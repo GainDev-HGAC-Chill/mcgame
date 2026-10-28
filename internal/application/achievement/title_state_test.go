@@ -53,7 +53,8 @@ func TestTitleStateReaderCountsDistinctPositiveTitles(t *testing.T) {
 	for _, proof := range proofs {
 		byID[proof.RequirementID] = proof
 	}
-	if len(proofs) != 35 || byID[84].Done || !byID[50].Done || !byID[51].Done || byID[52].Done || byID[52].Progress != 12 || byID[128].Done || byID[163].Done || !byID[383].Done || !byID[582].Done || byID[584].Done {
+	_, hasRID84 := byID[84]
+	if len(proofs) != 34 || hasRID84 || !byID[50].Done || !byID[51].Done || byID[52].Done || byID[52].Progress != 12 || byID[128].Done || byID[163].Done || !byID[383].Done || !byID[582].Done || byID[584].Done {
 		t.Fatalf("proofs = %#v", proofs)
 	}
 }

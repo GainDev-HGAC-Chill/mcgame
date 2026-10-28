@@ -29,6 +29,8 @@ const (
 	loopChildPoolLid1Override = 10
 )
 
+var errGuildLoopRewardsUnavailable = errors.New("guild loop rewards unavailable")
+
 // GuildMembership is a narrow seam into the guild service so this package
 // never depends on internal/application/guild directly; wired in main.go.
 type GuildMembership interface {
@@ -94,6 +96,9 @@ func (s *Service) CanTakeLoop(ctx context.Context, charID int64, lid int) (bool,
 		inGuild, err := s.guildMembership.IsInGuild(ctx, charID)
 		if err != nil || !inGuild {
 			return false, "guild membership required"
+		}
+		if _, ok := s.loopRepo.(quest.GuildLoopCommandRepository); !ok {
+			return false, errGuildLoopRewardsUnavailable.Error()
 		}
 	}
 

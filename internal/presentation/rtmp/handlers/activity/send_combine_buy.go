@@ -4,16 +4,17 @@
 package activity
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
-	domainchar "mcgame-server/internal/domain/character"
-	domainitem "mcgame-server/internal/domain/item"
+	"go.uber.org/zap"
+	appactivity "mcgame-server/internal/application/activity"
+	appitem "mcgame-server/internal/application/item"
+	domainactivity "mcgame-server/internal/domain/activity"
 	"mcgame-server/internal/infrastructure/rtmp"
 	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
-	appitem "mcgame-server/internal/application/item"
-	"go.uber.org/zap"
 )
 
 const (
@@ -31,7 +32,7 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 	if len(args) < 1 {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
-	if h.itemService == nil || h.characterRepo == nil {
+	if h.itemService == nil || h.sendCombineService == nil {
 		return nil, pkgerrors.ErrSystemError
 	}
 
@@ -45,7 +46,11 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 		return nil, pkgerrors.ErrInvalidInput
 	}
 
-	currentBuyNum := h.getSendCombineBuyCount(characterID, activityID)
+	buyCounts, err := h.sendCombineService.BuyCounts(ctx.Context, characterID, activity.End)
+	if err != nil {
+		return nil, err
+	}
+	currentBuyNum := buyCounts[activityID]
 	if currentBuyNum >= activity.Limit {
 		h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgLimitReached)
 		return currentBuyNum, nil
@@ -57,19 +62,12 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 		return currentBuyNum, nil
 	}
 
-	totalCost := sendCombineDiscountTotal(selectedAwards)
-	character, err := h.characterRepo.FindByID(ctx.Context, characterID)
-	if err != nil {
-		return nil, err
-	}
-
-	currencyKey, currencyTotal, currencyTotalFloat, err := applySendCombineCost(character, activity.Currency, totalCost)
-	if err != nil {
-		h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgNotEnoughCurrency)
+	if !strings.EqualFold(strings.TrimSpace(activity.Currency), "gold") {
+		h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgInvalidData)
 		return currentBuyNum, nil
 	}
-
-	addedItems := make([]*domainitem.Item, 0, len(selectedAwards))
+	totalCost := sendCombineDiscountTotal(selectedAwards)
+	commandAwards := make([]domainactivity.SendCombineAward, 0, len(selectedAwards))
 	for _, award := range selectedAwards {
 		templateID, parseErr := strconv.Atoi(award.ItemID)
 		if parseErr != nil || templateID <= 0 {
@@ -87,40 +85,43 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 			TemplateID: templateID,
 		}
 
-		addedItem, addErr := h.itemService.AddTemplateItem(
-			ctx.Context,
-			characterID,
-			ref,
-			award.StackNum,
-			award.Binded == 1,
-			0,
-		)		
-		if addErr != nil {
-			h.logger.Warn("BuySendCombine: failed to add reward item",
-				zap.Uint32("conn_id", ctx.ConnID),
-				zap.Int64("character_id", characterID),
-				zap.String("activity_id", activityID),
-				zap.Int("template_id", templateID),
-				zap.Error(addErr))
-			h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgInventoryIssue)
+		itemType, resolveErr := h.itemService.ResolveTemplateType(ref)
+		if resolveErr != nil {
+			h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgInvalidData)
 			return currentBuyNum, nil
 		}
-
-		addedItems = append(addedItems, addedItem)
+		commandAwards = append(commandAwards, domainactivity.SendCombineAward{TemplateID: templateID, ItemType: itemType, Count: award.StackNum, IsBound: award.Binded == 1})
 	}
-
-	if err := h.characterRepo.Update(ctx.Context, character); err != nil {
-		return nil, err
+	result, err := h.sendCombineService.Purchase(ctx.Context, domainactivity.SendCombinePurchaseCommand{
+		CharacterID: characterID,
+		ActivityID:  activityID,
+		EventEndMs:  activity.End,
+		Limit:       activity.Limit,
+		Cost:        totalCost,
+		Awards:      commandAwards,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, appactivity.ErrSendCombineLimitReached):
+			h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgLimitReached)
+		case errors.Is(err, pkgerrors.ErrInsufficientFunds):
+			h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgNotEnoughCurrency)
+		case errors.Is(err, pkgerrors.ErrInventoryFull):
+			h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgInventoryIssue)
+		case errors.Is(err, appactivity.ErrSendCombineExpired), errors.Is(err, pkgerrors.ErrInvalidInput):
+			h.sendSendCombineNotice(ctx, "onRedMsg", sendCombineMsgInvalidData)
+		default:
+			return nil, err
+		}
+		return currentBuyNum, nil
 	}
-
-	newBuyNum := h.incrementSendCombineBuyCount(characterID, activityID)
 
 	if ctx.Connection != nil {
-		for _, added := range addedItems {
+		for _, added := range result.Items {
 			h.sendActivityItemRewardCallbacks(ctx, added)
 		}
-		_ = ctx.Connection.SendCallback("onAddMoney", float64(characterID), currencyKey, float64(-totalCost), currencyTotalFloat)
-		_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{currencyKey: currencyTotal})
+		_ = ctx.Connection.SendCallback("onAddMoney", float64(characterID), "gold", float64(-totalCost), float64(result.Gold))
+		_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": result.Gold})
 		rtmputils.CheckBagCapacityWarning(ctx.Context, ctx.Connection, h.itemService, characterID)
 	}
 
@@ -128,14 +129,13 @@ func (h *Handler) BuySendCombine(ctx *rtmp.RPCContext, args []interface{}) (inte
 		zap.Uint32("conn_id", ctx.ConnID),
 		zap.Int64("character_id", characterID),
 		zap.String("activity_id", activityID),
-		zap.Int("buy_num", newBuyNum),
+		zap.Int("buy_num", result.BuyCount),
 		zap.Int64("total_cost", totalCost),
 		zap.String("currency", activity.Currency),
 		zap.Int("award_count", len(selectedAwards)))
 
-	return newBuyNum, nil
+	return result.BuyCount, nil
 }
-
 
 func parseSendCombineActivityID(value interface{}) (string, bool) {
 	switch raw := value.(type) {
@@ -220,78 +220,6 @@ func sendCombineDiscountTotal(awards []sendCombineAward) int64 {
 		total += int64(award.Discount)
 	}
 	return total
-}
-
-func applySendCombineCost(characterState *domainchar.Character, currency string, cost int64) (string, interface{}, float64, error) {
-	if cost <= 0 {
-		return "", nil, 0, pkgerrors.ErrInvalidInput
-	}
-
-	switch strings.ToLower(strings.TrimSpace(currency)) {
-	case "gold":
-		if characterState.Gold < cost {
-			return "", nil, 0, pkgerrors.ErrInsufficientFunds
-		}
-		characterState.Gold -= cost
-		return "gold", characterState.Gold, float64(characterState.Gold), nil
-	case "point":
-		if int64(characterState.Honor) < cost {
-			return "", nil, 0, pkgerrors.ErrInsufficientFunds
-		}
-		characterState.Honor -= int(cost)
-		return "honor", characterState.Honor, float64(characterState.Honor), nil
-	case "integral":
-		if int64(characterState.ShopGold) < cost {
-			return "", nil, 0, pkgerrors.ErrInsufficientFunds
-		}
-		characterState.ShopGold -= int(cost)
-		return "shopGold", characterState.ShopGold, float64(characterState.ShopGold), nil
-	default:
-		return "", nil, 0, pkgerrors.ErrInvalidInput
-	}
-}
-
-func (h *Handler) getSendCombineBuyCounts(characterID int64) map[string]int {
-	h.sendCombineMu.Lock()
-	defer h.sendCombineMu.Unlock()
-
-	current := h.sendCombineBuy[characterID]
-	if len(current) == 0 {
-		return map[string]int{}
-	}
-
-	result := make(map[string]int, len(current))
-	for activityID, buyNum := range current {
-		result[activityID] = buyNum
-	}
-
-	return result
-}
-
-func (h *Handler) getSendCombineBuyCount(characterID int64, activityID string) int {
-	h.sendCombineMu.Lock()
-	defer h.sendCombineMu.Unlock()
-
-	perCharacter := h.sendCombineBuy[characterID]
-	if perCharacter == nil {
-		return 0
-	}
-
-	return perCharacter[activityID]
-}
-
-func (h *Handler) incrementSendCombineBuyCount(characterID int64, activityID string) int {
-	h.sendCombineMu.Lock()
-	defer h.sendCombineMu.Unlock()
-
-	perCharacter := h.sendCombineBuy[characterID]
-	if perCharacter == nil {
-		perCharacter = make(map[string]int)
-		h.sendCombineBuy[characterID] = perCharacter
-	}
-
-	perCharacter[activityID]++
-	return perCharacter[activityID]
 }
 
 func (h *Handler) sendSendCombineNotice(ctx *rtmp.RPCContext, callbackName string, message string) {

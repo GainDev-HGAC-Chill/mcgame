@@ -4,15 +4,32 @@ package lotto
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
+	domainachievement "mcgame-server/internal/domain/achievement"
 	domainfeature "mcgame-server/internal/domain/statfeature"
 
 	"go.uber.org/zap"
 )
 
 type fakeFeatureRepo struct {
-	states map[int64][]*domainfeature.CharacterFeatureState
+	states    map[int64][]*domainfeature.CharacterFeatureState
+	facts     []domainachievement.Fact
+	commitErr error
+}
+
+func (r *fakeFeatureRepo) CommitLottoDraw(ctx context.Context, charID int64, newGold int64, expectedState, newState map[string]interface{}, facts []domainachievement.Fact) error {
+	if r.commitErr != nil {
+		return r.commitErr
+	}
+	for _, state := range r.states[charID] {
+		if state.FeatureKey == domainfeature.FeatureLotto && !reflect.DeepEqual(state.State, expectedState) {
+			return domainfeature.ErrLottoStateConflict
+		}
+	}
+	r.facts = append(r.facts, facts...)
+	return r.UpsertCharacterFeatureState(ctx, &domainfeature.CharacterFeatureState{CharacterID: charID, FeatureKey: domainfeature.FeatureLotto, State: newState})
 }
 
 func newFakeRepo() *fakeFeatureRepo {

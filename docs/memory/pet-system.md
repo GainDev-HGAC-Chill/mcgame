@@ -37,6 +37,8 @@ Reason: pet cold cache can be stale relative to the active session. If cold data
 
 `CachedPetRepository.Save` and `Delete` should also keep cold pet cache in sync when possible so Redis cold data does not lag behind hot session state.
 
+Pet fusion, illusion and skill-book persistence are DB-owned commands. They must run under the shared per-player mutation barrier from write-behind flush through clean cache reconciliation. Hot Pet snapshots carry cache revisions just like character/item snapshots, so a pre-command Pet mutation cannot resume after commit and overwrite the fused/consumed/updated state. Illusion and skill-book reconciliation also advance the consumed item revision.
+
 `initViewPetMngP` must return wrapped pet DTOs from `Pet.ToDTO()` and the top-level payload must be keyed by pet ID, not a positional slice. The Flash `PetManagerPanel.onInitViewPetMngP()` expects `pet.data`, flattens it client-side, then stores the result in `_core.player.petList` and later indexes that structure by `petId` in callbacks like `onUpdatePet` and `onRefreshPetProp`. Returning flattened `petDTOData()` breaks `_local_2.data.tid`, and returning a slice breaks `_core.player.petList[petId]`, so list display may work while pet callbacks silently miss.
 
 Pet slots resolve hover data separately through `gdc(39, petId)`. That path must return the current character's flat `Pet.ToDetailDTO()` as `{type:39,index:petId,data:...}`; an empty TBL_PET compatibility response leaves `TipCre` without skills and attributes. The detail DTO must include root `skill1..skill15`, `attStrength`, `attAgility`, `attStamina`, `attIntelligence`, and `attEnergy`, because `TipCre.setInst()` reads those fields directly. Ownership remains enforced by `pet.Service.GetPetDetail`.

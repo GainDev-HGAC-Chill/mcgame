@@ -1164,6 +1164,11 @@ func (s *Service) AbandonGuildQuests(ctx context.Context, charID int64) ([]int, 
 	if s.questRepo == nil || s.gameDataManager == nil {
 		return nil, nil
 	}
+	if s.loopRepo != nil {
+		if _, err := s.loopRepo.Deactivate(ctx, charID, 2); err != nil {
+			return nil, err
+		}
+	}
 
 	quests, err := s.questRepo.FindActiveByCharacter(ctx, charID)
 	if err != nil {

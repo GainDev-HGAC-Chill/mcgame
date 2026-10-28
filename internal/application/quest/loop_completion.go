@@ -162,6 +162,9 @@ func (s *Service) completeLoopChildQuest(ctx context.Context, charID int64, ques
 	if loopTpl == nil {
 		return nil, nil, pkgerrors.ErrInvalidInput
 	}
+	if state.LoopID == loopGuildLid {
+		return s.completeGuildLoopChildQuest(ctx, qp, state, loopTpl)
+	}
 
 	consumedItems, deletedPetIDs, err := s.consumeCollectObjectiveItems(ctx, qp)
 	if err != nil {

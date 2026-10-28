@@ -54,7 +54,7 @@ type Guild struct {
 
 	Members       []*GuildMember
 	Applications  []*GuildApplication
-	RankSettings  []map[string]interface{}
+	RankSettings  []RankSetting
 	BankPageCount int
 	SkillDevData  map[string]interface{}
 	SkillLevels   map[int]int

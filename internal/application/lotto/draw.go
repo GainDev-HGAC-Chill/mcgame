@@ -18,14 +18,20 @@ package lotto
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"time"
 
+	domainachievement "mcgame-server/internal/domain/achievement"
+	domainpet "mcgame-server/internal/domain/pet"
+	domainfeature "mcgame-server/internal/domain/statfeature"
 	"mcgame-server/internal/gamedata/models"
 
-	"go.uber.org/zap"
+	"github.com/google/uuid"
 )
 
 const (
@@ -103,6 +109,7 @@ func (s *Service) Draw(ctx context.Context, charID int64, drawType, num int) ([]
 	if err != nil {
 		return nil, err
 	}
+	expectedState := state.ToMap()
 	today := lottoToday()
 	if state.FreeWishDay != today {
 		state.FreeWishN = 0
@@ -118,42 +125,82 @@ func (s *Service) Draw(ctx context.Context, charID int64, drawType, num int) ([]
 	if free {
 		cost = 0
 	}
-
-	if cost > 0 {
-		if s.chars == nil {
-			return nil, ErrLottoNoCharRepo
-		}
-		char, cerr := s.chars.FindByID(ctx, charID)
-		if cerr != nil {
-			return nil, cerr
-		}
-		if char == nil {
-			return nil, ErrLottoNoCharRepo
-		}
-		if char.Gold < cost {
-			return nil, ErrLottoInsufficient
-		}
-		char.Gold -= cost
-		if uerr := s.chars.Update(ctx, char); uerr != nil {
-			return nil, uerr
-		}
+	if s.chars == nil {
+		return nil, ErrLottoNoCharRepo
 	}
-
+	char, err := s.chars.FindByID(ctx, charID)
+	if err != nil {
+		return nil, err
+	}
+	if char == nil {
+		return nil, ErrLottoNoCharRepo
+	}
+	if char.Gold < cost {
+		return nil, ErrLottoInsufficient
+	}
+	committer, ok := s.featureRepo.(domainfeature.LottoDrawCommitRepository)
+	if !ok {
+		return nil, fmt.Errorf("lotto: atomic draw repository unavailable")
+	}
+	drawID := uuid.NewString()
+	rolledPlans := make([]*models.PlanTemplate, 0, num)
 	for i := 0; i < num; i++ {
-		*bag = append(*bag, planToEntry(s.rollPlan(pool)))
+		plan := s.rollPlan(pool)
+		rolledPlans = append(rolledPlans, plan)
+		*bag = append(*bag, planToEntry(plan))
 	}
 	if free {
 		state.FreeWishN++
 	}
-	if serr := s.saveState(ctx, charID, state); serr != nil {
-		s.logger.Error("lotto: draw rolled but bag save failed; gold already deducted",
-			zap.Int64("char_id", charID),
-			zap.Int("type", drawType),
-			zap.Int("num", num),
-			zap.Error(serr))
-		return nil, serr
+	facts, err := wishPetFacts(charID, drawID, rolledPlans, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	newGold := char.Gold - cost
+	if err := committer.CommitLottoDraw(ctx, charID, newGold, expectedState, state.ToMap(), facts); err != nil {
+		return nil, err
+	}
+	char.Gold = newGold
+	if synchronizer, ok := s.chars.(interface{ SyncPersistedGold(int64, int64) }); ok {
+		synchronizer.SyncPersistedGold(charID, newGold)
 	}
 	return entriesToList(*bag), nil
+}
+
+func wishPetFacts(charID int64, drawID string, plans []*models.PlanTemplate, occurredAt time.Time) ([]domainachievement.Fact, error) {
+	facts := make([]domainachievement.Fact, 0)
+	for ordinal, plan := range plans {
+		if plan == nil || plan.Ti != 12 {
+			continue
+		}
+		growRate := plan.Q
+		if growRate >= 10 {
+			growRate /= 10
+		}
+		if growRate <= 0 || math.IsNaN(growRate) || math.IsInf(growRate, 0) || plan.ID <= 0 || plan.Ii <= 0 || plan.Ii != math.Trunc(plan.Ii) {
+			return nil, fmt.Errorf("lotto: invalid Wish Pet plan %d", plan.ID)
+		}
+		payload := domainachievement.WishPetDrawnFactPayload{
+			DrawID:             drawID,
+			Ordinal:            ordinal,
+			PlanID:             plan.ID,
+			CreatureTemplateID: int64(plan.Ii),
+			GrowRate:           growRate,
+			ColorTier:          domainpet.ColorByGrowRate(growRate),
+		}
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		facts = append(facts, domainachievement.Fact{
+			FactID:      fmt.Sprintf("wish-pet-drawn:v1:%s:%d", drawID, ordinal),
+			CharacterID: charID,
+			Kind:        domainachievement.FactKindWishPetDrawn,
+			Payload:     raw,
+			OccurredAt:  occurredAt,
+		})
+	}
+	return facts, nil
 }
 
 func (s *Service) rollPlan(pool []*models.PlanTemplate) *models.PlanTemplate {
@@ -198,6 +245,7 @@ func planToEntry(p *models.PlanTemplate) LottoEntry {
 		B:  int(p.B),
 	}
 }
+
 // GetGold returns the latest persisted gold balance.
 func (s *Service) GetGold(ctx context.Context, charID int64) (int64, error) {
 	if s.chars == nil {

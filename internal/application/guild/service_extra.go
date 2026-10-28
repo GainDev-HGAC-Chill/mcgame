@@ -11,12 +11,6 @@ import (
 	"fmt"
 
 	domainguild "mcgame-server/internal/domain/guild"
-	pkgerrors "mcgame-server/pkg/errors"
-)
-
-const (
-	guildRestoreRateNumerator   = 9
-	guildRestoreRateDenominator = 10
 )
 
 func (s *Service) GetGuildForClient(ctx context.Context, guildID int64) (*domainguild.Guild, error) {
@@ -75,54 +69,11 @@ func (s *Service) GetMemberByID(ctx context.Context, memberID int64) (*domaingui
 }
 
 func (s *Service) ApplyToGuild(ctx context.Context, guildID, characterID int64) (*domainguild.GuildApplication, error) {
-	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get guild: %w", err)
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return nil, ErrUnsupportedAction
 	}
-	if g == nil {
-		return nil, ErrGuildNotFound
-	}
-
-	existingGuild, err := s.repo.GetByMemberID(ctx, characterID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing guild: %w", err)
-	}
-	if existingGuild != nil {
-		return nil, ErrAlreadyInGuild
-	}
-
-	existingApplication, err := s.repo.GetApplicationByCharacterID(ctx, characterID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing guild application: %w", err)
-	}
-	if existingApplication != nil {
-		return nil, ErrAlreadyInGuild
-	}
-
-	char, err := s.charSvc.GetByID(ctx, characterID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get character: %w", err)
-	}
-	if char == nil {
-		return nil, ErrGuildNotFound
-	}
-
-	application := &domainguild.GuildApplication{
-		GuildID:        guildID,
-		CharacterID:    characterID,
-		CharacterName:  char.Name,
-		CharacterClass: char.ClassID,
-		CharacterLevel: char.Level,
-		CharacterExp:   char.Experience,
-		Message:        "",
-		Status:         0,
-	}
-
-	if err := s.repo.CreateApplication(ctx, application); err != nil {
-		return nil, fmt.Errorf("failed to create guild application: %w", err)
-	}
-
-	return application, nil
+	return commands.ApplyGuildAtomic(ctx, guildID, characterID)
 }
 
 func (s *Service) GetPendingApplicationByCharacterID(ctx context.Context, characterID int64) (*domainguild.GuildApplication, *domainguild.Guild, error) {
@@ -140,73 +91,29 @@ func (s *Service) GetPendingApplicationByCharacterID(ctx context.Context, charac
 }
 
 func (s *Service) ApproveApplication(ctx context.Context, applicationID, approverID int64) (*domainguild.GuildApplication, *domainguild.GuildMember, error) {
-	application, guildItem, approverMember, err := s.loadApplicationAndAuthority(ctx, applicationID, approverID)
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return nil, nil, ErrUnsupportedAction
+	}
+	result, err := commands.ApproveGuildApplicationAtomic(ctx, applicationID, approverID)
 	if err != nil {
 		return nil, nil, err
 	}
-	if approverMember == nil || !(approverMember.IsLeader() || approverMember.CanInvite) {
-		return nil, nil, ErrNotGuildLeader
-	}
-	if guildItem.Population >= guildItem.MaxPopulation {
-		return nil, nil, ErrGuildFull
-	}
-
-	if err := s.repo.AddMember(ctx, application.GuildID, application.CharacterID, domainguild.RankMember); err != nil {
-		return nil, nil, fmt.Errorf("failed to approve guild application: %w", err)
-	}
-	if err := s.consumeContributionRestore(ctx, application.GuildID, application.CharacterID); err != nil {
-		return nil, nil, err
-	}
-
-	if err := s.repo.DeleteApplication(ctx, applicationID); err != nil {
-		return nil, nil, fmt.Errorf("failed to delete guild application: %w", err)
-	}
-
-	memberGuild, _, err := s.GetGuildByMemberForClient(ctx, application.CharacterID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if memberGuild == nil {
-		return application, nil, nil
-	}
-	for _, member := range memberGuild.Members {
-		if member.CharacterID == application.CharacterID {
-			return application, member, nil
-		}
-	}
-
-	return application, nil, nil
+	return result.Application, result.Member, nil
 }
 
 func (s *Service) RefuseApplication(ctx context.Context, applicationID, approverID int64) (*domainguild.GuildApplication, error) {
-	application, _, approverMember, err := s.loadApplicationAndAuthority(ctx, applicationID, approverID)
-	if err != nil {
-		return nil, err
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return nil, ErrUnsupportedAction
 	}
-	if approverMember == nil || !(approverMember.IsLeader() || approverMember.CanInvite) {
-		return nil, ErrNotGuildLeader
-	}
-
-	if err := s.repo.DeleteApplication(ctx, applicationID); err != nil {
-		return nil, fmt.Errorf("failed to delete guild application: %w", err)
-	}
-
-	return application, nil
+	return commands.RefuseGuildApplicationAtomic(ctx, applicationID, approverID)
 }
 
 func (s *Service) CancelApplication(ctx context.Context, applicationID, characterID int64) (*domainguild.GuildApplication, error) {
-	application, err := s.repo.GetApplicationByID(ctx, applicationID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get guild application: %w", err)
+	commands, ok := s.repo.(LifecycleCommandRepository)
+	if !ok {
+		return nil, ErrUnsupportedAction
 	}
-	if application == nil {
-		return nil, ErrGuildNotFound
-	}
-	if application.CharacterID != characterID {
-		return nil, pkgerrors.ErrUnauthorized
-	}
-	if err := s.repo.DeleteApplication(ctx, applicationID); err != nil {
-		return nil, fmt.Errorf("failed to delete guild application: %w", err)
-	}
-	return application, nil
+	return commands.CancelGuildApplicationAtomic(ctx, applicationID, characterID)
 }

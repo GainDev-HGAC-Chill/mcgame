@@ -175,6 +175,10 @@ func (m *Manager) GetBuilding(id int) *models.BuildingTemplate {
 	return m.cache.GetBuilding(id)
 }
 
+func (m *Manager) GetAllBuildings() []*models.BuildingTemplate {
+	return m.cache.GetAllBuildings()
+}
+
 func (m *Manager) GetExtendPositionsByMapID(mapID int) []*models.ExtendPositionTemplate {
 	return m.cache.GetExtendPositionsByMapID(mapID)
 }

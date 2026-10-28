@@ -18,7 +18,7 @@ func TestCheckedCatalogRegistryAudit(t *testing.T) {
 	}
 	requirements := loadCheckedRequirementPresence(t, "../../docs/database/game_data/TBL_QUEST_REQUIRE.json")
 	report := auditRegistry(quests, npcs, requirements)
-	if report.Total != 227 || report.CountsByType["1"] != 67 || report.CountsByType["2"] != 67 || report.CountsByType["4"] != 93 {
+	if report.Total != 242 || report.CountsByType["1"] != 75 || report.CountsByType["2"] != 67 || report.CountsByType["4"] != 94 || report.CountsByType["10"] != 6 {
 		t.Fatalf("registry counts=%+v", report)
 	}
 	if len(report.MissingCatalog) != 0 || len(report.FingerprintMismatches) != 0 || len(report.MissingOrInvalidFinishNPC) != 0 || len(report.RequirementOverlaps) != 0 || len(report.CurrencyOverlaps) != 0 || len(report.MissingDialogue) != 0 {

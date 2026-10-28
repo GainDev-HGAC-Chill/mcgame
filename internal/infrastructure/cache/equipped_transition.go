@@ -15,6 +15,8 @@ func (c *PlayerCache) UpdateEquippedSlotsConditional(charID int64, transition fu
 	if data == nil {
 		return nil, pkgerrors.ErrCharacterNotFound
 	}
+	data.mutationMu.Lock()
+	defer data.mutationMu.Unlock()
 	data.mu.Lock()
 	defer data.mu.Unlock()
 	if data.Character == nil {
@@ -37,6 +39,8 @@ func (c *PlayerCache) UpdateEquippedSlotsConditional(charID int64, transition fu
 	if len(changes) > 0 {
 		for _, it := range changes {
 			data.Items[it.ID] = cloneItem(it)
+			data.itemRevisions[it.ID] = data.itemRevision(it.ID) + 1
+			data.Items[it.ID].CacheRevision = data.itemRevisions[it.ID]
 			data.dirtyItems[it.ID] = true
 		}
 		data.revision++

@@ -41,47 +41,19 @@ func (s *Service) LoadGuildWarehouse(ctx context.Context, guildID int64) (map[st
 }
 
 func (s *Service) AddWarehouseMaterial(ctx context.Context, guildID int64, templateID int, count int) (*domainguild.GuildWarehouseSlot, error) {
-	slot, err := s.repo.UpsertWarehouseMaterial(ctx, guildID, templateID, count)
-	if err != nil {
-		return nil, fmt.Errorf("failed to upsert guild warehouse material: %w", err)
-	}
-	return slot, nil
+	return nil, ErrUnsupportedAction
 }
 
 func (s *Service) UpdateWarehouseSlot(ctx context.Context, guildID, slotID int64, slotIndex int, stackCount int) error {
-	if err := s.repo.UpdateWarehouseSlot(ctx, guildID, slotID, slotIndex, stackCount); err != nil {
-		return fmt.Errorf("failed to update guild warehouse slot: %w", err)
-	}
-	return nil
+	return ErrUnsupportedAction
 }
 
 func (s *Service) RemoveWarehouseSlot(ctx context.Context, guildID, slotID int64) error {
-	if err := s.repo.DeleteWarehouseSlot(ctx, guildID, slotID); err != nil {
-		return fmt.Errorf("failed to delete guild warehouse slot: %w", err)
-	}
-	return nil
+	return ErrUnsupportedAction
 }
 
 func (s *Service) AddContribution(ctx context.Context, guildID, characterID int64, guildFunds, normalContrib, donateContrib int64) (*domainguild.Guild, error) {
-	g, err := s.repo.GetByID(ctx, guildID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get guild: %w", err)
-	}
-	if g == nil {
-		return nil, ErrGuildNotFound
-	}
-
-	g.Funds += guildFunds
-	if err := s.repo.Update(ctx, g); err != nil {
-		return nil, fmt.Errorf("failed to update guild funds: %w", err)
-	}
-
-	totalContrib := normalContrib + donateContrib
-	if err := s.repo.AddMemberContribution(ctx, guildID, characterID, normalContrib, donateContrib, totalContrib); err != nil {
-		return nil, fmt.Errorf("failed to update guild member contribution: %w", err)
-	}
-
-	return s.GetGuildForClient(ctx, guildID)
+	return nil, ErrUnsupportedAction
 }
 
 func (s *Service) DevelopSkill(ctx context.Context, guildID, actorID int64, skillID int) error {
@@ -93,17 +65,20 @@ func (s *Service) DevelopSkill(ctx context.Context, guildID, actorID int64, skil
 		return ErrGuildNotFound
 	}
 
-	memberGuild, member, err := s.GetGuildByMemberForClient(ctx, actorID)
+	if err := s.AuthorizeLeader(ctx, guildID, actorID); err != nil {
+		return err
+	}
+	learned, err := s.repo.GetGuildSkillIDs(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to list guild skills: %w", err)
+	}
+	development, err := ResolveGuildSkillDevelopment(s.skillCatalog, skillID, learned)
 	if err != nil {
 		return err
 	}
-	if memberGuild == nil || member == nil || memberGuild.ID != guildID {
-		return ErrNotInGuild
+	commands, ok := s.repo.(GuildSkillCommandRepository)
+	if !ok {
+		return ErrUnsupportedAction
 	}
-
-	if err := s.repo.UpsertGuildSkill(ctx, guildID, skillID); err != nil {
-		return fmt.Errorf("failed to save guild skill: %w", err)
-	}
-
-	return nil
+	return commands.DevelopGuildSkillAtomic(ctx, guildID, actorID, development)
 }

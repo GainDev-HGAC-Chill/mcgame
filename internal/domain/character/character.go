@@ -66,19 +66,19 @@ const (
 	CurrencyPetGuardOut = 200
 	CurrencyPetGuardIn  = 201
 
-	CurrencyWisdomCrystal = 213
-	CurrencyCouragePoint  = 214
+	CurrencyWisdomCrystal  = 213
+	CurrencyCouragePoint   = 214
 	CurrencyMysteryCrystal = 215
-	CurrencyDecoSilver    = 216
-	CurrencyRuneExp       = 217
-	CurrencyRebatePoint   = 218
-	CurrencyHeroScore2507 = 219
-	CurrencyYijieElement  = 220
-	CurrencyXmCandy24     = 221
-	CurrencyXcds2403p     = 222
-	CurrencyExPoint       = 223
-	CurrencyGenericPoint  = 224
-	CurrencyThreePvpPoint = 225
+	CurrencyDecoSilver     = 216
+	CurrencyRuneExp        = 217
+	CurrencyRebatePoint    = 218
+	CurrencyHeroScore2507  = 219
+	CurrencyYijieElement   = 220
+	CurrencyXmCandy24      = 221
+	CurrencyXcds2403p      = 222
+	CurrencyExPoint        = 223
+	CurrencyGenericPoint   = 224
+	CurrencyThreePvpPoint  = 225
 
 	CurrencyRealSoulStone   = 226
 	CurrencyRealSoulCrystal = 227
@@ -108,11 +108,12 @@ const (
 const BaseCriticalDamagePercent = 150
 
 type Character struct {
-	ID        int64
-	AccountID uuid.UUID
-	Name      string
-	ClassID   int
-	Gender    int
+	CacheRevision uint64 `json:"-"`
+	ID            int64
+	AccountID     uuid.UUID
+	Name          string
+	ClassID       int
+	Gender        int
 
 	Level      int
 	Experience int64

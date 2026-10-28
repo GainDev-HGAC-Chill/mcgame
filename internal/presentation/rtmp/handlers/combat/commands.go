@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	combatdomain "mcgame-server/internal/domain/combat"
 	"mcgame-server/internal/infrastructure/rtmp"
+	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
 
 	amf0 "github.com/yutopp/go-amf0"
@@ -224,8 +226,17 @@ func (h *Handler) BattleUpdateCmd(ctx *rtmp.RPCContext, args []interface{}) (int
 			}
 		}
 	}
-	if h.questNotify != nil && caughtPetRewardCountForCharacter(battle.GetPendingPetRewards(), characterID) > petRewardCount {
+	petCaptured := caughtPetRewardCountForCharacter(battle.GetPendingPetRewards(), characterID) > petRewardCount
+	if h.questNotify != nil && petCaptured {
 		h.questNotify.PushQuestProgress(ctx, characterID)
+	}
+	if h.achievementService != nil && petCaptured {
+		update, progressErr := h.achievementService.ProcessPendingFacts(ctx.Context, characterID, time.Now().UTC())
+		if progressErr != nil {
+			h.logger.Warn("capture achievement fact processing failed", zap.Int64("character_id", characterID), zap.Error(progressErr))
+		} else {
+			rtmputils.SendAchievementProgressCallbacks(ctx.Connection, update)
+		}
 	}
 	if len(result.PetStateOwners) > 0 && h.combatService != nil {
 		stateChanges, err := h.combatService.SyncBattlePetStates(ctx.Context, battle, result.PetStateOwners)

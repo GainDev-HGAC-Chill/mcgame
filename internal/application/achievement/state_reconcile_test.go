@@ -167,8 +167,8 @@ func TestStateReaderOwnershipMatchesImplementedCoverage(t *testing.T) {
 			t.Fatalf("RegisterStateProofReader(%s) error = %v", reader.Name(), err)
 		}
 	}
-	if len(service.stateOwners) != 472 {
-		t.Fatalf("state reader coverage = %d, want 472", len(service.stateOwners))
+	if len(service.stateOwners) != 475 {
+		t.Fatalf("state reader coverage = %d, want 475", len(service.stateOwners))
 	}
 	for requirementID, owner := range service.stateOwners {
 		definition, ok := service.requirements.Get(requirementID)

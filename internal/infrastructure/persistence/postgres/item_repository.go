@@ -11,6 +11,7 @@ import (
 	"errors"
 	"time"
 
+	domainachievement "mcgame-server/internal/domain/achievement"
 	"mcgame-server/internal/domain/item"
 	pkgerrors "mcgame-server/pkg/errors"
 
@@ -23,6 +24,58 @@ type ItemRepository struct {
 
 func NewItemRepository(db *Database) *ItemRepository {
 	return &ItemRepository{db: db}
+}
+
+func (r *ItemRepository) CommitCharacterRename(ctx context.Context, characterID int64, card *item.Item, newName string, fact domainachievement.Fact) (int, error) {
+	if card == nil || card.ID <= 0 || characterID <= 0 || card.CharacterID != characterID || card.TemplateID != 2126 || card.SlotType != item.SlotTypeBag || newName == "" || fact.CharacterID != characterID {
+		return 0, pkgerrors.ErrInvalidInput
+	}
+	tx, err := r.db.pool.Begin(ctx)
+	if err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to begin character rename")
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var stackCount int
+	if err := tx.QueryRow(ctx, `
+		select stack_count
+		from player.character_items
+		where id = $1
+		  and character_id = $2
+		  and template_id = 2126
+		  and slot_type = $3
+		for update`, card.ID, characterID, item.SlotTypeBag).Scan(&stackCount); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, pkgerrors.ErrItemNotFound
+		}
+		return 0, pkgerrors.Wrap(err, "failed to lock rename card")
+	}
+	if stackCount <= 0 {
+		return 0, pkgerrors.ErrItemNotFound
+	}
+	var renamed bool
+	if err := tx.QueryRow(ctx, "update player.characters set name = $2 where id = $1 returning true", characterID, newName).Scan(&renamed); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, pkgerrors.ErrCharacterNotFound
+		}
+		return 0, pkgerrors.Wrap(err, "failed to rename character")
+	}
+	remaining := stackCount - 1
+	if remaining == 0 {
+		if _, err := tx.Exec(ctx, "delete from player.character_items where id = $1", card.ID); err != nil {
+			return 0, pkgerrors.Wrap(err, "failed to consume rename card")
+		}
+	} else {
+		if _, err := tx.Exec(ctx, "update player.character_items set stack_count = $2, updated_at = now() where id = $1", card.ID, remaining); err != nil {
+			return 0, pkgerrors.Wrap(err, "failed to consume rename card")
+		}
+	}
+	if err := appendAchievementFact(ctx, tx, fact); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, pkgerrors.Wrap(err, "failed to commit character rename")
+	}
+	return remaining, nil
 }
 
 func (r *ItemRepository) FindByID(ctx context.Context, id int64) (*item.Item, error) {

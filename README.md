@@ -61,12 +61,12 @@ make game setup   # one-time: writes docker/.env with fresh secrets
 make game up      # database, migrations (+ seeds on a fresh database), then every service
 ```
 
-On Windows, double-click `MCGAME.bat`; it rebuilds `bin/game.exe` automatically. A clone that should reproduce the operator database can choose **Restore database** and select `mcgame-live.dump`. Restore generates fresh local secrets when needed, creates a safety backup, restores the archive and runs the normal build/start flow.
+On Windows, double-click `MCGAME.bat`; it rebuilds `bin/game.exe` automatically. Start performs a clean Docker build and removes BuildKit cache before and after the build, including after failed builds, so repeated starts do not accumulate old build layers. A clone that should reproduce the operator database can choose **Restore database** and select `mcgame-live.dump`. Restore generates fresh local secrets when needed, creates a safety backup, restores the archive and runs the normal build/start flow.
 
 > [!WARNING]
 > `supabase/backups/mcgame-live.dump` is an operator-approved full live snapshot. It can contain Auth accounts, sessions and player data. Treat every pushed version as public. Online VPS mode exposes game HTTP/RTMPE but does not configure TLS, firewall or a security review.
 
-The first `up` builds the images, so it takes a few minutes. The stack is defined in [`docker/docker-compose.yml`](./docker/docker-compose.yml); see the [docker README](./docker/README.md) for every service, port and setting.
+Each `up` is a clean build, so it can take a few minutes. The stack is defined in [`docker/docker-compose.yml`](./docker/docker-compose.yml); see the [docker README](./docker/README.md) for every service, port and setting.
 
 ### Play the game
 

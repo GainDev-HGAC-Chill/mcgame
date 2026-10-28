@@ -24,6 +24,34 @@ func (s *Service) ContractPet(ctx context.Context, charID int64, templateID int)
 	return pets[0], nil
 }
 
+func (s *Service) ContractCapturedPet(ctx context.Context, charID int64, templateID int) (*domainpet.Pet, error) {
+	if s.gameDataManager == nil {
+		return nil, pkgerrors.ErrSystemError
+	}
+	hasCapacity, err := s.HasPetCapacity(ctx, charID, 1)
+	if err != nil {
+		return nil, err
+	}
+	if !hasCapacity {
+		return nil, pkgerrors.ErrInventoryFull
+	}
+	template := s.gameDataManager.GetCreature(templateID)
+	if template == nil {
+		return nil, pkgerrors.ErrNotFound
+	}
+	repo, ok := s.petRepo.(domainpet.CaptureRepository)
+	if !ok {
+		return nil, pkgerrors.ErrSystemError
+	}
+	newPet := domainpet.NewPetFromCreature(charID, template)
+	ensurePetSkillSlots(newPet)
+	s.seedDefaultPetSkills(newPet)
+	if err := repo.SaveCaptured(ctx, newPet); err != nil {
+		return nil, err
+	}
+	return newPet, nil
+}
+
 func (s *Service) ContractPets(ctx context.Context, charID int64, templateIDs []int) ([]*domainpet.Pet, error) {
 	return s.contractPetsWithGrowRate(ctx, charID, templateIDs, nil)
 }

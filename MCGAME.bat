@@ -32,7 +32,7 @@ if /i "%~1"=="check" (
 :menu
 cls
 echo ================= MCGAME =================
-echo 1. Start server - build and start
+echo 1. Start server - clean build and start
 echo 2. Stop server - backup database first
 echo 3. Reset server - backup, stop, build and start
 echo 4. Open Flash Client - 30 FPS

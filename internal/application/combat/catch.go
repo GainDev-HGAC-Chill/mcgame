@@ -50,7 +50,7 @@ func (h *combatCatchHandler) AttemptCatch(actorID string, creatureEntityID int64
 		SelfCatch: maxCatchDisplayValue(char.Level),
 	}
 
-	if int(creatureTpl.Catchable) != 1 {
+	if !creatureIsCatchable(creatureTpl.Catchable) {
 		return baseResult
 	}
 
@@ -102,7 +102,7 @@ func (h *combatCatchHandler) AttemptCatch(actorID string, creatureEntityID int64
 		return baseResult
 	}
 
-	petEntity, err := h.service.petService.ContractPet(context.Background(), charID, int(creatureEntityID))
+	petEntity, err := h.service.petService.ContractCapturedPet(context.Background(), charID, int(creatureEntityID))
 	if err != nil {
 		if h.service.logger != nil {
 			h.service.logger.Warn("Catch pet contract failed",
@@ -116,6 +116,10 @@ func (h *combatCatchHandler) AttemptCatch(actorID string, creatureEntityID int64
 	baseResult.Success = true
 	baseResult.PetID = petEntity.ID
 	return baseResult
+}
+
+func creatureIsCatchable(value float64) bool {
+	return value > 0
 }
 
 func calculateCatchRate(characterLevel int, creatureLevel int, currentHP int, maxHP int) int {

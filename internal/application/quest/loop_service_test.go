@@ -11,6 +11,7 @@ import (
 
 	appitem "mcgame-server/internal/application/item"
 	domainchar "mcgame-server/internal/domain/character"
+	domainitem "mcgame-server/internal/domain/item"
 	domainquest "mcgame-server/internal/domain/quest"
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/gamedata/models"
@@ -65,6 +66,30 @@ func (r *fakeLoopRepo) Deactivate(ctx context.Context, characterID int64, loopID
 type fakeGuildMembership struct {
 	inGuild bool
 	err     error
+}
+
+type fakeGuildLoopCommandRepo struct {
+	*fakeLoopRepo
+	command domainquest.GuildLoopCompletionCommand
+}
+
+func (r *fakeGuildLoopCommandRepo) CompleteGuildLoopAtomic(ctx context.Context, command domainquest.GuildLoopCompletionCommand) (*domainquest.GuildLoopCompletionResult, error) {
+	r.command = command
+	result := &domainquest.GuildLoopCompletionResult{
+		GuildID: 1, Money: command.Money, MoneyBind: command.MoneyBind,
+		GuildContrib: command.Contribution, MemberNormal: command.Contribution,
+		GuildExperience: command.GuildExp, Ft: command.ExpectedFt + 1,
+		Active: command.NextQuest != nil, ConsumedPetIDs: append([]int64(nil), command.PetIDs...),
+	}
+	for _, consumed := range command.Items {
+		result.ItemStates = append(result.ItemStates, domainquest.GuildLoopItemState{ItemID: consumed.ItemID, Remaining: 1})
+	}
+	if command.NextQuest != nil {
+		next := *command.NextQuest
+		next.ID = 999
+		result.NextQuest = &next
+	}
+	return result, nil
 }
 
 func (g fakeGuildMembership) IsInGuild(ctx context.Context, characterID int64) (bool, error) {
@@ -178,7 +203,7 @@ func TestCanTakeLoop_Gates(t *testing.T) {
 		}
 	})
 
-	t.Run("guild_lid_requires_membership", func(t *testing.T) {
+	t.Run("guild_lid_requires_membership_and_reward_authority", func(t *testing.T) {
 		charRepo := &questTestCharacterRepo{char: &domainchar.Character{ID: 1, Level: 30}}
 		svc := NewService(newQuestTestQuestRepo(), logger)
 		svc.SetGameDataManager(manager)
@@ -191,8 +216,8 @@ func TestCanTakeLoop_Gates(t *testing.T) {
 		}
 
 		svc.SetGuildMembership(fakeGuildMembership{inGuild: true})
-		if ok, reason := svc.CanTakeLoop(context.Background(), 1, loopGuildLid); !ok {
-			t.Fatalf("expected guild gate to accept member, got false reason=%q", reason)
+		if ok, reason := svc.CanTakeLoop(context.Background(), 1, loopGuildLid); ok || reason != errGuildLoopRewardsUnavailable.Error() {
+			t.Fatalf("expected guild loop to fail closed without reward authority, got ok=%v reason=%q", ok, reason)
 		}
 	})
 
@@ -424,6 +449,124 @@ func TestCompleteQuest_LoopChild_DeactivatesOnFinalRound(t *testing.T) {
 	}
 	if state.TakeDateMs != 12345 {
 		t.Fatalf("expected take_date_ms to stay anchored at the original take time, got %d", state.TakeDateMs)
+	}
+}
+
+func TestCompleteQuest_GuildLoopFailsBeforeProgressOrRoundMutation(t *testing.T) {
+	logger := zap.NewNop()
+	loopTpl := models.QuestLoopTemplate{ID: loopGuildLid, Nid: 1069, Num: 15, Refresh: 600}
+	children := []models.QuestTemplate{{ID: 30001, Type: 7, SubType: "7-2", FinishNPC: 1069}}
+	manager := newLoopTestManager(t, []models.QuestLoopTemplate{loopTpl}, children)
+	questRepo := newQuestTestQuestRepo()
+	progress := domainquest.NewQuestProgress(1, 30001, loadTestCompletedKill(t, manager, 30001))
+	if err := questRepo.Save(context.Background(), progress); err != nil {
+		t.Fatalf("save progress: %v", err)
+	}
+	loopRepo := newFakeLoopRepo()
+	loopRepo.states[1] = map[int]*domainquest.LoopState{
+		loopGuildLid: {CharacterID: 1, LoopID: loopGuildLid, Active: true, TakeDateMs: 12345, Ft: 4, ActiveQuestID: 30001},
+	}
+	svc := NewService(questRepo, logger)
+	svc.SetGameDataManager(manager)
+	svc.SetLoopRepository(loopRepo)
+
+	if _, _, err := svc.CompleteQuest(context.Background(), 1, 30001); !errors.Is(err, errGuildLoopRewardsUnavailable) {
+		t.Fatalf("CompleteQuest error = %v, want %v", err, errGuildLoopRewardsUnavailable)
+	}
+	if _, err := questRepo.FindByCharacterAndQuest(context.Background(), 1, 30001); err != nil {
+		t.Fatalf("guild loop progress changed on blocked completion: %v", err)
+	}
+	state := loopRepo.states[1][loopGuildLid]
+	if !state.Active || state.Ft != 4 || state.ActiveQuestID != 30001 {
+		t.Fatalf("guild loop state changed on blocked completion: %+v", state)
+	}
+	if len(questRepo.histories) != 0 {
+		t.Fatalf("guild loop wrote history on blocked completion: %d", len(questRepo.histories))
+	}
+}
+
+func TestCompleteQuest_GuildLoopUsesAtomicNEOCommand(t *testing.T) {
+	logger := zap.NewNop()
+	loopTpl := models.QuestLoopTemplate{ID: loopGuildLid, Nid: 1069, Num: 15, Refresh: 600}
+	children := []models.QuestTemplate{
+		{ID: 39001, Type: 7, SubType: "7-2", FinishNPC: 1069},
+		{ID: 39002, Type: 7, SubType: "7-2", FinishNPC: 1069},
+	}
+	manager := newLoopTestManager(t, []models.QuestLoopTemplate{loopTpl}, children)
+	requires := []json.RawMessage{mustQuestJSON(t, models.QuestRequireTemplate{ID: 1, ItemID: 500, Kind: domainquest.RequireKindItem, Num: 2, Qid: 39001, Type: domainquest.TableIDItemTemplate})}
+	if err := manager.GetCache().LoadTable(models.TableQuestRequire, requires); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{mustQuestJSON(t, models.ItemTemplateTemplate{ID: 500, Name: "Guild material", StackMax: 99})}); err != nil {
+		t.Fatal(err)
+	}
+	questRepo := newQuestTestQuestRepo()
+	objective := domainquest.Objective{Type: domainquest.ObjectiveCollectItem, Target: 500, Current: 2, Required: 2, ItemTableType: domainquest.TableIDItemTemplate}
+	progress := domainquest.NewQuestProgress(1, 39001, []domainquest.Objective{objective})
+	if err := questRepo.Save(context.Background(), progress); err != nil {
+		t.Fatal(err)
+	}
+	itemRepo := newQuestTestItemRepo()
+	item := domainitem.NewItem(1, 500, domainitem.ItemTypeQuest, domainitem.SlotTypeQuestBag, 0)
+	item.StackCount = 3
+	if err := itemRepo.Create(context.Background(), item); err != nil {
+		t.Fatal(err)
+	}
+	itemService := appitem.NewService(itemRepo, logger)
+	itemService.SetGameDataManager(manager)
+	loopRepo := &fakeGuildLoopCommandRepo{fakeLoopRepo: newFakeLoopRepo()}
+	loopRepo.states[1] = map[int]*domainquest.LoopState{
+		loopGuildLid: {CharacterID: 1, LoopID: loopGuildLid, Active: true, Ft: 0, ActiveQuestID: 39001},
+	}
+	svc := NewService(questRepo, logger)
+	svc.SetGameDataManager(manager)
+	svc.SetCharacterRepository(&questTestCharacterRepo{char: &domainchar.Character{ID: 1, Level: 90}})
+	svc.SetItemService(itemService)
+	svc.SetLoopRepository(loopRepo)
+	loaded, loadErr := questRepo.FindByCharacterAndQuest(context.Background(), 1, 39001)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if syncErr := svc.syncCollectObjectives(context.Background(), loaded); syncErr != nil {
+		t.Fatal(syncErr)
+	}
+	if !loaded.CanComplete() {
+		t.Fatalf("test objective not complete after sync: status=%d blocked=%v expired=%v objectives=%+v", loaded.Status, loaded.CompletionBlocked, loaded.IsExpired(), loaded.Objectives)
+	}
+
+	_, rewards, err := svc.CompleteQuest(context.Background(), 1, 39001)
+	if err != nil {
+		t.Fatalf("CompleteQuest: %v", err)
+	}
+	command := loopRepo.command
+	if command.Money != 233280 || command.MoneyBind != 233280 || command.Contribution != 1304 || command.GuildExp != 2608 {
+		t.Fatalf("unexpected NEO reward command: %+v", command)
+	}
+	if len(command.Items) != 1 || command.Items[0].ItemID != item.ID || command.Items[0].Count != 2 {
+		t.Fatalf("unexpected item consumption: %+v", command.Items)
+	}
+	if command.PetIDs == nil || len(command.PetIDs) != 0 {
+		t.Fatalf("expected canonical empty pet consumption, got %#v", command.PetIDs)
+	}
+	if command.NextQuest == nil || command.NextQuest.QuestID != 39002 {
+		t.Fatalf("unexpected next quest: %+v", command.NextQuest)
+	}
+	if next, ok := rewards["loopNextQuest"].(*domainquest.QuestProgress); !ok || next == nil || next.ID != 999 {
+		t.Fatalf("unexpected committed next quest reward: %#v", rewards["loopNextQuest"])
+	}
+	if itemRepo.items[item.ID].StackCount != 3 {
+		t.Fatalf("planning mutated item repository before atomic command: %d", itemRepo.items[item.ID].StackCount)
+	}
+}
+
+func TestPlanGuildLoopConsumptionUsesCanonicalEmptyCollections(t *testing.T) {
+	svc := NewService(newQuestTestQuestRepo(), zap.NewNop())
+	plan, err := svc.planGuildLoopConsumption(context.Background(), domainquest.NewQuestProgress(1, 39001, nil))
+	if err != nil {
+		t.Fatalf("planGuildLoopConsumption: %v", err)
+	}
+	if plan.items == nil || plan.itemPlans == nil || plan.petIDs == nil {
+		t.Fatalf("expected non-nil empty collections, got items=%#v itemPlans=%#v petIDs=%#v", plan.items, plan.itemPlans, plan.petIDs)
 	}
 }
 

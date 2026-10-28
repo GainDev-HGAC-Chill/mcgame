@@ -5,6 +5,7 @@ package guild
 import (
 	"strings"
 
+	domainguild "mcgame-server/internal/domain/guild"
 	"mcgame-server/internal/infrastructure/rtmp"
 	pkgerrors "mcgame-server/pkg/errors"
 )
@@ -13,6 +14,9 @@ const (
 	guildBuildPanelName    = "Công trình bang hội"
 	guildBuildPanelContent = "Mọi người hãy đến xây dựng"
 	guildWarehousePanelID  = 5
+	guildBuildingType      = 1
+	guildExtendBuildType   = 3
+	guildExtendTemplateID  = 1
 )
 
 func (h *Handler) ClickBuild(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -20,7 +24,8 @@ func (h *Handler) ClickBuild(ctx *rtmp.RPCContext, args []interface{}) (interfac
 	if len(args) < 2 {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
-	if _, err := currentCharacterID(ctx); err != nil {
+	characterID, err := currentCharacterID(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -33,12 +38,55 @@ func (h *Handler) ClickBuild(ctx *rtmp.RPCContext, args []interface{}) (interfac
 		return nil, err
 	}
 
-	ctx.Connection.SetLastGuildBuildContext(buildID, buildType)
-	options := h.buildFuncOptions(buildID, buildType, false)
+	if h.guildService == nil {
+		return nil, pkgerrors.ErrSystemError
+	}
+	guildItem, _, err := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
+	if err != nil {
+		return nil, guildError(err)
+	}
+	if guildItem == nil {
+		return nil, pkgerrors.ErrNotFound
+	}
+	buildings, err := h.guildService.ListGuildBuildings(ctx.Context, guildItem.ID)
+	if err != nil {
+		return nil, guildError(err)
+	}
+	callback, templateID, err := resolveGuildBuildClick(int64(buildID), buildType, buildings)
+	if err != nil {
+		return nil, err
+	}
+	ctx.Connection.SetLastGuildBuildContext(buildID, templateID)
+	if callback != "" {
+		if err := ctx.Connection.SendCallbackSync(callback, buildID); err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{"id": buildID}, nil
+	}
+	options := h.buildFuncOptions(buildID, templateID, false)
 	if err := ctx.Connection.SendCallbackSync("onList", buildID, guildBuildPanelName, guildBuildPanelContent, options); err != nil {
 		return nil, err
 	}
 	return options, nil
+}
+
+func resolveGuildBuildClick(buildID int64, buildType int, buildings []*domainguild.BuildingState) (string, int, error) {
+	for _, building := range buildings {
+		if building == nil || building.ID != buildID {
+			continue
+		}
+		if buildType != guildBuildingType {
+			return "", 0, pkgerrors.ErrInvalidInput
+		}
+		if building.Pending() {
+			return "onShowBuildProgress", building.PendingTemplateID, nil
+		}
+		return "", building.TemplateID, nil
+	}
+	if buildType == guildExtendBuildType {
+		return "", guildExtendTemplateID, nil
+	}
+	return "", 0, pkgerrors.ErrNotFound
 }
 
 func (h *Handler) ExecBuildFunc(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
@@ -46,7 +94,8 @@ func (h *Handler) ExecBuildFunc(ctx *rtmp.RPCContext, args []interface{}) (inter
 	if len(args) < 1 {
 		return nil, pkgerrors.ErrInvalidArgs
 	}
-	if _, err := currentCharacterID(ctx); err != nil {
+	characterID, err := currentCharacterID(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -93,6 +142,9 @@ func (h *Handler) ExecBuildFunc(ctx *rtmp.RPCContext, args []interface{}) (inter
 		if buildID == 0 {
 			return nil, pkgerrors.ErrInvalidInput
 		}
+		if err := h.requireCompletedBuildingFunction(ctx, characterID, funcName); err != nil {
+			return nil, err
+		}
 		if err := ctx.Connection.SendCallback("onShowGuildWarehouse", guildWarehousePanelID); err != nil {
 			return nil, err
 		}
@@ -101,11 +153,17 @@ func (h *Handler) ExecBuildFunc(ctx *rtmp.RPCContext, args []interface{}) (inter
 		if buildID == 0 {
 			return nil, pkgerrors.ErrInvalidInput
 		}
+		if err := h.requireCompletedBuildingFunction(ctx, characterID, funcName); err != nil {
+			return nil, err
+		}
 		if err := ctx.Connection.SendCallback("onShowDonatePanel", guildWarehousePanelID); err != nil {
 			return nil, err
 		}
 		return nil, nil
 	case "showGuildSkillPanel":
+		if err := h.requireCompletedBuildingFunction(ctx, characterID, funcName); err != nil {
+			return nil, err
+		}
 		payload, err := h.GetGuildPrivateSkillData(ctx, nil)
 		if err != nil {
 			return nil, err
@@ -119,12 +177,37 @@ func (h *Handler) ExecBuildFunc(ctx *rtmp.RPCContext, args []interface{}) (inter
 	}
 }
 
-func (h *Handler) buildFuncOptions(buildID int, buildType int, npcScript bool) []map[string]interface{} {
+func (h *Handler) requireCompletedBuildingFunction(ctx *rtmp.RPCContext, characterID int64, functionName string) error {
+	if h.guildService == nil {
+		return pkgerrors.ErrSystemError
+	}
+	guildItem, _, err := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
+	if err != nil {
+		return guildError(err)
+	}
+	if guildItem == nil {
+		return pkgerrors.ErrNotFound
+	}
+	return h.requireGuildBuildingFunction(ctx, guildItem.ID, functionName)
+}
+
+func (h *Handler) requireGuildBuildingFunction(ctx *rtmp.RPCContext, guildID int64, functionName string) error {
+	available, err := h.guildService.BuildingFunctionAvailable(ctx.Context, guildID, functionName)
+	if err != nil {
+		return guildError(err)
+	}
+	if !available {
+		return pkgerrors.ErrNotFound
+	}
+	return nil
+}
+
+func (h *Handler) buildFuncOptions(buildID int, templateID int, npcScript bool) []map[string]interface{} {
 	options := make([]map[string]interface{}, 0, 4)
 	if h.gameData == nil {
 		return options
 	}
-	template := h.gameData.GetBuilding(buildType)
+	template := h.gameData.GetBuilding(templateID)
 	if template == nil {
 		return options
 	}

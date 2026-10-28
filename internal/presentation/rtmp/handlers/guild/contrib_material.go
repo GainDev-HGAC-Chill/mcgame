@@ -6,7 +6,7 @@ import (
 	"math"
 	"strconv"
 
-	domainguild "mcgame-server/internal/domain/guild"
+	appguild "mcgame-server/internal/application/guild"
 	domainitem "mcgame-server/internal/domain/item"
 	"mcgame-server/internal/gamedata/models"
 	"mcgame-server/internal/infrastructure/rtmp"
@@ -67,9 +67,13 @@ func (h *Handler) ContribMaterial(ctx *rtmp.RPCContext, args []interface{}) (int
 	if template == nil {
 		return nil, pkgerrors.ErrNotFound
 	}
-	materialTemplateID, guildMaterialCount, personalContrib, err := guildMaterialContribution(template, countValue)
+	materialTemplateID, guildMaterialCount, personalContrib, err := guildMaterialContribution(template, itemData.ColorCode, countValue)
 	if err != nil {
 		return nil, err
+	}
+	warehouseTemplate := h.itemService.GetItemTemplate(materialTemplateID)
+	if warehouseTemplate == nil || warehouseTemplate.StackMax <= 0 || warehouseTemplate.StackMax > math.MaxInt32 || math.Trunc(warehouseTemplate.StackMax) != warehouseTemplate.StackMax {
+		return nil, pkgerrors.ErrInvalidInput
 	}
 
 	guildItem, _, err := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
@@ -79,42 +83,26 @@ func (h *Handler) ContribMaterial(ctx *rtmp.RPCContext, args []interface{}) (int
 	if guildItem == nil {
 		return nil, pkgerrors.ErrNotFound
 	}
-	char, err := h.charService.GetByID(ctx.Context, characterID)
-	if err != nil {
+	if err := h.requireGuildBuildingFunction(ctx, guildItem.ID, "showDonatePanel"); err != nil {
 		return nil, err
 	}
-	if char == nil {
-		return nil, pkgerrors.ErrCharacterNotFound
-	}
-
-	updatedItem, deleted, err := h.itemService.ConsumeItemStackByID(ctx.Context, characterID, slotID, countValue)
-	if err != nil {
-		return nil, err
-	}
-
-	warehouseSlot, err := h.guildService.AddWarehouseMaterial(ctx.Context, guildItem.ID, materialTemplateID, guildMaterialCount)
-	if err != nil {
-		return nil, guildError(err)
-	}
-
-	updatedGuild, err := h.guildService.AddContribution(ctx.Context, guildItem.ID, characterID, 0, 0, int64(personalContrib))
-	if err != nil {
-		return nil, guildError(err)
-	}
-
-	if deleted {
-		_ = ctx.Connection.SendCallback("onDelCharactorSlot", float64(updatedItem.ID), updatedItem.CalculateSID())
-	} else {
-		_ = ctx.Connection.SendCallback("onAddCharactorSlot", updatedItem.ToDTO())
-	}
-
-	_ = ctx.Connection.SendCallback("onUpdatePerNumProp", map[string]interface{}{
-		"name": char.Name,
-		"type": contribTypeDonate,
-		"cid":  characterID,
-		"num":  personalContrib,
+	committed, err := h.guildService.ContributeMaterialAtomic(ctx.Context, appguild.ContributeMaterialCommand{
+		GuildID: guildItem.ID, CharacterID: characterID, ItemID: slotID, ItemTemplateID: itemData.TemplateID,
+		ItemCount: countValue, WarehouseTemplateID: materialTemplateID, WarehouseCount: guildMaterialCount,
+		WarehouseMaxStack: int(warehouseTemplate.StackMax), WarehousePageCount: guildItem.BankPageCount, DonateGain: int64(personalContrib),
 	})
-	h.broadcastGuild(updatedGuild, "onAddGuildSlot", warehouseSlot.ToDTO())
+	if err != nil {
+		return nil, guildError(err)
+	}
+
+	itemData.StackCount = committed.ItemRemaining
+	if committed.ItemRemaining <= 0 {
+		_ = ctx.Connection.SendCallback("onDelCharactorSlot", float64(itemData.ID), itemData.CalculateSID())
+	} else {
+		_ = ctx.Connection.SendCallback("onAddCharactorSlot", itemData.ToDTO())
+	}
+
+	h.sendContributionState(characterID, "")
 
 	return 1, nil
 }
@@ -144,23 +132,18 @@ func (h *Handler) DropGuildItem(ctx *rtmp.RPCContext, args []interface{}) (inter
 	if guildItem == nil || selfMember == nil {
 		return nil, pkgerrors.ErrNotFound
 	}
-	if selfMember.Rank != domainguild.RankLeader {
-		_ = ctx.Connection.SendCallback("a", "Chỉ bang chủ mới có thể xóa nguyên liệu bang hội.")
-		return nil, nil
+	if err := h.requireGuildBuildingFunction(ctx, guildItem.ID, "showGuildWarehouse"); err != nil {
+		return nil, err
 	}
-
-	slotData, ok := guildWarehouseSlotDTO(guildItem.Warehouse, slotID)
-	if !ok {
-		return nil, pkgerrors.ErrNotFound
-	}
-	if err := h.guildService.RemoveWarehouseSlot(ctx.Context, guildItem.ID, slotID); err != nil {
+	committed, err := h.guildService.DropGuildWarehouseAtomic(ctx.Context, appguild.WarehouseDropCommand{GuildID: guildItem.ID, ActorID: characterID, SlotID: slotID})
+	if err != nil {
 		return nil, guildError(err)
 	}
 
 	h.broadcastGuild(guildItem, "onDelGuildSlot", float64(slotID))
 	h.broadcastGuild(guildItem, "onDelGuildItem", map[string]interface{}{
-		"tid": slotData.TemplateID,
-		"num": slotData.StackCount,
+		"tid": committed.TemplateID,
+		"num": committed.StackCount,
 	})
 
 	return map[string]interface{}{"ok": true}, nil
@@ -184,87 +167,68 @@ func (h *Handler) MoveGuildItem(ctx *rtmp.RPCContext, args []interface{}) (inter
 	if err != nil {
 		return nil, err
 	}
-	if sourceSID == targetSID {
-		return map[string]interface{}{"ok": true}, nil
-	}
-
-	guildItem, _, err := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
+	guildItem, selfMember, err := h.guildService.GetGuildByMemberForClient(ctx.Context, characterID)
 	if err != nil {
 		return nil, guildError(err)
 	}
-	if guildItem == nil {
+	if guildItem == nil || selfMember == nil {
 		return nil, pkgerrors.ErrNotFound
 	}
-
+	if err := h.requireGuildBuildingFunction(ctx, guildItem.ID, "showGuildWarehouse"); err != nil {
+		return nil, err
+	}
 	sourceSlot, ok := guildWarehouseSlotBySID(guildItem.Warehouse, sourceSID)
 	if !ok {
 		return nil, pkgerrors.ErrNotFound
 	}
-	targetSlot, hasTarget := guildWarehouseSlotBySID(guildItem.Warehouse, targetSID)
-
-	targetIndex := guildWarehouseSlotIndexFromSID(targetSID)
-	if targetIndex < 0 {
+	if h.itemService == nil {
+		return nil, pkgerrors.ErrSystemError
+	}
+	template := h.itemService.GetItemTemplate(sourceSlot.TemplateID)
+	if template == nil || template.StackMax <= 0 {
 		return nil, pkgerrors.ErrInvalidInput
 	}
-
-	if !hasTarget {
-		if err := h.guildService.UpdateWarehouseSlot(ctx.Context, guildItem.ID, sourceSlot.ID, targetIndex, sourceSlot.StackCount); err != nil {
-			return nil, guildError(err)
-		}
+	targetIndex := guildWarehouseSlotIndexFromSID(targetSID)
+	result, err := h.guildService.MoveGuildWarehouseAtomic(ctx.Context, appguild.WarehouseMoveCommand{
+		GuildID: guildItem.ID, ActorID: characterID, SourceID: sourceSlot.ID,
+		SourceIndex: guildWarehouseSlotIndexFromSID(sourceSID), TargetIndex: targetIndex,
+		TemplateID: sourceSlot.TemplateID, MaxStack: int(template.StackMax), PageCount: guildItem.BankPageCount,
+	})
+	if err != nil {
+		return nil, guildError(err)
+	}
+	switch result.Mode {
+	case "move":
 		h.broadcastGuild(guildItem, "onMoveGuildItem", map[string]interface{}{
 			"sSid": sourceSID,
 			"tSid": targetSID,
-			"sId":  sourceSlot.ID,
+			"sId":  result.SourceID,
 		})
-		return map[string]interface{}{"ok": true}, nil
-	}
-
-	if sourceSlot.TemplateID != targetSlot.TemplateID {
-		_ = ctx.Connection.SendCallback("a", "Chỉ có thể chồng vật phẩm cùng loại trong kho bang hội.")
-		return nil, nil
-	}
-
-	maxStack := guildWarehouseStackMax(h.itemService.GetItemTemplate(sourceSlot.TemplateID))
-	merged := sourceSlot.StackCount + targetSlot.StackCount
-	if merged <= maxStack {
-		if err := h.guildService.UpdateWarehouseSlot(ctx.Context, guildItem.ID, targetSlot.ID, guildWarehouseSlotIndexFromSID(targetSID), merged); err != nil {
-			return nil, guildError(err)
-		}
-		if err := h.guildService.RemoveWarehouseSlot(ctx.Context, guildItem.ID, sourceSlot.ID); err != nil {
-			return nil, guildError(err)
-		}
+	case "merge":
 		h.broadcastGuild(guildItem, "onStackGuildItemInto", map[string]interface{}{
 			"sSid":      sourceSID,
 			"tSid":      targetSID,
-			"sId":       sourceSlot.ID,
-			"tId":       targetSlot.ID,
-			"tStackNum": merged,
+			"sId":       result.SourceID,
+			"tId":       result.TargetID,
+			"tStackNum": result.TargetCount,
 		})
-		return map[string]interface{}{"ok": true}, nil
+	case "partial":
+		h.broadcastGuild(guildItem, "onStackGuildItem", map[string]interface{}{
+			"sSid":      sourceSID,
+			"tSid":      targetSID,
+			"sId":       result.SourceID,
+			"tId":       result.TargetID,
+			"tStackNum": result.TargetCount,
+			"sStackNum": result.SourceCount,
+		})
+	default:
+		return nil, pkgerrors.ErrSystemError
 	}
-
-	targetCount := maxStack
-	sourceCount := merged - maxStack
-	if err := h.guildService.UpdateWarehouseSlot(ctx.Context, guildItem.ID, targetSlot.ID, guildWarehouseSlotIndexFromSID(targetSID), targetCount); err != nil {
-		return nil, guildError(err)
-	}
-	if err := h.guildService.UpdateWarehouseSlot(ctx.Context, guildItem.ID, sourceSlot.ID, guildWarehouseSlotIndexFromSID(sourceSID), sourceCount); err != nil {
-		return nil, guildError(err)
-	}
-	h.broadcastGuild(guildItem, "onStackGuildItem", map[string]interface{}{
-		"sSid":      sourceSID,
-		"tSid":      targetSID,
-		"sId":       sourceSlot.ID,
-		"tId":       targetSlot.ID,
-		"tStackNum": targetCount,
-		"sStackNum": sourceCount,
-	})
 	return map[string]interface{}{"ok": true}, nil
 }
 
-func guildMaterialContribution(template *models.ItemTemplateTemplate, count int) (int, int, int, error) {
+func guildMaterialContribution(template *models.ItemTemplateTemplate, color int, count int) (int, int, int, error) {
 	templateID := int(template.ID)
-	color := int(template.Color)
 	if templateID != guildMaterialSpecialTemplate {
 		if int(template.Kind) != itemKindMaterial || color < 2 {
 			return 0, 0, 0, pkgerrors.ErrInvalidInput

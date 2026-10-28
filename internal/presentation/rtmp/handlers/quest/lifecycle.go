@@ -353,6 +353,12 @@ func (h *Handler) FinishQuest(ctx *rtmp.RPCContext, args []interface{}) (interfa
 				_ = ctx.Connection.SendCallback("onDelPet", petID)
 			}
 		}
+		if contribution, ok := rewards["guildContribution"].(int64); ok && contribution > 0 && char != nil {
+			_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"guildContrib": char.GuildContrib})
+		}
+		if diary, ok := rewards["diary"].(map[string]interface{}); ok {
+			_ = ctx.Connection.SendCallback("updateDiaryData", diary)
+		}
 
 		if loopInfo, ok := rewards["loop"].(map[string]interface{}); ok {
 			if err := ctx.Connection.SendCallback("onFinishLoopQuest", loopInfo); err != nil {

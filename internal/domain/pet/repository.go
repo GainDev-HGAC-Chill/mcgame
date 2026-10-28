@@ -20,6 +20,10 @@ type Repository interface {
 	ClearFollowing(ctx context.Context, characterID int64) error
 }
 
+type CaptureRepository interface {
+	SaveCaptured(ctx context.Context, pet *Pet) error
+}
+
 type FusionRepository interface {
 	ApplyFusion(ctx context.Context, mainPet *Pet, consumedPetIDs []int64) error
 }

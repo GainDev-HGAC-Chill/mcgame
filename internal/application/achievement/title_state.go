@@ -30,7 +30,6 @@ type exactTitleRequirement struct {
 }
 
 var exactTitleRequirements = []exactTitleRequirement{
-	{requirementID: 84, titleID: 256, buffID: 2692, titleName: "Đại Sư Bắt Pet", buffName: "Đại Sư Bắt Pet", level: 1},
 	{requirementID: 128, titleID: 125, buffID: 2034, titleName: "Điểm Danh Đầy Đủ", buffName: "Điểm Danh Đầy Đủ", level: 1},
 	{requirementID: 163, titleID: 128, buffID: 2037, titleName: "Bậc Thầy Dùng Gai", buffName: "Bậc Thầy Dùng Gai", level: 1},
 	{requirementID: 170, titleID: 19, buffID: 665, titleName: "Bất Khuất Chi Hồn", buffName: "Dũng Sĩ Chi Hồn - Bất Khuất", level: 1},

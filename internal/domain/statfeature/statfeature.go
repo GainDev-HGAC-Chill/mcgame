@@ -6,10 +6,13 @@ package statfeature
 import (
 	"context"
 	"errors"
+
+	domainachievement "mcgame-server/internal/domain/achievement"
 )
 
 var ErrPPVEMaxFloor = errors.New("ppve: already at max floor")
 var ErrPPVENoFreeChallenges = errors.New("ppve: no free challenges remaining")
+var ErrLottoStateConflict = errors.New("lotto: feature state changed")
 
 const (
 	FeatureAwakening       = "awakening"
@@ -108,4 +111,8 @@ type Repository interface {
 
 type BloodBagPurchaseRepository interface {
 	CommitBloodBagPurchase(ctx context.Context, charID int64, newGold int64, state map[string]interface{}) error
+}
+
+type LottoDrawCommitRepository interface {
+	CommitLottoDraw(ctx context.Context, charID int64, newGold int64, expectedState, newState map[string]interface{}, facts []domainachievement.Fact) error
 }

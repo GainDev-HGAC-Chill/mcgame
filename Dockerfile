@@ -11,8 +11,10 @@ COPY go.mod go.sum ./
 COPY pkg/ ./pkg/
 RUN go mod download
 
-# Copy source code
-COPY . .
+# Copy only the Go source required by the game server
+COPY api/ ./api/
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
 
 # Build optimized static binary
 # -s: omit symbol table, -w: omit DWARF debug info

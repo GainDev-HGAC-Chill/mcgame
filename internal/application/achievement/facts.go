@@ -10,6 +10,9 @@ import (
 	"time"
 
 	domainachievement "mcgame-server/internal/domain/achievement"
+	domainpet "mcgame-server/internal/domain/pet"
+
+	"github.com/google/uuid"
 )
 
 const maxAchievementFactBatch = 100
@@ -79,6 +82,49 @@ func (s *Service) evaluateAchievementFact(fact domainachievement.Fact) ([]domain
 			return nil, err
 		}
 		return append(updates, specific...), nil
+	case domainachievement.FactKindPetCaptured:
+		var payload domainachievement.PetCapturedFactPayload
+		if err := json.Unmarshal(fact.Payload, &payload); err != nil {
+			return nil, fmt.Errorf("decode achievement capture fact %q: %w", fact.FactID, err)
+		}
+		if payload.PetID <= 0 || payload.CreatureTemplateID <= 0 || fact.FactID != fmt.Sprintf("pet-captured:v1:%d", payload.PetID) {
+			return nil, fmt.Errorf("invalid achievement capture fact %q", fact.FactID)
+		}
+		return buildIncrementUpdates([]requirementTarget{
+			{RequirementID: 83, AchievementID: 2016, Target: 1},
+			{RequirementID: 84, AchievementID: 2017, Target: 5000},
+		}), nil
+	case domainachievement.FactKindWishPetDrawn:
+		var payload domainachievement.WishPetDrawnFactPayload
+		if err := json.Unmarshal(fact.Payload, &payload); err != nil {
+			return nil, fmt.Errorf("decode achievement Wish Pet fact %q: %w", fact.FactID, err)
+		}
+		drawID, err := uuid.Parse(payload.DrawID)
+		expectedID := fmt.Sprintf("wish-pet-drawn:v1:%s:%d", payload.DrawID, payload.Ordinal)
+		if err != nil || drawID.String() != payload.DrawID || payload.Ordinal < 0 || payload.PlanID <= 0 || payload.CreatureTemplateID <= 0 || payload.GrowRate <= 0 || payload.ColorTier < 0 || payload.ColorTier > 4 || domainpet.ColorByGrowRate(payload.GrowRate) != payload.ColorTier || fact.FactID != expectedID {
+			return nil, fmt.Errorf("invalid achievement Wish Pet fact %q", fact.FactID)
+		}
+		requirements := []requirementTarget{{RequirementID: 106, AchievementID: 2039, Target: 1}}
+		switch payload.ColorTier {
+		case 2:
+			requirements = append(requirements, requirementTarget{RequirementID: 107, AchievementID: 2040, Target: 1})
+		case 3:
+			requirements = append(requirements, requirementTarget{RequirementID: 108, AchievementID: 2041, Target: 1})
+		case 4:
+			requirements = append(requirements, requirementTarget{RequirementID: 109, AchievementID: 2042, Target: 1})
+		}
+		return buildIncrementUpdates(requirements), nil
+	case domainachievement.FactKindCharacterRenamed:
+		var payload domainachievement.CharacterRenamedFactPayload
+		if err := json.Unmarshal(fact.Payload, &payload); err != nil {
+			return nil, fmt.Errorf("decode achievement character rename fact %q: %w", fact.FactID, err)
+		}
+		operationID, err := uuid.Parse(payload.OperationID)
+		expectedID := "character-renamed:v1:" + payload.OperationID
+		if err != nil || operationID.String() != payload.OperationID || payload.CardItemID <= 0 || payload.NewName == "" || fact.FactID != expectedID {
+			return nil, fmt.Errorf("invalid achievement character rename fact %q", fact.FactID)
+		}
+		return buildIncrementUpdates([]requirementTarget{{RequirementID: 150, AchievementID: 3040, Target: 1}}), nil
 	default:
 		return nil, fmt.Errorf("unsupported achievement fact kind %q", fact.Kind)
 	}

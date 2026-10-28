@@ -153,3 +153,10 @@ func TestMigrationPushIncludesOutOfOrderMigrationsWithoutReseedingExistingData(t
 		t.Fatalf("non-interactive confirmation missing: %v", args)
 	}
 }
+
+func TestBuildCachePruneRemovesAllCache(t *testing.T) {
+	args := strings.Join(buildCachePruneArgs(), " ")
+	if args != "builder prune --all --force" {
+		t.Fatalf("unexpected Docker build cache policy: %s", args)
+	}
+}

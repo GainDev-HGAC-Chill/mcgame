@@ -17,6 +17,7 @@ This file is an **index** of per-feature memory documents under `docs/memory/`. 
 - [Application Services](memory/application-services.md) — full list of `internal/application/*` services and responsibilities.
 - [RPC Reference](memory/rpc-reference.md) — rate limits, settings RPC, pet element payloads.
 - [JSON Naming Convention](memory/json-naming.md) — camelCase rules for Flash compatibility.
+- [Launcher Operations](memory/launcher-operations.md) — Windows Start/Reset lifecycle, clean Docker build-cache policy, and bounded build context.
 
 ## Battle, Combat & Skills
 
