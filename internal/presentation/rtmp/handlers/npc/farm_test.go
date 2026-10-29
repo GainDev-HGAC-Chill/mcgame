@@ -26,26 +26,6 @@ func TestHasFarmPlantVigor(t *testing.T) {
 	}
 }
 
-func TestSpendFarmPlantVigor(t *testing.T) {
-	char := &domainchar.Character{CurrentSP: 40}
-
-	if !spendFarmPlantVigor(char, farmPlantVigorCost) {
-		t.Fatalf("expected vigor spend to succeed")
-	}
-
-	if char.CurrentSP != 15 {
-		t.Fatalf("expected vigor to be 15, got %d", char.CurrentSP)
-	}
-
-	if spendFarmPlantVigor(char, farmPlantVigorCost) {
-		t.Fatalf("expected second vigor spend to fail")
-	}
-
-	if char.CurrentSP != 15 {
-		t.Fatalf("expected vigor to stay 15 after failed spend, got %d", char.CurrentSP)
-	}
-}
-
 func TestFarmExistingPlotSystemMessage(t *testing.T) {
 	gameData := newFarmTestGameDataManager(t)
 	plot := &domainfarm.Plot{PlotNPCID: 1707, CropNPCID: 1229}

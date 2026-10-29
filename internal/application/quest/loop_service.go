@@ -25,11 +25,13 @@ import (
 // the disabled "60 Vòng" loop (lid 1) draws children from pool 10.
 const (
 	loopGuildLid              = 2
+	loopTwoHundredLid         = 9
 	loopChildPoolLid1         = 1
 	loopChildPoolLid1Override = 10
 )
 
 var errGuildLoopRewardsUnavailable = errors.New("guild loop rewards unavailable")
+var errLoopRewardsUnavailable = errors.New("loop rewards unavailable")
 
 // GuildMembership is a narrow seam into the guild service so this package
 // never depends on internal/application/guild directly; wired in main.go.
@@ -59,6 +61,10 @@ func loopChildPool(lid int) int {
 		return loopChildPoolLid1Override
 	}
 	return lid
+}
+
+func loopRewardsAvailable(lid int) bool {
+	return lid != loopTwoHundredLid
 }
 
 func nowMs() int64 {
@@ -101,6 +107,9 @@ func (s *Service) CanTakeLoop(ctx context.Context, charID int64, lid int) (bool,
 			return false, errGuildLoopRewardsUnavailable.Error()
 		}
 	}
+	if !loopRewardsAvailable(lid) {
+		return false, errLoopRewardsUnavailable.Error()
+	}
 
 	states, err := s.loopRepo.GetAll(ctx, charID)
 	if err != nil {
@@ -122,10 +131,18 @@ func (s *Service) CanTakeLoop(ctx context.Context, charID int64, lid int) (bool,
 }
 
 // TakeLoop creates a new active loop instance and grants its first round.
-func (s *Service) TakeLoop(ctx context.Context, charID int64, lid int) (*quest.LoopState, *quest.QuestProgress, error) {
+func (s *Service) TakeLoop(ctx context.Context, charID int64, lid int, npcID int) (*quest.LoopState, *quest.QuestProgress, error) {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	defer lock.Unlock()
+
 	canTake, reason := s.CanTakeLoop(ctx, charID, lid)
 	if !canTake {
 		return nil, nil, pkgerrors.Wrap(pkgerrors.ErrInvalidInput, reason)
+	}
+	loopTpl := s.gameDataManager.GetQuestLoop(lid)
+	if loopTpl == nil || npcID != int(loopTpl.Nid) || !s.atQuestNPC(ctx, charID, npcID) {
+		return nil, nil, pkgerrors.Wrap(pkgerrors.ErrInvalidInput, "invalid loop npc")
 	}
 
 	child := s.pickNextChild(ctx, charID, lid, 0)
@@ -135,13 +152,15 @@ func (s *Service) TakeLoop(ctx context.Context, charID int64, lid int) (*quest.L
 
 	state := quest.NewLoopState(charID, lid, nowMs())
 	state.ActiveQuestID = int(child.ID)
-	saved, err := s.loopRepo.Upsert(ctx, state)
+	qp, err := s.grantLoopChild(ctx, charID, int(child.ID))
 	if err != nil {
 		return nil, nil, err
 	}
-
-	qp, err := s.grantLoopChild(ctx, charID, int(child.ID))
+	saved, err := s.loopRepo.Upsert(ctx, state)
 	if err != nil {
+		if cleanupErr := s.questRepo.Delete(ctx, qp.ID); cleanupErr != nil {
+			s.logger.Error("Failed to compensate loop child after state save failure", zap.Error(cleanupErr))
+		}
 		return nil, nil, err
 	}
 
@@ -153,6 +172,10 @@ func (s *Service) TakeLoop(ctx context.Context, charID int64, lid int) (*quest.L
 // CancelLoop deactivates the active instance and drops its current round.
 // take_date_ms is preserved so the refresh cooldown still anchors correctly.
 func (s *Service) CancelLoop(ctx context.Context, charID int64, lid int) (*quest.LoopState, *quest.QuestProgress, error) {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	defer lock.Unlock()
+
 	if s.loopRepo == nil {
 		return nil, nil, errors.New("loop system not configured")
 	}
@@ -216,6 +239,10 @@ func (s *Service) GetActiveLoopStates(ctx context.Context, charID int64) ([]*que
 // re-created; if it already exists, it is returned unchanged so the caller
 // can simply re-push onAddChaQuest. No active instance is a no-op.
 func (s *Service) RepairLoop(ctx context.Context, charID int64, lid int) (*quest.QuestProgress, error) {
+	lock := &s.mutationLocks[uint64(charID)%uint64(len(s.mutationLocks))]
+	lock.Lock()
+	defer lock.Unlock()
+
 	if s.loopRepo == nil {
 		return nil, nil
 	}

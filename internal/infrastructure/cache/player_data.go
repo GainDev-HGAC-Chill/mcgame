@@ -11,6 +11,7 @@ import (
 
 	domainactivity "mcgame-server/internal/domain/activity"
 	"mcgame-server/internal/domain/character"
+	domaingathering "mcgame-server/internal/domain/gathering"
 	"mcgame-server/internal/domain/item"
 	"mcgame-server/internal/domain/pet"
 	"mcgame-server/internal/domain/quest"
@@ -654,6 +655,19 @@ func (p *PlayerData) syncCommittedItemCount(itemID int64, remaining int) {
 	p.revision++
 }
 
+func (p *PlayerData) syncCommittedMarriageMoney(money int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.Character == nil {
+		return
+	}
+	p.Character.Money = money
+	p.dirtyChar = false
+	p.characterRevision++
+	p.Character.CacheRevision = p.characterRevision
+	p.revision++
+}
+
 func (p *PlayerData) syncCommittedSendCombine(result *domainactivity.SendCombinePurchaseResult) {
 	if result == nil {
 		return
@@ -671,6 +685,69 @@ func (p *PlayerData) syncCommittedSendCombine(result *domainactivity.SendCombine
 		p.Items[committed.ID] = cloneItem(committed)
 		delete(p.dirtyItems, committed.ID)
 		p.itemRevisions[committed.ID] = p.itemRevision(committed.ID) + 1
+		p.deletedItems = slices.DeleteFunc(p.deletedItems, func(id int64) bool { return id == committed.ID })
+	}
+	p.revision++
+}
+
+func (p *PlayerData) syncCommittedGathering(result *domaingathering.CompletionResult) {
+	if result == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if result.Character != nil {
+		if p.Character != nil {
+			p.Character.CurrentSP = result.Character.CurrentSP
+			p.Character.FishDex = result.Character.FishDex
+			p.Character.HerbDex = result.Character.HerbDex
+			p.dirtyChar = false
+			p.characterRevision++
+			p.Character.CacheRevision = p.characterRevision
+		}
+	}
+	if result.Skill != nil {
+		p.Skills[result.Skill.ID] = cloneSkill(result.Skill)
+		delete(p.dirtySkills, result.Skill.ID)
+		p.deletedSkills = slices.DeleteFunc(p.deletedSkills, func(id int64) bool { return id == result.Skill.ID })
+	}
+	for _, committed := range []*item.Item{result.Reward, result.Tool} {
+		if committed == nil {
+			continue
+		}
+		p.Items[committed.ID] = cloneItem(committed)
+		delete(p.dirtyItems, committed.ID)
+		p.itemRevisions[committed.ID] = p.itemRevision(committed.ID) + 1
+		p.Items[committed.ID].CacheRevision = p.itemRevisions[committed.ID]
+		p.deletedItems = slices.DeleteFunc(p.deletedItems, func(id int64) bool { return id == committed.ID })
+	}
+	p.revision++
+}
+
+func (p *PlayerData) syncCommittedFarmState(committedCharacter *character.Character, committedItems ...*item.Item) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if committedCharacter != nil {
+		if p.Character != nil {
+			p.Character.CurrentSP = committedCharacter.CurrentSP
+			p.Character.Gold = committedCharacter.Gold
+			p.dirtyChar = false
+			p.characterRevision++
+			p.Character.CacheRevision = p.characterRevision
+		}
+	}
+	for _, committed := range committedItems {
+		if committed == nil || committed.ID <= 0 {
+			continue
+		}
+		if committed.StackCount <= 0 {
+			delete(p.Items, committed.ID)
+		} else {
+			p.Items[committed.ID] = cloneItem(committed)
+			p.itemRevisions[committed.ID] = p.itemRevision(committed.ID) + 1
+			p.Items[committed.ID].CacheRevision = p.itemRevisions[committed.ID]
+		}
+		delete(p.dirtyItems, committed.ID)
 		p.deletedItems = slices.DeleteFunc(p.deletedItems, func(id int64) bool { return id == committed.ID })
 	}
 	p.revision++

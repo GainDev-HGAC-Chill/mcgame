@@ -73,8 +73,12 @@ func TestTakeLoop_GrantsOrderItemForItemSummonBoss(t *testing.T) {
 	if err := manager.GetCache().LoadTable(models.TableItemTemplate, []json.RawMessage{mustLifecycleJSON(t, itemTpl)}); err != nil {
 		t.Fatalf("load item table: %v", err)
 	}
+	npcTpl := models.NpcTemplate{ID: 277, PosMapID: 5, PosX: 100, PosY: 100}
+	if err := manager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustLifecycleJSON(t, npcTpl)}); err != nil {
+		t.Fatalf("load npc table: %v", err)
+	}
 
-	charRepo := &lifecycleTestCharacterRepo{char: &domainchar.Character{ID: 1, Level: 30}}
+	charRepo := &lifecycleTestCharacterRepo{char: &domainchar.Character{ID: 1, Level: 30, MapID: 5, PosX: 100, PosY: 100}}
 	itemRepo := newLifecycleTestItemRepo()
 	questRepo := newLifecycleTestQuestRepo()
 	loopRepo := newLoopBossTestLoopRepo()
@@ -99,7 +103,7 @@ func TestTakeLoop_GrantsOrderItemForItemSummonBoss(t *testing.T) {
 		Connection:  infrartmp.NewConnection(1, nil, nil, logger),
 	}
 
-	if _, err := handler.TakeLoop(ctx, []interface{}{float64(4)}); err != nil {
+	if _, err := handler.TakeLoop(ctx, []interface{}{float64(4), float64(277)}); err != nil {
 		t.Fatalf("take loop: %v", err)
 	}
 

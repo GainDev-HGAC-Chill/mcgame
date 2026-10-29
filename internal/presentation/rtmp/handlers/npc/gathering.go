@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	domainitem "mcgame-server/internal/domain/item"
 	"mcgame-server/internal/gamedata/models"
@@ -15,18 +14,6 @@ import (
 	farmhandler "mcgame-server/internal/presentation/rtmp/handlers/farm"
 	pkgerrors "mcgame-server/pkg/errors"
 )
-
-type fishingTask struct {
-	characterID int64
-	npcID       int
-	cancel      chan struct{}
-}
-
-type herbTask struct {
-	characterID int64
-	npcID       int
-	cancel      chan struct{}
-}
 
 func (h *Handler) QueryFishPool(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
 	return h.queryResourceNPC(args, "Dan ca"), nil
@@ -188,123 +175,6 @@ func (h *Handler) OnProductCancel(ctx *rtmp.RPCContext, args []interface{}) (int
 	return map[string]interface{}{"success": true}, nil
 }
 
-func (h *Handler) startHerbGathering(ctx *rtmp.RPCContext, characterID int64, npc *models.NpcTemplate) error {
-	char, err := h.charService.GetByID(ctx.Context, characterID)
-	if err != nil {
-		return err
-	}
-	if char == nil {
-		return pkgerrors.ErrUnauthorized
-	}
-
-	char.HerbDex++
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		return err
-	}
-
-	if err := ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 28}); err != nil {
-		return err
-	}
-	if err := h.sendHerbTempReward(ctx, characterID, npc); err != nil {
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		return err
-	}
-
-	task := &herbTask{characterID: characterID, npcID: npc.GetID(), cancel: make(chan struct{})}
-	if prev := h.replaceHerbTask(ctx.ConnID, task); prev != nil {
-		close(prev.cancel)
-	}
-
-	if err := ctx.Connection.SendCallback("onGathering", map[string]interface{}{"hint": " Dang hai duoc", "delay": 5000, "prop": map[string]interface{}{"herbDex": char.HerbDex}}); err != nil {
-		h.cancelHerbTask(ctx.ConnID)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		return err
-	}
-
-	go func() {
-		timer := time.NewTimer(5 * time.Second)
-		defer timer.Stop()
-		select {
-		case <-task.cancel:
-			return
-		case <-timer.C:
-		}
-		if !h.completeHerbTask(ctx.ConnID, task) {
-			return
-		}
-		_ = ctx.Connection.SendCallback("quitGathering", nil)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-	}()
-
-	return nil
-}
-
-func (h *Handler) startFishing(ctx *rtmp.RPCContext, characterID int64, npc *models.NpcTemplate) error {
-	char, err := h.charService.GetByID(ctx.Context, characterID)
-	if err != nil {
-		return err
-	}
-	if char == nil {
-		return pkgerrors.ErrUnauthorized
-	}
-
-	const fishingVigorCost = 1
-	if char.CurrentSP < fishingVigorCost {
-		_ = ctx.Connection.SendCallback("onSystemMsgCode", 20)
-		return nil
-	}
-
-	char.CurrentSP -= fishingVigorCost
-	char.FishDex++
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		return err
-	}
-
-	if err := ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 26}); err != nil {
-		return err
-	}
-	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"vigor": char.CurrentSP, "fishDex": char.FishDex})
-	if err := h.sendFishingTempReward(ctx, characterID, npc); err != nil {
-		return err
-	}
-
-	task := &fishingTask{characterID: characterID, npcID: npc.GetID(), cancel: make(chan struct{})}
-	if prev := h.replaceFishingTask(ctx.ConnID, task); prev != nil {
-		close(prev.cancel)
-	}
-
-	if err := ctx.Connection.SendCallback("onGathering", map[string]interface{}{"hint": " Dang cau ca", "delay": 19500, "prop": map[string]interface{}{"fishDex": char.FishDex}}); err != nil {
-		h.cancelFishingTask(ctx.ConnID)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		return err
-	}
-
-	go func() {
-		timer := time.NewTimer(19500 * time.Millisecond)
-		defer timer.Stop()
-		select {
-		case <-task.cancel:
-			return
-		case <-timer.C:
-		}
-		if !h.completeFishingTask(ctx.ConnID, task) {
-			return
-		}
-		_ = ctx.Connection.SendCallback("quitGathering", nil)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-	}()
-
-	return nil
-}
-
-func (h *Handler) sendFishingTempReward(ctx *rtmp.RPCContext, characterID int64, npc *models.NpcTemplate) error {
-	return h.sendTempBagReward(ctx, characterID, fishingRewardTemplateIDForNPC(npc), h.getItemTemplateName(fishingRewardTemplateIDForNPC(npc)))
-}
-
-func (h *Handler) sendHerbTempReward(ctx *rtmp.RPCContext, characterID int64, npc *models.NpcTemplate) error {
-	return h.sendTempBagReward(ctx, characterID, herbRewardTemplateIDForNPC(npc), h.getItemTemplateName(herbRewardTemplateIDForNPC(npc)))
-}
-
 func (h *Handler) sendProductTempReward(ctx *rtmp.RPCContext, characterID int64, npc *models.NpcTemplate) error {
 	rewardTemplateID := productRewardTemplateIDForNPC(npc)
 	rewardTemplate := h.getItemTemplate(rewardTemplateID)
@@ -327,27 +197,6 @@ func (h *Handler) sendProductTempReward(ctx *rtmp.RPCContext, characterID int64,
 	}
 
 	effectData := map[string]interface{}{"s": 1, "tt": "6", "i": rewardTemplateID, "c": productBindValue(rewardTemplate), "t": 29, "n": rewardName, "q": productQualityValue(rewardTemplate)}
-	return ctx.Connection.SendCallback("onAddTempDirect", effectData, slotIndex, slotData, curNum)
-}
-
-func (h *Handler) sendTempBagReward(ctx *rtmp.RPCContext, characterID int64, rewardTemplateID int, rewardName string) error {
-	slotIndex := 1
-	curNum := 1
-	slotData := map[string]interface{}{"c": "0", "b": 0, "t": rewardTemplateID, "n": 1}
-
-	if h.itemService != nil {
-		addedItem, err := h.itemService.AddItemToSlot(ctx.Context, characterID, rewardTemplateID, domainitem.ItemTypeMaterial, 1, false, domainitem.SlotTypeTempBag)
-		if err != nil {
-			return err
-		}
-		if addedItem != nil {
-			slotIndex = addedItem.SlotIndex + 1
-			slotData = map[string]interface{}{"c": "0", "b": 0, "t": addedItem.TemplateID, "n": addedItem.StackCount}
-			curNum = h.countTempBagItems(ctx, characterID)
-		}
-	}
-
-	effectData := map[string]interface{}{"s": 1, "tt": "6", "i": rewardTemplateID, "c": "0", "t": 29, "n": rewardName, "q": 0}
 	return ctx.Connection.SendCallback("onAddTempDirect", effectData, slotIndex, slotData, curNum)
 }
 
@@ -385,24 +234,6 @@ func (h *Handler) getItemTemplate(templateID int) *models.ItemTemplateTemplate {
 		}
 	}
 	return nil
-}
-
-func fishingRewardTemplateIDForNPC(npc *models.NpcTemplate) int {
-	if npc == nil {
-		return 2361
-	}
-	level := int(npc.Lv)
-	if level <= 1 {
-		return 2361
-	}
-	if level > 9 {
-		level = 9
-	}
-	return 2360 + level
-}
-
-func herbRewardTemplateIDForNPC(npc *models.NpcTemplate) int {
-	return 2492
 }
 
 func productRewardTemplateIDForNPC(npc *models.NpcTemplate) int {
@@ -488,66 +319,4 @@ func leadingPositiveDigits(value string) string {
 		end++
 	}
 	return value[:end]
-}
-
-func (h *Handler) replaceFishingTask(connID uint32, task *fishingTask) *fishingTask {
-	h.fishingTaskMu.Lock()
-	defer h.fishingTaskMu.Unlock()
-	prev := h.fishingTasks[connID]
-	h.fishingTasks[connID] = task
-	return prev
-}
-
-func (h *Handler) completeFishingTask(connID uint32, task *fishingTask) bool {
-	h.fishingTaskMu.Lock()
-	defer h.fishingTaskMu.Unlock()
-	current, ok := h.fishingTasks[connID]
-	if !ok || current != task {
-		return false
-	}
-	delete(h.fishingTasks, connID)
-	return true
-}
-
-func (h *Handler) cancelFishingTask(connID uint32) *fishingTask {
-	h.fishingTaskMu.Lock()
-	defer h.fishingTaskMu.Unlock()
-	task, ok := h.fishingTasks[connID]
-	if !ok {
-		return nil
-	}
-	delete(h.fishingTasks, connID)
-	close(task.cancel)
-	return task
-}
-
-func (h *Handler) replaceHerbTask(connID uint32, task *herbTask) *herbTask {
-	h.herbTaskMu.Lock()
-	defer h.herbTaskMu.Unlock()
-	prev := h.herbTasks[connID]
-	h.herbTasks[connID] = task
-	return prev
-}
-
-func (h *Handler) completeHerbTask(connID uint32, task *herbTask) bool {
-	h.herbTaskMu.Lock()
-	defer h.herbTaskMu.Unlock()
-	current, ok := h.herbTasks[connID]
-	if !ok || current != task {
-		return false
-	}
-	delete(h.herbTasks, connID)
-	return true
-}
-
-func (h *Handler) cancelHerbTask(connID uint32) *herbTask {
-	h.herbTaskMu.Lock()
-	defer h.herbTaskMu.Unlock()
-	task, ok := h.herbTasks[connID]
-	if !ok {
-		return nil
-	}
-	delete(h.herbTasks, connID)
-	close(task.cancel)
-	return task
 }

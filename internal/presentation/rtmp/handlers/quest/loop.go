@@ -35,7 +35,7 @@ func (h *Handler) TakeLoop(ctx *rtmp.RPCContext, args []interface{}) (interface{
 		}
 	}
 
-	state, qp, err := h.questService.TakeLoop(ctx.Context, characterID, lid)
+	state, qp, err := h.questService.TakeLoop(ctx.Context, characterID, lid, npcID)
 	if err != nil {
 		h.logger.Warn("takeLoop rejected", zap.Int64("character_id", characterID), zap.Int("loop_id", lid), zap.Error(err))
 		h.pushOnTakeLoopFailure(ctx)

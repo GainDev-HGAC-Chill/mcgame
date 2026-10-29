@@ -146,6 +146,12 @@ func (h *Handler) ClickNpc(ctx *rtmp.RPCContext, args []interface{}) (interface{
 	if handled, err := h.tryHandleGuildBuildingNPCClick(ctx, characterID, npcID); handled || err != nil {
 		return nil, err
 	}
+	if npcID == 1281 && h.weddingBookProvider != nil {
+		if err := h.weddingBookProvider.SendWeddingBookList(ctx.Context, ctx.Connection); err != nil {
+			return rtmp.ErrorToResponse(err), nil
+		}
+		return nil, nil
+	}
 
 	if npcID == 1287 {
 		oldRoomID, _ := ctx.Connection.GetSceneInfo()

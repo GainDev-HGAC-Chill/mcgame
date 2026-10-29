@@ -162,6 +162,9 @@ func (s *Service) completeLoopChildQuest(ctx context.Context, charID int64, ques
 	if loopTpl == nil {
 		return nil, nil, pkgerrors.ErrInvalidInput
 	}
+	if !loopRewardsAvailable(state.LoopID) {
+		return nil, nil, errLoopRewardsUnavailable
+	}
 	if state.LoopID == loopGuildLid {
 		return s.completeGuildLoopChildQuest(ctx, qp, state, loopTpl)
 	}
@@ -173,7 +176,7 @@ func (s *Service) completeLoopChildQuest(ctx context.Context, charID int64, ques
 
 	rewards, err := s.applyRewards(ctx, charID, questID, qp.CompletionCount)
 	if err != nil {
-		s.logger.Error("Failed to apply loop child rewards", zap.Error(err))
+		return nil, nil, err
 	}
 	if rewards == nil {
 		rewards = make(map[string]interface{})
@@ -186,7 +189,7 @@ func (s *Service) completeLoopChildQuest(ctx context.Context, charID int64, ques
 	}
 
 	if err := s.questRepo.Delete(ctx, qp.ID); err != nil {
-		s.logger.Warn("Failed to delete finished loop child progress", zap.Error(err))
+		return nil, nil, err
 	}
 
 	npcIDs := make([]int, 0, 3)
@@ -205,7 +208,7 @@ func (s *Service) completeLoopChildQuest(ctx context.Context, charID int64, ques
 			s.logger.Warn("No eligible next loop child; ending cycle early",
 				zap.Int64("character_id", charID), zap.Int("loop_id", state.LoopID))
 			if _, err := s.loopRepo.Deactivate(ctx, charID, state.LoopID); err != nil {
-				s.logger.Warn("Failed to deactivate loop after empty pool", zap.Error(err))
+				return nil, nil, err
 			}
 		} else {
 			state.Ft = newFt

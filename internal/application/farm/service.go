@@ -21,16 +21,17 @@ import (
 )
 
 var (
-	ErrInvalidPlotNPCID  = errors.New("invalid plot npc id")
-	ErrInvalidCropNPCID  = errors.New("invalid crop npc id")
-	ErrPlotOccupied      = errors.New("plot is occupied")
-	ErrAnotherPlotActive = errors.New("another farm plot is active")
-	ErrPlotNotFound      = errors.New("plot not found")
-	ErrCropNotReady      = errors.New("crop not ready")
-	ErrSeedNotFound      = errors.New("required seed not found")
-	ErrFarmUnavailable   = errors.New("farm service is unavailable")
-	ErrPlotAlreadyShared = errors.New("plot already shared harvested")
-	ErrPlotSharedOut     = errors.New("plot shared harvest unavailable")
+	ErrInvalidPlotNPCID         = errors.New("invalid plot npc id")
+	ErrInvalidCropNPCID         = errors.New("invalid crop npc id")
+	ErrPlotOccupied             = errors.New("plot is occupied")
+	ErrAnotherPlotActive        = errors.New("another farm plot is active")
+	ErrPlotNotFound             = errors.New("plot not found")
+	ErrCropNotReady             = errors.New("crop not ready")
+	ErrSeedNotFound             = errors.New("required seed not found")
+	ErrFarmUnavailable          = errors.New("farm service is unavailable")
+	ErrPlotAlreadyShared        = errors.New("plot already shared harvested")
+	ErrPlotSharedOut            = errors.New("plot shared harvest unavailable")
+	ErrDoubleHarvestUnavailable = errors.New("double harvest unavailable")
 )
 
 type CharacterRepository interface {
@@ -49,6 +50,7 @@ type PlantResult struct {
 	Plot             *domainfarm.Plot
 	CropName         string
 	ConsumedSeedItem *domainitem.Item
+	Character        *domainchar.Character
 }
 
 type HarvestResult struct {
@@ -60,6 +62,7 @@ type HarvestResult struct {
 	RewardName           string
 	AddedInventoryItem   *domainitem.Item
 	IsSharedHarvest      bool
+	PlotDeleted          bool
 }
 
 type PlantQueryResult struct {
@@ -74,6 +77,7 @@ type PlantQueryResult struct {
 
 type Service struct {
 	repo                domainfarm.Repository
+	commands            domainfarm.CommandRepository
 	charRepo            CharacterRepository
 	itemService         *appitem.Service
 	gameData            *gamedata.Manager
@@ -136,8 +140,10 @@ func NewService(repo domainfarm.Repository, charRepo CharacterRepository, itemSe
 		SeedTemplateID:        2909,
 	}
 
+	commands, _ := repo.(domainfarm.CommandRepository)
 	return &Service{
 		repo:                repo,
+		commands:            commands,
 		charRepo:            charRepo,
 		itemService:         itemService,
 		logger:              logger,
@@ -246,66 +252,31 @@ func (s *Service) GetBlockingPlantPlot(ctx context.Context, characterID int64, t
 }
 
 func (s *Service) HarvestPlot(ctx context.Context, ownerCharacterID int64, harvesterCharacterID int64, plotNPCID int) (*HarvestResult, error) {
-	if s.itemService == nil {
+	if s.commands == nil {
 		return nil, ErrFarmUnavailable
 	}
-
-	plot, err := s.GetPlot(ctx, ownerCharacterID, plotNPCID)
-	if err != nil {
-		return nil, err
-	}
-	if plot == nil {
-		return nil, ErrPlotNotFound
-	}
-
-	now := time.Now()
-	if now.Before(plot.ReadyAt) {
-		return nil, ErrCropNotReady
-	}
-
-	rewardCount := plot.HarvestCount
-	isSharedHarvest := ownerCharacterID != harvesterCharacterID
-	if isSharedHarvest {
-		if s.hasSharedHarvester(plot, harvesterCharacterID) {
-			return nil, ErrPlotAlreadyShared
-		}
-		if len(plot.SharedHarvesterIDs) > 0 {
-			return nil, ErrPlotSharedOut
-		}
-
-		rewardCount = s.sharedHarvestCount(plot.TotalHarvestCount)
-		if rewardCount <= 0 || plot.HarvestCount-rewardCount < 1 {
-			return nil, ErrPlotSharedOut
-		}
-	}
-
-	addedItem, err := s.itemService.AddItem(ctx, harvesterCharacterID, plot.HarvestItemTemplateID, domainitem.ItemTypeMaterial, rewardCount)
-	if err != nil {
-		return nil, err
-	}
-
-	if isSharedHarvest {
-		plot.HarvestCount -= rewardCount
-		plot.SharedHarvesterIDs = append(plot.SharedHarvesterIDs, harvesterCharacterID)
-		if err := s.repo.Upsert(ctx, plot); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := s.repo.Delete(ctx, ownerCharacterID, plotNPCID); err != nil {
-			return nil, err
-		}
-	}
-
-	rewardName := s.getItemName(plot.HarvestItemTemplateID)
-	result := &HarvestResult{
-		Plot:                 plot,
+	committed, err := s.commands.HarvestAtomic(ctx, domainfarm.HarvestCommand{
 		OwnerCharacterID:     ownerCharacterID,
 		HarvesterCharacterID: harvesterCharacterID,
-		RewardTemplateID:     plot.HarvestItemTemplateID,
-		RewardCount:          rewardCount,
+		PlotNPCID:            plotNPCID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if committed == nil || committed.Plot == nil {
+		return nil, ErrFarmUnavailable
+	}
+	rewardName := s.getItemName(committed.RewardTemplateID)
+	result := &HarvestResult{
+		Plot:                 committed.Plot,
+		OwnerCharacterID:     ownerCharacterID,
+		HarvesterCharacterID: harvesterCharacterID,
+		RewardTemplateID:     committed.RewardTemplateID,
+		RewardCount:          committed.RewardCount,
 		RewardName:           rewardName,
-		AddedInventoryItem:   addedItem,
-		IsSharedHarvest:      isSharedHarvest,
+		AddedInventoryItem:   committed.Reward,
+		IsSharedHarvest:      committed.Shared,
+		PlotDeleted:          committed.PlotDeleted,
 	}
 	return result, nil
 }
@@ -386,39 +357,7 @@ func (s *Service) RipenPlot(ctx context.Context, characterID int64, plotNPCID in
 }
 
 func (s *Service) DoubleHarvestPlot(ctx context.Context, characterID int64, plotNPCID int) (*domainfarm.Plot, bool, error) {
-	plot, err := s.GetPlot(ctx, characterID, plotNPCID)
-	if err != nil {
-		return nil, false, err
-	}
-	if plot == nil {
-		return nil, false, ErrPlotNotFound
-	}
-
-	cfg, ok := s.crops[plot.CropNPCID]
-	if !ok {
-		if plot.CropNPCID == s.moneyTree.CropNPCID {
-			cfg = s.moneyTree
-			ok = true
-		}
-	}
-	if !ok {
-		return plot, false, ErrInvalidCropNPCID
-	}
-
-	baseCount := s.resolveHarvestCount(cfg, plot.ReadyAt.Sub(plot.PlantedAt))
-	doubledCount := baseCount * 2
-	if plot.TotalHarvestCount >= doubledCount {
-		return plot, true, nil
-	}
-
-	delta := doubledCount - plot.TotalHarvestCount
-	plot.TotalHarvestCount = doubledCount
-	plot.HarvestCount += delta
-	if err := s.repo.Upsert(ctx, plot); err != nil {
-		return nil, false, err
-	}
-
-	return plot, false, nil
+	return nil, false, ErrDoubleHarvestUnavailable
 }
 
 func (s *Service) GetFarmData(ctx context.Context, characterID int64) (map[string]interface{}, error) {
@@ -488,59 +427,33 @@ func (s *Service) plantWithConfig(ctx context.Context, characterID int64, plotNP
 	if plotNPCID <= 0 || !s.IsPlotTemplateID(plotNPCID) {
 		return nil, ErrInvalidPlotNPCID
 	}
-
-	existing, err := s.GetPlotByNPCID(ctx, plotNPCID)
-	if err != nil {
-		return nil, err
+	if s.commands == nil {
+		return nil, ErrFarmUnavailable
 	}
-	if existing != nil {
-		return nil, ErrPlotOccupied
-	}
-
-	blockingPlot, err := s.GetBlockingPlantPlot(ctx, characterID, plotNPCID)
-	if err != nil {
-		return nil, err
-	}
-	if blockingPlot != nil {
-		return nil, ErrAnotherPlotActive
-	}
-
-	var consumedSeed *domainitem.Item
-	if cfg.SeedTemplateID > 0 {
-		if s.itemService == nil {
-			return nil, ErrFarmUnavailable
-		}
-		consumedSeed, err = s.itemService.ConsumeItemByTemplateID(ctx, characterID, cfg.SeedTemplateID)
-		if err != nil {
-			return nil, err
-		}
-		if consumedSeed == nil {
-			return nil, ErrSeedNotFound
-		}
-	}
-
 	now := time.Now()
 	cfg.HarvestCount = s.resolveHarvestCount(cfg, cfg.GrowDuration)
-	plot := &domainfarm.Plot{
+	committed, err := s.commands.PlantAtomic(ctx, domainfarm.PlantCommand{
 		CharacterID:           characterID,
 		PlotNPCID:             plotNPCID,
 		CropNPCID:             cfg.CropNPCID,
 		HarvestItemTemplateID: cfg.HarvestItemTemplateID,
 		HarvestCount:          cfg.HarvestCount,
-		TotalHarvestCount:     cfg.HarvestCount,
-		SharedHarvesterIDs:    []int64{},
+		SeedTemplateID:        cfg.SeedTemplateID,
+		VigorCost:             25,
 		PlantedAt:             now,
 		ReadyAt:               now.Add(cfg.GrowDuration),
-	}
-
-	if err := s.repo.Upsert(ctx, plot); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
-
+	if committed == nil || committed.Plot == nil || committed.Character == nil {
+		return nil, ErrFarmUnavailable
+	}
 	result := &PlantResult{
-		Plot:             plot,
+		Plot:             committed.Plot,
 		CropName:         s.getCropName(cfg.CropNPCID),
-		ConsumedSeedItem: consumedSeed,
+		ConsumedSeedItem: committed.Seed,
+		Character:        committed.Character,
 	}
 	return result, nil
 }

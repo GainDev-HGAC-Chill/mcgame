@@ -1,5 +1,25 @@
 # MCGame Fix History
 
+## FIX-2026-10-29-06 — Atomic fishing, herb gathering, and farm mutations
+
+- Replaced reward/mastery/vigor-before-timer fishing/herb flows with read-only preparation and cancellable immutable attempts. Ordinary rewards use explicit two-item level registries; special/contest/golden fish and unauthorized herb placement fail closed. Rod type/slot/durability, `pro_time`, `succ_rate`, skill level, herb two-vigor cost and mastery deltas are revalidated by one PostgreSQL completion command with a replay ledger.
+- Farm plant, harvest/shared harvest, immediate ripen+harvest, and uproot now commit through database-owned commands behind `runPlayerCommand`. Seed/vigor/item/Gold/plot changes are atomic; harvest no longer grants invented `+20 plantDex`; free double harvest fails closed. Callback state is derived only from committed snapshots, and command errors still close/reset gathering UI.
+- Migration `20261029113258_farm_life_skill_atomic_commands.sql` is CLI-generated then normalized byte-identical to canonical. Shadow replay/post-diff/history and function/table ACL PASS. Success/rejection rollback smokes and committed concurrency for replay, duplicate plant, shared harvest, ripen-vs-harvest, and uproot-vs-harvest PASS with exact baseline/sequence cleanup.
+- Handler regressions prove cancel-before-timer performs zero commands and command failure sends no reward while closing/resetting. Full `go test ./... -count=1`, `go vet ./...`, Windows build and diff-check PASS. DB lint reports only the same three legacy out-of-scope errors in `create_character`, `update_character`, and `upsert_character_farm_plot`; no new function issue. Deployed container `79ddaae9c0ae...` is running/restart0 with 92 tables/118,540 records, health/metrics HTTP200 and exact retained DB/ACL baseline. Flash interaction smoke remains operator-only.
+
+## FIX-2026-10-29-05 — Quest-loop lifecycle and 200-round reward safety
+
+- Catalog census proved lid9 has 924 child quests, 725 requirements and no static quest awards/EXP/money, while its defining dynamic EXP, take fee and milestone item identities have no authoritative formula/mapping. New takes and retained completion now fail closed before objective consumption, progress deletion or round advance; retained rows remain cancelable/repairable.
+- Take/cancel/repair now serialize on the per-character quest mutation lock. Take requires the exact catalog NPC plus server-side map/300px proximity, grants the child before publishing loop state and removes it if state save fails. Non-guild completion propagates reward/delete/deactivate errors instead of advancing after them.
+- Focused application quest and quest RTMP handler tests PASS. Full `go test ./... -count=1`, `go vet ./...`, Windows `bin/gameserver.exe` build and diff-check PASS. Focused `-race` was attempted but this Windows environment has CGO disabled, so race coverage was not run. No schema, migration, DB/runtime mutation, restart, deploy, ActionScript edit, commit or push.
+
+## FIX-2026-10-29-04 — Atomic divorce and wedding hall booking
+
+- Replaced item122's destructive fake lucky-card behavior with one atomic divorce command: lock spouses/marriage/card, consume exactly one card, clear booking, set `divorced_at`, append audit, and reconcile committed inventory through the player mutation barrier.
+- Marriage creation now locks both characters in stable order and rechecks active rows across both partner columns. Historical partner uniques were removed, so cross-column double marriage is rejected while remarriage after divorce is retained.
+- Added exact Flash RPCs `bookWeddingHall`, `cancelWeddingHall`, `enterWeddingHall`; tier registry owns current fees 2.99m/3.99m/5m, invitations 1691–1693 and maps 64/63/65. Booking debit/reservation is atomic, cancellation does not refund, 60-minute line overlaps serialize, and entry enforces line/window/invitation rules.
+- Migration `20261028231846_wedding_system.sql` is CLI-generated then normalized to canonical wedding-only drift, applied/history-marked with shadow/post-diff/ACL PASS. Rollback success/rejection/remarriage smoke PASS; committed concurrent cross-column create and overlapping booking each produced exactly one winner. Guarded cleanup restored marriages/audit/wallet/item and all sequences to exact baseline. Full tests/vet/Windows build/diff-check PASS. Source deployed in gameserver `237d8143c072...`, restart0, 118,540 records, admin/metrics HTTP200 and startup logs clean. Flash wire smoke remains operator-only and was not run.
+
 ## FIX-2026-10-29-03 — Atomic guild disband và Hall-derived guild level
 
 - Disband dùng expected member snapshot, stable multi-player cache barrier và một PostgreSQL command: leader/membership revalidation, currency20/21→0, floor90% restore, clear guild, cascade guild-owned rows, committed state reconcile và cleanup guild quest cho mọi thành viên.

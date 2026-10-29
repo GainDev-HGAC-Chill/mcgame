@@ -18,17 +18,19 @@ import (
 )
 
 const coupleRankPageSize = 20
+const marriageMinimumLevel = 30
 
 type OnlineChecker interface {
 	IsCharacterOnline(characterID string) bool
 }
 
 type Service struct {
-	characterRepo domainchar.Repository
-	repo          domainmarriage.Repository
-	store         domainmarriage.Store
-	onlineCheck   OnlineChecker
-	logger        *zap.Logger
+	characterRepo     domainchar.Repository
+	repo              domainmarriage.Repository
+	store             domainmarriage.Store
+	onlineCheck       OnlineChecker
+	invitationCounter InvitationCounter
+	logger            *zap.Logger
 }
 
 func NewService(
@@ -71,6 +73,9 @@ func (s *Service) UpdateSeeking(ctx context.Context, characterID int64, introduc
 	if char == nil {
 		return pkgerrors.ErrCharacterNotFound
 	}
+	if char.Level < marriageMinimumLevel {
+		return pkgerrors.ErrInvalidInput
+	}
 
 	if err := s.ensureNotMarried(ctx, characterID); err != nil {
 		return err
@@ -105,6 +110,9 @@ func (s *Service) CreateRequest(ctx context.Context, characterID, targetID int64
 	}
 	if target == nil {
 		return pkgerrors.ErrCharacterNotFound
+	}
+	if requester.Level < marriageMinimumLevel || target.Level < marriageMinimumLevel || requester.Gender == target.Gender {
+		return pkgerrors.ErrInvalidInput
 	}
 
 	if targetName != "" && target.Name != targetName {
@@ -166,6 +174,20 @@ func (s *Service) RespondRequest(ctx context.Context, characterID, requestID int
 	}
 
 	if response == 1 {
+		requester, requesterErr := s.characterRepo.FindByID(ctx, request.FromID)
+		if requesterErr != nil {
+			return requesterErr
+		}
+		target, targetErr := s.characterRepo.FindByID(ctx, request.ToID)
+		if targetErr != nil {
+			return targetErr
+		}
+		if requester == nil || target == nil {
+			return pkgerrors.ErrCharacterNotFound
+		}
+		if requester.Level < marriageMinimumLevel || target.Level < marriageMinimumLevel || requester.Gender == target.Gender {
+			return pkgerrors.ErrInvalidInput
+		}
 		if err := s.ensureNotMarried(ctx, request.FromID); err != nil {
 			return err
 		}

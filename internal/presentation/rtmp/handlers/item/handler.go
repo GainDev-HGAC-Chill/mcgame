@@ -24,6 +24,7 @@ import (
 	"mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/creature"
 	domainitem "mcgame-server/internal/domain/item"
+	domainmarriage "mcgame-server/internal/domain/marriage"
 	"mcgame-server/internal/gamedata"
 	redisstore "mcgame-server/internal/infrastructure/persistence/redis"
 	"mcgame-server/internal/infrastructure/rtmp"
@@ -60,6 +61,10 @@ type MWSkillGranter interface {
 type MysteryRecipeLearner interface {
 	LearnRecipeByFormula(ctx context.Context, characterID int64, itemTemplateID int) (int, error)
 	ForgetRecipe(ctx context.Context, characterID int64, recipeID int) error
+}
+
+type MarriageDivorcer interface {
+	DivorceWithCard(ctx context.Context, characterID int64) (*domainmarriage.DivorceResult, error)
 }
 
 type Handler struct {
@@ -102,10 +107,15 @@ type Handler struct {
 	mwSkillUpdatePusher     func(ctx context.Context, conn *rtmp.Connection, charID int64)
 	mysteryRecipeLearner    MysteryRecipeLearner
 	achievementService      *appachievement.Service
+	marriageDivorcer        MarriageDivorcer
 }
 
 func (h *Handler) SetAchievementService(service *appachievement.Service) {
 	h.achievementService = service
+}
+
+func (h *Handler) SetMarriageDivorcer(divorcer MarriageDivorcer) {
+	h.marriageDivorcer = divorcer
 }
 
 const flyerEquipmentPosition = 14

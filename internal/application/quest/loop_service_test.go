@@ -22,7 +22,8 @@ import (
 )
 
 type fakeLoopRepo struct {
-	states map[int64]map[int]*domainquest.LoopState
+	states    map[int64]map[int]*domainquest.LoopState
+	upsertErr error
 }
 
 func newFakeLoopRepo() *fakeLoopRepo {
@@ -39,6 +40,9 @@ func (r *fakeLoopRepo) GetAll(ctx context.Context, characterID int64) ([]*domain
 }
 
 func (r *fakeLoopRepo) Upsert(ctx context.Context, state *domainquest.LoopState) (*domainquest.LoopState, error) {
+	if r.upsertErr != nil {
+		return nil, r.upsertErr
+	}
 	if r.states[state.CharacterID] == nil {
 		r.states[state.CharacterID] = make(map[int]*domainquest.LoopState)
 	}
@@ -61,6 +65,18 @@ func (r *fakeLoopRepo) Deactivate(ctx context.Context, characterID int64, loopID
 	st.Active = false
 	st.ActiveQuestID = 0
 	return true, nil
+}
+
+type failingLoopQuestRepo struct {
+	*questTestQuestRepo
+	deleteErr error
+}
+
+func (r *failingLoopQuestRepo) Delete(ctx context.Context, id int64) error {
+	if r.deleteErr != nil {
+		return r.deleteErr
+	}
+	return r.questTestQuestRepo.Delete(ctx, id)
 }
 
 type fakeGuildMembership struct {
@@ -175,7 +191,8 @@ func TestCanTakeLoop_Gates(t *testing.T) {
 
 	loopTpl := models.QuestLoopTemplate{ID: 4, Nid: 277, Num: 10, Refresh: 600, MinLevel: 30, MaxLevel: 0, Team: 0}
 	guildLoopTpl := models.QuestLoopTemplate{ID: loopGuildLid, Nid: 1069, Num: 15, Refresh: 600, MinLevel: 30, MaxLevel: 0, Team: 0}
-	manager := newLoopTestManager(t, []models.QuestLoopTemplate{loopTpl, guildLoopTpl}, nil)
+	twoHundredTpl := models.QuestLoopTemplate{ID: loopTwoHundredLid, Nid: 48, Num: 200, Refresh: 259200, MinLevel: 70, MaxLevel: 160, Team: 0}
+	manager := newLoopTestManager(t, []models.QuestLoopTemplate{loopTpl, guildLoopTpl, twoHundredTpl}, nil)
 
 	t.Run("level_too_low_rejects", func(t *testing.T) {
 		charRepo := &questTestCharacterRepo{char: &domainchar.Character{ID: 1, Level: 10}}
@@ -187,6 +204,18 @@ func TestCanTakeLoop_Gates(t *testing.T) {
 		ok, reason := svc.CanTakeLoop(context.Background(), 1, 4)
 		if ok {
 			t.Fatalf("expected level gate to reject, got ok=true reason=%q", reason)
+		}
+	})
+
+	t.Run("two_hundred_loop_fails_closed_without_reward_authority", func(t *testing.T) {
+		charRepo := &questTestCharacterRepo{char: &domainchar.Character{ID: 1, Level: 100}}
+		svc := NewService(newQuestTestQuestRepo(), logger)
+		svc.SetGameDataManager(manager)
+		svc.SetCharacterRepository(charRepo)
+		svc.SetLoopRepository(newFakeLoopRepo())
+
+		if ok, reason := svc.CanTakeLoop(context.Background(), 1, loopTwoHundredLid); ok || reason != errLoopRewardsUnavailable.Error() {
+			t.Fatalf("expected loop 9 reward-authority rejection, got ok=%v reason=%q", ok, reason)
 		}
 	})
 
@@ -257,6 +286,108 @@ func TestCanTakeLoop_Gates(t *testing.T) {
 			t.Fatalf("expected cooldown gate to clear once refresh elapses, got false reason=%q", reason)
 		}
 	})
+}
+
+func TestTakeLoop_ValidatesNPCAndCompensatesStateFailure(t *testing.T) {
+	logger := zap.NewNop()
+	loopTpl := models.QuestLoopTemplate{ID: 4, Nid: 277, Num: 10, Refresh: 600, MinLevel: 30, MaxLevel: 160}
+	child := models.QuestTemplate{ID: 701, Type: 7, SubType: "7-4", FinishNPC: 277}
+	manager := newLoopTestManager(t, []models.QuestLoopTemplate{loopTpl}, []models.QuestTemplate{child})
+	npc := models.NpcTemplate{ID: 277, PosMapID: 5, PosX: 100, PosY: 100}
+	if err := manager.GetCache().LoadTable(models.TableNpc, []json.RawMessage{mustQuestJSON(t, npc)}); err != nil {
+		t.Fatal(err)
+	}
+
+	newService := func(char *domainchar.Character, loopRepo *fakeLoopRepo) (*Service, *questTestQuestRepo) {
+		questRepo := newQuestTestQuestRepo()
+		svc := NewService(questRepo, logger)
+		svc.SetGameDataManager(manager)
+		svc.SetCharacterRepository(&questTestCharacterRepo{char: char})
+		svc.SetLoopRepository(loopRepo)
+		return svc, questRepo
+	}
+
+	t.Run("rejects_wrong_npc_before_mutation", func(t *testing.T) {
+		loopRepo := newFakeLoopRepo()
+		svc, questRepo := newService(&domainchar.Character{ID: 1, Level: 30, MapID: 5, PosX: 100, PosY: 100}, loopRepo)
+		if _, _, err := svc.TakeLoop(context.Background(), 1, 4, -1); err == nil {
+			t.Fatal("expected wrong NPC rejection")
+		}
+		if len(questRepo.progress) != 0 || len(loopRepo.states) != 0 {
+			t.Fatalf("wrong NPC mutated state: progress=%d loops=%d", len(questRepo.progress), len(loopRepo.states))
+		}
+	})
+
+	t.Run("rejects_out_of_range_position", func(t *testing.T) {
+		loopRepo := newFakeLoopRepo()
+		svc, questRepo := newService(&domainchar.Character{ID: 1, Level: 30, MapID: 5, PosX: 1000, PosY: 1000}, loopRepo)
+		if _, _, err := svc.TakeLoop(context.Background(), 1, 4, 277); err == nil {
+			t.Fatal("expected position rejection")
+		}
+		if len(questRepo.progress) != 0 || len(loopRepo.states) != 0 {
+			t.Fatal("out-of-range take mutated state")
+		}
+	})
+
+	t.Run("rejects_wrong_map", func(t *testing.T) {
+		loopRepo := newFakeLoopRepo()
+		svc, questRepo := newService(&domainchar.Character{ID: 1, Level: 30, MapID: 6, PosX: 100, PosY: 100}, loopRepo)
+		if _, _, err := svc.TakeLoop(context.Background(), 1, 4, 277); err == nil {
+			t.Fatal("expected map rejection")
+		}
+		if len(questRepo.progress) != 0 || len(loopRepo.states) != 0 {
+			t.Fatal("wrong-map take mutated state")
+		}
+	})
+
+	t.Run("accepts_catalog_npc_in_range", func(t *testing.T) {
+		loopRepo := newFakeLoopRepo()
+		svc, questRepo := newService(&domainchar.Character{ID: 1, Level: 30, MapID: 5, PosX: 100, PosY: 100}, loopRepo)
+		state, progress, err := svc.TakeLoop(context.Background(), 1, 4, 277)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state == nil || progress == nil || state.ActiveQuestID != 701 || len(questRepo.progress) != 1 {
+			t.Fatalf("unexpected successful take state=%+v progress=%+v", state, progress)
+		}
+	})
+
+	t.Run("removes_granted_child_when_state_save_fails", func(t *testing.T) {
+		loopRepo := newFakeLoopRepo()
+		loopRepo.upsertErr = errors.New("state save failed")
+		svc, questRepo := newService(&domainchar.Character{ID: 1, Level: 30, MapID: 5, PosX: 100, PosY: 100}, loopRepo)
+		if _, _, err := svc.TakeLoop(context.Background(), 1, 4, 277); err == nil {
+			t.Fatal("expected state save failure")
+		}
+		if len(questRepo.progress) != 0 || len(loopRepo.states) != 0 {
+			t.Fatalf("state failure left partial mutation: progress=%d loops=%d", len(questRepo.progress), len(loopRepo.states))
+		}
+	})
+}
+
+func TestCancelLoop_DeleteFailureDoesNotDeactivateState(t *testing.T) {
+	baseRepo := newQuestTestQuestRepo()
+	progress := domainquest.NewQuestProgress(1, 701, nil)
+	if err := baseRepo.Save(context.Background(), progress); err != nil {
+		t.Fatal(err)
+	}
+	questRepo := &failingLoopQuestRepo{questTestQuestRepo: baseRepo, deleteErr: errors.New("delete failed")}
+	loopRepo := newFakeLoopRepo()
+	loopRepo.states[1] = map[int]*domainquest.LoopState{
+		4: {CharacterID: 1, LoopID: 4, Active: true, ActiveQuestID: 701},
+	}
+	svc := NewService(questRepo, zap.NewNop())
+	svc.SetLoopRepository(loopRepo)
+
+	if _, _, err := svc.CancelLoop(context.Background(), 1, 4); err == nil {
+		t.Fatal("expected child delete failure")
+	}
+	if !loopRepo.states[1][4].Active || loopRepo.states[1][4].ActiveQuestID != 701 {
+		t.Fatalf("loop deactivated after child delete failure: %+v", loopRepo.states[1][4])
+	}
+	if _, err := baseRepo.FindByCharacterAndQuest(context.Background(), 1, 701); err != nil {
+		t.Fatalf("child progress changed after delete failure: %v", err)
+	}
 }
 
 func TestPickNextChild_FiltersByPoolLevelAndAvoidsImmediateRepeat(t *testing.T) {
@@ -449,6 +580,36 @@ func TestCompleteQuest_LoopChild_DeactivatesOnFinalRound(t *testing.T) {
 	}
 	if state.TakeDateMs != 12345 {
 		t.Fatalf("expected take_date_ms to stay anchored at the original take time, got %d", state.TakeDateMs)
+	}
+}
+
+func TestCompleteQuest_TwoHundredLoopFailsBeforeMutation(t *testing.T) {
+	logger := zap.NewNop()
+	loopTpl := models.QuestLoopTemplate{ID: loopTwoHundredLid, Nid: 48, Num: 200, Refresh: 259200}
+	child := models.QuestTemplate{ID: 14050, Type: 7, SubType: "7-9", FinishNPC: 48}
+	manager := newLoopTestManager(t, []models.QuestLoopTemplate{loopTpl}, []models.QuestTemplate{child})
+	questRepo := newQuestTestQuestRepo()
+	progress := domainquest.NewQuestProgress(1, 14050, loadTestCompletedKill(t, manager, 14050))
+	if err := questRepo.Save(context.Background(), progress); err != nil {
+		t.Fatal(err)
+	}
+	loopRepo := newFakeLoopRepo()
+	loopRepo.states[1] = map[int]*domainquest.LoopState{
+		loopTwoHundredLid: {CharacterID: 1, LoopID: loopTwoHundredLid, Active: true, Ft: 49, ActiveQuestID: 14050},
+	}
+	svc := NewService(questRepo, logger)
+	svc.SetGameDataManager(manager)
+	svc.SetLoopRepository(loopRepo)
+
+	if _, _, err := svc.CompleteQuest(context.Background(), 1, 14050); !errors.Is(err, errLoopRewardsUnavailable) {
+		t.Fatalf("CompleteQuest error=%v, want %v", err, errLoopRewardsUnavailable)
+	}
+	if _, err := questRepo.FindByCharacterAndQuest(context.Background(), 1, 14050); err != nil {
+		t.Fatalf("progress changed on blocked completion: %v", err)
+	}
+	state := loopRepo.states[1][loopTwoHundredLid]
+	if !state.Active || state.Ft != 49 || state.ActiveQuestID != 14050 {
+		t.Fatalf("loop state changed on blocked completion: %+v", state)
 	}
 }
 

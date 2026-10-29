@@ -33,6 +33,7 @@ import (
 	appexplorermedal "mcgame-server/internal/application/explorermedal"
 	appfairy "mcgame-server/internal/application/fairy"
 	appfarm "mcgame-server/internal/application/farm"
+	appgathering "mcgame-server/internal/application/gathering"
 	appgroup "mcgame-server/internal/application/group"
 	appguild "mcgame-server/internal/application/guild"
 	appheiyaoshi "mcgame-server/internal/application/heiyaoshi"
@@ -232,8 +233,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	questRepoBase := postgres.NewQuestRepository(gameDb)
 	questLoopRepo := postgres.NewQuestLoopRepository(gameDb)
 	relationshipRepo := postgres.NewRelationshipRepository(gameDb)
-	marriageRepo := postgres.NewMarriageRepository(gameDb)
-	farmRepo := postgres.NewFarmRepository(gameDb)
+	marriageRepoBase := postgres.NewMarriageRepository(gameDb)
+	farmRepoBase := postgres.NewFarmRepository(gameDb)
+	gatheringRepoBase := postgres.NewGatheringRepository(gameDb)
 	magicEstateRepo := postgres.NewMagicEstateRepository(gameDb)
 	marriageStore := redisstore.NewMarriageStore(redisClient)
 	presenceStore := redisstore.NewSocialPresenceStore(redisClient)
@@ -248,6 +250,9 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	petRepo := cache.NewCachedPetRepository(playerCache, petRepoBase)
 	questRepo := cache.NewCachedQuestRepository(playerCache, questRepoBase)
 	questLoopRepoCached := cache.NewCachedQuestLoopRepository(playerCache, questLoopRepo)
+	marriageRepo := cache.NewCachedMarriageRepository(playerCache, marriageRepoBase)
+	farmRepo := cache.NewCachedFarmRepository(playerCache, farmRepoBase)
+	gatheringRepo := cache.NewCachedGatheringRepository(playerCache, gatheringRepoBase)
 	sendCombineRepo := cache.NewCachedSendCombineRepository(playerCache, postgres.NewSendCombineRepository(gameDb))
 	sendCombineService := appactivity.NewSendCombineService(sendCombineRepo)
 	eventBus := appevents.NewBus(log)
@@ -406,6 +411,10 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	skillService.SetCharacterRepository(characterRepo)
 	skillService.SetPetRepository(petRepo)
 	skillService.SetGameDataManager(gameDataManager)
+	gatheringService := appgathering.NewService(gatheringRepo, characterRepo, skillService, itemService, gameDataManager)
+	if err := gatheringService.ValidateCatalog(); err != nil {
+		log.Fatal("Invalid ordinary gathering catalog", zap.Error(err))
+	}
 	itemService.AddCharacterBonusProvider(skillService)
 	petService.AddFeatureBonusProvider(skillService)
 	itemService.SetSkillService(skillService)
@@ -413,6 +422,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 
 	socialService := appsocial.NewService(relationshipRepo, relationshipRepo, log)
 	marriageService := appmarriage.NewService(characterRepo, marriageRepo, marriageStore, log)
+	marriageService.SetInvitationCounter(itemService)
 	pkService := apppk.NewService(apppk.DefaultConfig(), log)
 
 	dispatcher := rtmp.NewRPCDispatcher(log)
@@ -558,6 +568,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	itemHandler.SetSkillService(skillService)
 	itemHandler.SetBuffService(buffService)
 	itemHandler.SetQuestService(questService)
+	itemHandler.SetMarriageDivorcer(marriageService)
 	itemHandler.RegisterHandlers(dispatcher)
 
 	mwService = appmagicweapon.NewService(itemService, itemRepo, characterRepo, gameDataManager, log)
@@ -649,6 +660,7 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	npcHandler.SetItemService(itemService)
 	npcHandler.SetPetService(petService)
 	npcHandler.SetFarmService(farmService)
+	npcHandler.SetGatheringService(gatheringService)
 	npcHandler.SetSkillService(skillService)
 	npcHandler.SetScheduleBossClickHandler(combatHandler.HitNpc)
 	npcHandler.SetRTMPServer(rtmpServer)
@@ -876,6 +888,8 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 	socialHandler.RegisterHandlers(dispatcher)
 
 	marriageHandler := marriagehandler.NewHandler(marriageService, log)
+	marriageHandler.SetWeddingTransport(sceneHandler)
+	npcHandler.SetWeddingBookProvider(marriageHandler)
 	marriageHandler.RegisterHandlers(dispatcher)
 
 	chatHandler := chathandler.NewHandler(charService, itemService, rtmpServer.GetSceneManager(), rtmpServer, gameDataManager, log)

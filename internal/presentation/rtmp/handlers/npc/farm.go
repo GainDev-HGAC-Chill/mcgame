@@ -17,22 +17,14 @@ import (
 	"mcgame-server/internal/gamedata"
 	"mcgame-server/internal/infrastructure/rtmp"
 	farmhandler "mcgame-server/internal/presentation/rtmp/handlers/farm"
-	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
 
 	"go.uber.org/zap"
 )
 
-type farmHarvestTask struct {
-	characterID int64
-	plotNPCID   int
-	cancel      chan struct{}
-}
-
 const (
-	farmPlantVigorCost          = 25
-	farmHarvestPlantMasteryGain = 20
-	farmPlantSkillType          = 15
+	farmPlantVigorCost = 25
+	farmPlantSkillType = 15
 )
 
 func (h *Handler) handleFarmScriptAction(ctx *rtmp.RPCContext, characterID int64, funcID string) (bool, error) {
@@ -155,7 +147,7 @@ func (h *Handler) handleFarmScriptAction(ctx *rtmp.RPCContext, characterID int64
 		if result != nil && result.CropName != "" && result.Plot != nil {
 			msg = fmt.Sprintf("Đã trồng %s. Thời gian chín: %s.", result.CropName, result.Plot.ReadyAt.Format("15:04:05"))
 		}
-		h.applyFarmPlantVigorCost(ctx, char)
+		h.sendFarmPlantCommittedState(ctx, result)
 		_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, msg)
 		h.sendFarmCropOn(ctx, characterID, plotNPCID, cropID)
 		h.sendFarmDataUpdate(ctx, characterID)
@@ -314,7 +306,7 @@ func (h *Handler) handleFarmScriptAction(ctx *rtmp.RPCContext, characterID int64
 		if result != nil && result.Plot != nil {
 			h.sendFarmCropOn(ctx, characterID, plotNPCID, result.Plot.CropNPCID)
 		}
-		h.applyFarmPlantVigorCost(ctx, char)
+		h.sendFarmPlantCommittedState(ctx, result)
 		_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Đã trồng cây kim tiền thành công.")
 		h.sendFarmDataUpdate(ctx, characterID)
 		return true, nil
@@ -461,30 +453,12 @@ func hasFarmPlantVigor(char *domainchar.Character, cost int) bool {
 	return char != nil && cost > 0 && char.CurrentSP >= cost
 }
 
-func spendFarmPlantVigor(char *domainchar.Character, cost int) bool {
-	if !hasFarmPlantVigor(char, cost) {
-		return false
-	}
-
-	char.CurrentSP -= cost
-	return true
-}
-
-func (h *Handler) applyFarmPlantVigorCost(ctx *rtmp.RPCContext, char *domainchar.Character) {
-	if h.charService == nil || !spendFarmPlantVigor(char, farmPlantVigorCost) {
+func (h *Handler) sendFarmPlantCommittedState(ctx *rtmp.RPCContext, result *appfarm.PlantResult) {
+	if result == nil || result.Character == nil {
 		return
 	}
-
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		h.logger.Warn("Failed to persist farm plant vigor cost",
-			zap.Int64("character_id", char.ID),
-			zap.Int("vigor_cost", farmPlantVigorCost),
-			zap.Error(err))
-		return
-	}
-
 	_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("Mất %d điểm sức lực", farmPlantVigorCost))
-	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"vigor": char.CurrentSP})
+	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"vigor": result.Character.CurrentSP})
 }
 
 func farmPlantSkillLevelEnough(char *domainchar.Character, cropNPCID int, gameData *gamedata.Manager) bool {
@@ -657,162 +631,8 @@ func (h *Handler) harvestOwnerCharacterID(ctx *rtmp.RPCContext, characterID int6
 	return h.viewedFarmCharacterID(ctx, characterID)
 }
 
-func (h *Handler) replaceFarmHarvestTask(connID uint32, task *farmHarvestTask) *farmHarvestTask {
-	h.farmHarvestMu.Lock()
-	defer h.farmHarvestMu.Unlock()
-
-	prev := h.farmHarvests[connID]
-	h.farmHarvests[connID] = task
-	return prev
-}
-
-func (h *Handler) completeFarmHarvestTask(connID uint32, task *farmHarvestTask) bool {
-	h.farmHarvestMu.Lock()
-	defer h.farmHarvestMu.Unlock()
-
-	current, ok := h.farmHarvests[connID]
-	if !ok || current != task {
-		return false
-	}
-
-	delete(h.farmHarvests, connID)
-	return true
-}
-
-func (h *Handler) cancelFarmHarvestTask(connID uint32) *farmHarvestTask {
-	h.farmHarvestMu.Lock()
-	defer h.farmHarvestMu.Unlock()
-
-	task, ok := h.farmHarvests[connID]
-	if !ok {
-		return nil
-	}
-
-	delete(h.farmHarvests, connID)
-	close(task.cancel)
-	return task
-}
-
-func (h *Handler) startFarmHarvest(ctx *rtmp.RPCContext, characterID int64, ownerCharacterID int64, plotNPCID int) error {
-	task := &farmHarvestTask{
-		characterID: characterID,
-		plotNPCID:   plotNPCID,
-		cancel:      make(chan struct{}),
-	}
-	if prev := h.replaceFarmHarvestTask(ctx.ConnID, task); prev != nil {
-		close(prev.cancel)
-	}
-
-	if err := ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 27}); err != nil {
-		h.cancelFarmHarvestTask(ctx.ConnID)
-		return err
-	}
-
-	if err := ctx.Connection.SendCallback("onGathering", map[string]interface{}{"hint": " Đang thu hoạch", "delay": 5000}); err != nil {
-		h.cancelFarmHarvestTask(ctx.ConnID)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		return err
-	}
-
-	go func() {
-		timer := time.NewTimer(5 * time.Second)
-		defer timer.Stop()
-
-		select {
-		case <-task.cancel:
-			return
-		case <-timer.C:
-		}
-
-		if !h.completeFarmHarvestTask(ctx.ConnID, task) {
-			return
-		}
-
-		result, err := h.farmService.HarvestPlot(ctx.Context, ownerCharacterID, characterID, plotNPCID)
-		_ = ctx.Connection.SendCallback("quitGathering", nil)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		h.finishFarmHarvest(ctx, characterID, plotNPCID, result, err)
-	}()
-
-	return nil
-}
-
-func (h *Handler) QuitGatheringClinet(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if task := h.cancelFarmHarvestTask(ctx.ConnID); task != nil {
-		_ = ctx.Connection.SendCallback("quitGathering", nil)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		return map[string]interface{}{"success": true, "plotId": task.plotNPCID}, nil
-	}
-
-	if task := h.cancelFishingTask(ctx.ConnID); task != nil {
-		_ = ctx.Connection.SendCallback("quitGathering", nil)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		return map[string]interface{}{"success": true, "npcId": task.npcID}, nil
-	}
-
-	if task := h.cancelHerbTask(ctx.ConnID); task != nil {
-		_ = ctx.Connection.SendCallback("quitGathering", nil)
-		_ = ctx.Connection.SendCallback("onSetCharState", map[string]interface{}{"cid": ctx.CharacterID, "state": 1})
-		return map[string]interface{}{"success": true, "npcId": task.npcID}, nil
-	}
-
-	return map[string]interface{}{"success": true}, nil
-}
-
-func (h *Handler) finishFarmHarvest(ctx *rtmp.RPCContext, characterID int64, plotNPCID int, result *appfarm.HarvestResult, err error) {
-	if err != nil {
-		msg := "Không thể thu hoạch nông sản."
-		systemMsg := ""
-		switch {
-		case errors.Is(err, appfarm.ErrPlotNotFound):
-			msg = "Bạn chưa trồng."
-		case errors.Is(err, appfarm.ErrCropNotReady):
-			msg = "Nông sản chưa chín."
-		case errors.Is(err, appfarm.ErrPlotAlreadyShared):
-			systemMsg = "Bạn đã thu hoạch mảnh vườn này rồi, phải chừa lại cho chủ vườn 1 ít chứ"
-		case errors.Is(err, appfarm.ErrPlotSharedOut):
-			systemMsg = "Mảnh vườn này đã được người khác thu hoạch phụ rồi."
-		}
-		if systemMsg != "" {
-			_ = ctx.Connection.SendCallback("onSystemSay", systemMsg)
-			return
-		}
-		_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, msg)
-		return
-	}
-
-	if result != nil {
-		_ = ctx.Connection.SendCallback("onAddItem", h.buildFarmRewardEffect(result))
-		if result.AddedInventoryItem != nil {
-			_ = ctx.Connection.SendCallback("onAddCharactorSlot", result.AddedInventoryItem.ToDTO())
-		}
-	}
-
-	if h.skillService != nil {
-		char, _, masteryErr := h.skillService.AddPlantMastery(ctx.Context, characterID, farmHarvestPlantMasteryGain)
-		if masteryErr != nil {
-			h.logger.Warn("Failed to add farm plant mastery",
-				zap.Int64("character_id", characterID),
-				zap.Int("mastery_gain", farmHarvestPlantMasteryGain),
-				zap.Error(masteryErr))
-		} else if char != nil {
-			_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("Độ thành thục của Trồng trọt tăng thêm %d điểm", farmHarvestPlantMasteryGain))
-			rtmputils.SendLifeSkillStateUpdate(ctx, h.logger, h.skillService, char)
-		}
-	}
-
-	if result == nil || !result.IsSharedHarvest {
-		h.sendFarmPlotReset(ctx, plotNPCID)
-	}
-	if result != nil {
-		h.sendFarmDataUpdate(ctx, result.OwnerCharacterID)
-		return
-	}
-	h.sendFarmDataUpdate(ctx, characterID)
-}
-
 func (h *Handler) RipenImmediately(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if h.farmService == nil || h.charService == nil {
+	if h.farmService == nil {
 		return nil, pkgerrors.ErrSystemError
 	}
 
@@ -827,49 +647,23 @@ func (h *Handler) RipenImmediately(ctx *rtmp.RPCContext, args []interface{}) (in
 	}
 	plotNPCID = farmhandler.NormalizePlotNPCID(h.farmService, plotNPCID)
 
-	plot, err := h.farmService.GetPlot(ctx.Context, characterID, plotNPCID)
+	result, err := h.farmService.RipenAndHarvestPlot(ctx.Context, characterID, plotNPCID)
 	if err != nil {
-		return nil, err
-	}
-	if plot == nil {
-		_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Bạn chưa trồng.")
-		return map[string]interface{}{"success": true}, nil
-	}
-	if !time.Now().Before(plot.ReadyAt) {
-		result, harvestErr := h.farmService.HarvestPlot(ctx.Context, characterID, characterID, plotNPCID)
-		h.finishFarmHarvest(ctx, characterID, plotNPCID, result, harvestErr)
-		return map[string]interface{}{"success": true}, nil
-	}
-
-	char, err := h.charService.GetByID(ctx.Context, characterID)
-	if err != nil || char == nil {
-		return nil, pkgerrors.ErrUnauthorized
-	}
-
-	const ripenImmediatelyCost = 9
-	if char.Gold < ripenImmediatelyCost {
-		_ = ctx.Connection.SendCallback("onSystemMsgCode", 20)
-		return map[string]interface{}{"success": true}, nil
-	}
-
-	char.Gold -= ripenImmediatelyCost
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		return nil, err
-	}
-
-	_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("Mất %d vàng", ripenImmediatelyCost))
-	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": char.Gold})
-
-	if _, _, err := h.farmService.RipenPlot(ctx.Context, characterID, plotNPCID); err != nil {
 		if errors.Is(err, appfarm.ErrPlotNotFound) {
 			_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Bạn chưa trồng.")
 			return map[string]interface{}{"success": true}, nil
 		}
+		if errors.Is(err, pkgerrors.ErrInsufficientFunds) {
+			_ = ctx.Connection.SendCallback("onSystemMsgCode", 20)
+			return map[string]interface{}{"success": true}, nil
+		}
 		return nil, err
 	}
-
-	result, harvestErr := h.farmService.HarvestPlot(ctx.Context, characterID, characterID, plotNPCID)
-	h.finishFarmHarvest(ctx, characterID, plotNPCID, result, harvestErr)
+	if result.GoldCharged > 0 {
+		_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("Mất %d vàng", result.GoldCharged))
+		_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": result.Character.Gold})
+	}
+	h.finishFarmHarvest(ctx, characterID, plotNPCID, result.Harvest, nil)
 	return map[string]interface{}{"success": true}, nil
 }
 
@@ -889,9 +683,9 @@ func (h *Handler) DoDoubleHarvest(ctx *rtmp.RPCContext, args []interface{}) (int
 	}
 	plotNPCID = farmhandler.NormalizePlotNPCID(h.farmService, plotNPCID)
 
-	_, alreadyBoosted, err := h.farmService.DoubleHarvestPlot(ctx.Context, characterID, plotNPCID)
+	_, _, err = h.farmService.DoubleHarvestPlot(ctx.Context, characterID, plotNPCID)
 	if err != nil {
-		msg := "Không thể sử dụng thuốc tăng trưởng."
+		msg := "Thuốc tăng trưởng hiện chưa khả dụng."
 		switch {
 		case errors.Is(err, appfarm.ErrPlotNotFound):
 			msg = "Bạn chưa trồng."
@@ -902,18 +696,11 @@ func (h *Handler) DoDoubleHarvest(ctx *rtmp.RPCContext, args []interface{}) (int
 		return map[string]interface{}{"success": true}, nil
 	}
 
-	if alreadyBoosted {
-		_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Nông sản đã được tăng sản lượng.")
-		return map[string]interface{}{"success": true}, nil
-	}
-
-	_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Đã sử dụng thuốc tăng trưởng.")
-	h.sendFarmDataUpdate(ctx, characterID)
 	return map[string]interface{}{"success": true}, nil
 }
 
 func (h *Handler) Uproot(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {
-	if h.farmService == nil || h.charService == nil {
+	if h.farmService == nil {
 		return nil, pkgerrors.ErrSystemError
 	}
 
@@ -928,42 +715,20 @@ func (h *Handler) Uproot(ctx *rtmp.RPCContext, args []interface{}) (interface{},
 	}
 	plotNPCID = farmhandler.NormalizePlotNPCID(h.farmService, plotNPCID)
 
-	plot, err := h.farmService.GetPlot(ctx.Context, characterID, plotNPCID)
+	result, err := h.farmService.UprootPlotAtomic(ctx.Context, characterID, plotNPCID)
 	if err != nil {
+		if errors.Is(err, appfarm.ErrPlotNotFound) {
+			_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Bạn chưa trồng.")
+			return map[string]interface{}{"success": true}, nil
+		}
+		if errors.Is(err, pkgerrors.ErrInsufficientFunds) {
+			_ = ctx.Connection.SendCallback("onSystemMsgCode", 20)
+			return map[string]interface{}{"success": true}, nil
+		}
 		return nil, err
 	}
-	if plot == nil {
-		_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Bạn chưa trồng.")
-		return map[string]interface{}{"success": true}, nil
-	}
-
-	char, err := h.charService.GetByID(ctx.Context, characterID)
-	if err != nil || char == nil {
-		return nil, pkgerrors.ErrUnauthorized
-	}
-
-	const uprootCost = 1
-	if char.Gold < uprootCost {
-		_ = ctx.Connection.SendCallback("onSystemMsgCode", 20)
-		return map[string]interface{}{"success": true}, nil
-	}
-
-	char.Gold -= uprootCost
-	if err := h.charService.Update(ctx.Context, char); err != nil {
-		return nil, err
-	}
-
-	destroyed, err := h.farmService.DestroyPlot(ctx.Context, characterID, plotNPCID)
-	if err != nil {
-		return nil, err
-	}
-	if !destroyed {
-		_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Bạn chưa trồng.")
-		return map[string]interface{}{"success": true}, nil
-	}
-
-	_ = ctx.Connection.SendCallback("onSystemSay", fmt.Sprintf("Mất %d vàng", uprootCost))
-	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": char.Gold})
+	_ = ctx.Connection.SendCallback("onSystemSay", "Mất 1 vàng")
+	_ = ctx.Connection.SendCallback("onUPP", map[string]interface{}{"gold": result.Character.Gold})
 	_ = ctx.Connection.SendCallback("onNpcMsg", plotNPCID, "Đã tiêu diệt nông sản trên ô đất này.")
 	h.sendFarmPlotReset(ctx, plotNPCID)
 	h.sendFarmDataUpdate(ctx, characterID)

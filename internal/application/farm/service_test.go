@@ -4,11 +4,11 @@ package farm
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"go.uber.org/zap"
-	appitem "mcgame-server/internal/application/item"
 	domainchar "mcgame-server/internal/domain/character"
 	"mcgame-server/internal/domain/farm"
 	domainitem "mcgame-server/internal/domain/item"
@@ -82,6 +82,83 @@ func (r *stubRepository) Upsert(ctx context.Context, plot *farm.Plot) error {
 func (r *stubRepository) Delete(ctx context.Context, characterID int64, plotNPCID int) error {
 	delete(r.plots, plotNPCID)
 	return nil
+}
+
+func (r *stubRepository) PlantAtomic(_ context.Context, command farm.PlantCommand) (*farm.PlantCommandResult, error) {
+	if existing := r.plots[command.PlotNPCID]; existing != nil {
+		return nil, ErrPlotOccupied
+	}
+	for _, existing := range r.plots {
+		if existing != nil && existing.CharacterID == command.CharacterID {
+			return nil, ErrAnotherPlotActive
+		}
+	}
+	plot := &farm.Plot{
+		CharacterID:           command.CharacterID,
+		PlotNPCID:             command.PlotNPCID,
+		CropNPCID:             command.CropNPCID,
+		HarvestItemTemplateID: command.HarvestItemTemplateID,
+		HarvestCount:          command.HarvestCount,
+		TotalHarvestCount:     command.HarvestCount,
+		SharedHarvesterIDs:    []int64{},
+		PlantedAt:             command.PlantedAt,
+		ReadyAt:               command.ReadyAt,
+	}
+	r.plots[command.PlotNPCID] = plot
+	return &farm.PlantCommandResult{Character: &domainchar.Character{ID: command.CharacterID, CurrentSP: 75}, Plot: plot}, nil
+}
+
+func (r *stubRepository) HarvestAtomic(_ context.Context, command farm.HarvestCommand) (*farm.HarvestCommandResult, error) {
+	plot := r.plots[command.PlotNPCID]
+	if plot == nil || plot.CharacterID != command.OwnerCharacterID {
+		return nil, ErrPlotNotFound
+	}
+	if time.Now().Before(plot.ReadyAt) {
+		return nil, ErrCropNotReady
+	}
+	rewardCount := plot.HarvestCount
+	shared := command.OwnerCharacterID != command.HarvesterCharacterID
+	deleted := false
+	if shared {
+		for _, characterID := range plot.SharedHarvesterIDs {
+			if characterID == command.HarvesterCharacterID {
+				return nil, ErrPlotAlreadyShared
+			}
+		}
+		if len(plot.SharedHarvesterIDs) > 0 {
+			return nil, ErrPlotSharedOut
+		}
+		rewardCount = max(1, plot.TotalHarvestCount/10)
+		if plot.HarvestCount-rewardCount < 1 {
+			return nil, ErrPlotSharedOut
+		}
+		plot.HarvestCount -= rewardCount
+		plot.SharedHarvesterIDs = append(plot.SharedHarvesterIDs, command.HarvesterCharacterID)
+	} else {
+		delete(r.plots, command.PlotNPCID)
+		deleted = true
+	}
+	reward := &domainitem.Item{ID: int64(100 + command.HarvesterCharacterID), CharacterID: command.HarvesterCharacterID, TemplateID: plot.HarvestItemTemplateID, StackCount: rewardCount}
+	return &farm.HarvestCommandResult{Plot: plot, Reward: reward, RewardTemplateID: plot.HarvestItemTemplateID, RewardCount: rewardCount, Shared: shared, PlotDeleted: deleted}, nil
+}
+
+func (r *stubRepository) RipenAndHarvestAtomic(_ context.Context, command farm.RipenAndHarvestCommand) (*farm.RipenAndHarvestCommandResult, error) {
+	plot := r.plots[command.PlotNPCID]
+	if plot == nil || plot.CharacterID != command.CharacterID {
+		return nil, ErrPlotNotFound
+	}
+	delete(r.plots, command.PlotNPCID)
+	reward := &domainitem.Item{ID: 200, CharacterID: command.CharacterID, TemplateID: plot.HarvestItemTemplateID, StackCount: plot.HarvestCount}
+	return &farm.RipenAndHarvestCommandResult{Character: &domainchar.Character{ID: command.CharacterID, Gold: 91}, Plot: plot, Reward: reward, RewardTemplateID: plot.HarvestItemTemplateID, RewardCount: plot.HarvestCount}, nil
+}
+
+func (r *stubRepository) UprootAtomic(_ context.Context, command farm.UprootCommand) (*farm.UprootCommandResult, error) {
+	plot := r.plots[command.PlotNPCID]
+	if plot == nil || plot.CharacterID != command.CharacterID {
+		return nil, ErrPlotNotFound
+	}
+	delete(r.plots, command.PlotNPCID)
+	return &farm.UprootCommandResult{Character: &domainchar.Character{ID: command.CharacterID, Gold: 99}, Plot: plot}, nil
 }
 
 func (r *stubItemRepository) FindByID(ctx context.Context, id int64) (*domainitem.Item, error) {
@@ -462,7 +539,7 @@ func TestIsPlotTemplateIDIncludesFarmPlot1228(t *testing.T) {
 	}
 }
 
-func TestDoubleHarvestPlotUsesResolvedLongTermYield(t *testing.T) {
+func TestDoubleHarvestPlotFailsClosedWithoutMutation(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &stubRepository{
 		plots: map[int]*farm.Plot{
@@ -480,15 +557,12 @@ func TestDoubleHarvestPlotUsesResolvedLongTermYield(t *testing.T) {
 	}
 	service := NewService(repo, nil, nil, zap.NewNop())
 
-	plot, alreadyBoosted, err := service.DoubleHarvestPlot(context.Background(), 1, 1707)
-	if err != nil {
-		t.Fatalf("DoubleHarvestPlot() error = %v", err)
+	if _, _, err := service.DoubleHarvestPlot(context.Background(), 1, 1707); !errors.Is(err, ErrDoubleHarvestUnavailable) {
+		t.Fatalf("DoubleHarvestPlot() error = %v, expected unavailable", err)
 	}
-	if alreadyBoosted {
-		t.Fatal("DoubleHarvestPlot() unexpectedly reported already boosted")
-	}
-	if plot.TotalHarvestCount != 100 || plot.HarvestCount != 100 {
-		t.Fatalf("DoubleHarvestPlot() counts = (%d,%d), expected (100,100)", plot.TotalHarvestCount, plot.HarvestCount)
+	plot := repo.plots[1707]
+	if plot.TotalHarvestCount != 50 || plot.HarvestCount != 50 {
+		t.Fatalf("DoubleHarvestPlot() mutated counts to (%d,%d)", plot.TotalHarvestCount, plot.HarvestCount)
 	}
 }
 
@@ -508,8 +582,7 @@ func TestHarvestPlotAllowsOneSharedHarvestAndLeavesOwnerYield(t *testing.T) {
 			},
 		},
 	}
-	itemService := appitem.NewService(&stubItemRepository{}, zap.NewNop())
-	service := NewService(repo, nil, itemService, zap.NewNop())
+	service := NewService(repo, nil, nil, zap.NewNop())
 
 	result, err := service.HarvestPlot(context.Background(), 1, 2, 1707)
 	if err != nil {

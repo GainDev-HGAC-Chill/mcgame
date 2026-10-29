@@ -11,6 +11,7 @@ import (
 	appcombat "mcgame-server/internal/application/combat"
 	appfairy "mcgame-server/internal/application/fairy"
 	appfarm "mcgame-server/internal/application/farm"
+	appgathering "mcgame-server/internal/application/gathering"
 	appgroup "mcgame-server/internal/application/group"
 	appguild "mcgame-server/internal/application/guild"
 	appitem "mcgame-server/internal/application/item"
@@ -32,6 +33,7 @@ type Handler struct {
 	combatService       *appcombat.Service
 	questService        *appquest.Service
 	farmService         *appfarm.Service
+	gatheringService    *appgathering.Service
 	sceneManager        *rtmp.SceneManager
 	rtmpServer          *rtmp.Server
 	presenceStore       *redisstore.SocialPresenceStore
@@ -51,7 +53,12 @@ type Handler struct {
 	herbTasks           map[uint32]*herbTask
 	groupStateRefresher func(ctx context.Context, groupID int64)
 	scheduleBossClick   rtmp.HandlerFunc
+	weddingBookProvider weddingBookProvider
 	logger              *zap.Logger
+}
+
+type weddingBookProvider interface {
+	SendWeddingBookList(ctx context.Context, connection *rtmp.Connection) error
 }
 
 func NewHandler(sceneService *appscene.Service, charService *appchar.Service, questService *appquest.Service, sceneManager *rtmp.SceneManager, accountRepo auth.AccountRepository, logger *zap.Logger) *Handler {
@@ -104,6 +111,10 @@ func (h *Handler) SetFarmService(farmService *appfarm.Service) {
 	h.farmService = farmService
 }
 
+func (h *Handler) SetGatheringService(gatheringService *appgathering.Service) {
+	h.gatheringService = gatheringService
+}
+
 func (h *Handler) SetFairyService(fairyService *appfairy.Service) {
 	h.fairyService = fairyService
 }
@@ -118,6 +129,10 @@ func (h *Handler) SetPresenceStore(store *redisstore.SocialPresenceStore) {
 
 func (h *Handler) SetScheduleBossClickHandler(handler rtmp.HandlerFunc) {
 	h.scheduleBossClick = handler
+}
+
+func (h *Handler) SetWeddingBookProvider(provider weddingBookProvider) {
+	h.weddingBookProvider = provider
 }
 
 func (h *Handler) sendSceneResetCallbacks(conn *rtmp.Connection) error {

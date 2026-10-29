@@ -9,7 +9,7 @@ import (
 )
 
 type SeekingEntry struct {
-	CharacterID int64 `json:"characterId"`
+	CharacterID int64  `json:"characterId"`
 	Content     string `json:"content"`
 	Flag        int    `json:"flag"`
 	AddDate     int64  `json:"addDate"`
@@ -34,6 +34,39 @@ type MarriageRecord struct {
 	MarriedAt  time.Time
 }
 
+type WeddingBooking struct {
+	MarriageID   int64
+	Partner1ID   int64
+	Partner1Name string
+	Partner2ID   int64
+	Partner2Name string
+	RingType     int
+	WeddingDate  time.Time
+	Line         int
+	Flag         int
+}
+
+type BookWeddingCommand struct {
+	CharacterID int64
+	WeddingDate time.Time
+	Line        int
+	Flag        int
+	Venue       int
+	Cost        int64
+}
+
+type BookWeddingResult struct {
+	Money int64
+}
+
+type DivorceResult struct {
+	MarriageID int64
+	Partner1ID int64
+	Partner2ID int64
+	ItemID     int64
+	Remaining  int
+}
+
 type CoupleRank struct {
 	ID           int64
 	Partner1ID   int64
@@ -49,6 +82,11 @@ type Repository interface {
 	FindByPartner(ctx context.Context, characterID int64) (*MarriageRecord, error)
 	Create(ctx context.Context, record *MarriageRecord) error
 	ListRanks(ctx context.Context, offset, limit int) ([]*CoupleRank, error)
+	ListWeddingBookings(ctx context.Context, from, to time.Time) ([]*WeddingBooking, error)
+	BookWedding(ctx context.Context, command BookWeddingCommand) (*BookWeddingResult, error)
+	CancelWedding(ctx context.Context, characterID int64) error
+	FindWeddingByGroom(ctx context.Context, groomID int64) (*WeddingBooking, error)
+	DivorceWithCard(ctx context.Context, characterID int64) (*DivorceResult, error)
 }
 
 type Store interface {

@@ -5,12 +5,14 @@ package item
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	appmarriage "mcgame-server/internal/application/marriage"
 	"mcgame-server/internal/infrastructure/rtmp"
 	rtmputils "mcgame-server/internal/presentation/rtmp/utils"
 	pkgerrors "mcgame-server/pkg/errors"
@@ -127,20 +129,28 @@ func (h *Handler) UseGoodCard(ctx *rtmp.RPCContext, args []interface{}) (interfa
 		return nil, pkgerrors.ErrUnauthorized
 	}
 
-	consumed, err := h.itemService.ConsumeItemsByTemplateID(ctx.Context, characterID, goodCardTemplateID, 1)
-	if err != nil {
-		h.logger.Error("UseGoodCard: failed to consume card", zap.Error(err))
-		return rtmp.ErrorToResponse(err), nil
+	if h.marriageDivorcer == nil {
+		return rtmp.ErrorToResponse(pkgerrors.ErrSystemError), nil
 	}
-	if !consumed {
-		ctx.Connection.SendCallback("onSystemSay", "Bạn không có Thẻ May Mắn.")
+	result, err := h.marriageDivorcer.DivorceWithCard(ctx.Context, characterID)
+	if err != nil {
+		switch {
+		case errors.Is(err, appmarriage.ErrDivorceCardRequired):
+			ctx.Connection.SendCallback("onSystemSay", "Bạn không có Thẻ Ly Hôn.")
+		case errors.Is(err, appmarriage.ErrNotMarried):
+			ctx.Connection.SendCallback("onSystemSay", "Bạn chưa kết hôn.")
+		default:
+			h.logger.Error("UseGoodCard: divorce transaction failed", zap.Error(err))
+			return rtmp.ErrorToResponse(err), nil
+		}
 		return nil, nil
 	}
 
-	ctx.Connection.SendCallback("onSystemSay", "Đã sử dụng Thẻ May Mắn.")
+	ctx.Connection.SendCallback("onSystemSay", "Đã ly hôn thành công.")
 
-	h.logger.Info("UseGoodCard: card used",
-		zap.Int64("character_id", characterID))
+	h.logger.Info("UseGoodCard: marriage ended",
+		zap.Int64("character_id", characterID),
+		zap.Int64("marriage_id", result.MarriageID))
 
 	return map[string]interface{}{"success": true}, nil
 }

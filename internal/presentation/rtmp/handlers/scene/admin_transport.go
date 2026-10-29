@@ -15,6 +15,14 @@ import (
 )
 
 func (h *Handler) TransportPlayer(charID int64, mapID, x, y int) bool {
+	return h.transportPlayer(charID, mapID, x, y, true)
+}
+
+func (h *Handler) TransportPlayerAlone(charID int64, mapID, x, y int) bool {
+	return h.transportPlayer(charID, mapID, x, y, false)
+}
+
+func (h *Handler) transportPlayer(charID int64, mapID, x, y int, followGroup bool) bool {
 	if h == nil || h.lookupConnFn == nil || h.sceneManager == nil {
 		return false
 	}
@@ -91,7 +99,9 @@ func (h *Handler) TransportPlayer(charID int64, mapID, x, y int) bool {
 			zap.Error(err))
 	}
 
-	h.groupTransportDeps().FollowLeaderToMap(ctx, charID, oldMapID, mapID, x, y)
+	if followGroup {
+		h.groupTransportDeps().FollowLeaderToMap(ctx, charID, oldMapID, mapID, x, y)
+	}
 
 	return true
 }

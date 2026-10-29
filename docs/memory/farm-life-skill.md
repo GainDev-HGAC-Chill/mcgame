@@ -4,13 +4,13 @@
 
 Domain entity in `internal/domain/farm/plot.go`. Represents planted crop plots with fields: CharacterID, PlotNPCID, CropNPCID, HarvestItemTemplateID, harvest count, and timestamps.
 
-Repository interface in `internal/domain/farm/repository.go` defines: `FindByCharacter`, `FindByCharacterAndPlot`, `Upsert`, `Delete`.
+Repository interface in `internal/domain/farm/repository.go` defines farm reads plus a separate atomic command capability for plant, harvest, immediate ripen+harvest, and uproot.
 
 Current status: Fully implemented — domain model, repository (Supabase persistence), application service (`internal/application/farm/service.go`), RTMP handlers (`internal/presentation/rtmp/handlers/farm/` and `handlers/npc/farm.go`), visual stage overlays, and migration (`20260403182718_add_character_farm_plots.sql`).
 
 Farm-facing Vietnamese strings sent by the Go server should remain accented UTF-8, not ASCII transliteration. `internal/presentation/rtmp/handlers/npc/farm.go` sends menu text, notices, gather hints, and the planting guide directly to the Flash client, while `internal/application/farm/service.go` provides fallback crop and item names. AMF0 string transport is UTF-8, so only the displayed text should change; callback names and payload keys must stay unchanged.
 
-Farm planting now uses the same vigor model as other gathering actions: planting requires at least `25` `CurrentSP`, and a successful plant should persist the reduced vigor, send `onSystemSay` for the loss, and refresh the client with `onUPP{"vigor": ...}`.
+Farm planting uses the same vigor model as other gathering actions: planting requires at least `25` `CurrentSP`. Vigor deduction, optional seed consumption, and plot creation are one PostgreSQL command; callbacks use its committed character/seed/plot snapshots.
 
 Farm crop visuals have three server-driven checkpoints: initial `onNpcOn`, intermediate `onNpcReload` at `1/3` of total grow duration with `GrowingResCode`, and ripe `onNpcReload` at `ReadyAt` with `ReadyResCode`. The wither deadline remains `ReadyAt + 2/3 * growDuration`.
 
@@ -58,7 +58,7 @@ Client uses `useItem` with skill book item template 2409. Item handler checks `i
 
 - `LearnPlantSkillByBook`: initial PlantDex copied to skill Exp
 - `UpgradePlantSkill`: PlantDex synced after resource deduction
-- `AddPlantMastery`: increases PlantDex by amount (e.g. +20 on harvest), then syncs
+- `AddPlantMastery`: remains available for an authoritative producer, but farm harvest no longer calls it
 - `syncLifeSkillEntries`: called in `GetSkillsForCallback()` before sending to client
 
 ### SendLifeSkillStateUpdate Helper
@@ -79,3 +79,18 @@ Client uses `useItem` with skill book item template 2409. Item handler checks `i
 Domain entity `CharacterSkill` in `internal/domain/skill/skill.go` with `ToDTO()` producing camelCase aliases (`id`, `sid`, `skillId`).
 
 Fishing (`14`, template `2400`) and Herb (`16`, template `2408`) are life skills alongside Planting. Their level-1 books and exact-next upgrades must use the life-skill progression path; `skillLearnByClient` cannot grant their first level. Item type `19` is Hidden Weapon and must not be classified as a life skill.
+
+## Atomic Fishing, Herb, and Farm Lifecycle
+
+- `internal/application/gathering/registry.go` is the only ordinary reward registry. It contains exactly two fish and two herb IDs for each level 1–10, excludes special fish `2590/2596/2598/2601`, and enables only shipped ordinary fishing NPC levels 1–7. Herb templates `1241..1250` do not authorize world placement by themselves.
+- Fishing start is read-only: require learned skill level, an ordinary node, and an equipped type-1201 rod in slot13 with positive durability. Delay comes from rod `pro_time`; success comes from `succ_rate`. Fishing does not charge vigor or decrement durability until authoritative evidence exists.
+- Herb start is read-only and requires a real type-23 placement on a non-placeholder map, learned level, and at least two vigor. Completion charges exactly two vigor.
+- Prepared attempts have a random 32-hex attempt ID. Only timer completion calls `player.complete_life_gathering_atomic`; cancel closes the task without any durable mutation. The database ledger rejects replay.
+- Successful same-level gathering grants `+2` mastery; one-level-below grants `+1`; larger gaps grant `0`. Failed fishing grants no reward or mastery. Dex in `character_life_skills` and matching `character_skills.exp` commit together.
+- Completion callback order is committed reward/inventory, committed life-skill state, `quitGathering`, then idle state. Command errors omit reward/property callbacks but still close/reset the UI.
+- Farm plant, harvest, immediate ripen+harvest, and uproot are database-owned atomic commands wrapped by `PlayerCache.runPlayerCommand`. Cache reconciliation applies only committed CurrentSP/Gold/item snapshots and does not dirty write-behind state.
+- Harvest no longer grants the invented `+20 plantDex`. Planting mastery remains deferred because the exact gain is not authoritative.
+- Immediate ripen charges nine Gold only while the crop is immature; an already-ripe owner harvest charges zero. Uproot charges one Gold. Inventory or validation failure rolls back charges and plot changes.
+- Shared harvest permits one helper, grants `max(total/10, 1)`, retains at least one unit for the owner, and serializes on the plot. `doDoubleHarvest` fails closed without changing yield until booster identity and cost are authoritative.
+- Canonical SQL is `supabase/data/farm_life_skill_commands.sql`. It uses split player storage: vigor in `character_attributes`, mastery in `character_life_skills`, and Gold in `character_wallet`.
+- This lifecycle is deployed in gameserver container `79ddaae9c0ae...` (2026-10-29), with startup/health/metrics and retained DB baseline verified. Exact Flash callback ordering still requires operator interaction smoke.
